@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../router/app_router.dart';
 import '../../storage/hive_storage.dart';
 import '../../utils/app_logger.dart';
 
@@ -83,8 +84,11 @@ class AuthInterceptor extends Interceptor {
     final statusCode = err.response?.statusCode;
 
     if (statusCode == 401 && !path.contains('/auth/login')) {
-      AppLogger.warning('AuthInterceptor: 401 Unauthorized for $path — session expired.');
+      AppLogger.warning(
+        'AuthInterceptor: 401 Unauthorized for $path — session expired, navigating to login.',
+      );
       HiveStorage.clearAuth();
+      appRouter.go(AppRoutes.login);
     }
 
     super.onError(err, handler);

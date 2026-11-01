@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../attendance/presentation/pages/attendance_page.dart';
+import '../../../mom/presentation/pages/mom_page.dart';
 import 'dashboard_page.dart';
 import 'placeholder_page_view.dart';
 
@@ -222,16 +224,8 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
             parentTitle: 'Activities',
             icon: Icons.groups_rounded,
           ),
-          PlaceholderPageView(
-            title: 'Attendance',
-            parentTitle: 'Governance',
-            icon: Icons.calendar_today_rounded,
-          ),
-          PlaceholderPageView(
-            title: 'MOM & Email',
-            parentTitle: 'Governance',
-            icon: Icons.mail_outline_rounded,
-          ),
+          AttendancePage(),
+          MomPage(),
         ],
       ),
       bottomNavigationBar: Container(

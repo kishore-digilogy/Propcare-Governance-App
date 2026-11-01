@@ -30,6 +30,7 @@ class DioClient {
         baseUrl: AppConfig.baseUrl,
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),
+        validateStatus: (status) => status != null && status >= 200 && status < 400,
         headers: const {
           'Content-Type': 'application/json',
           'Accept': 'application/json',

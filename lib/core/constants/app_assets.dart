@@ -9,4 +9,10 @@ class AppAssets {
 
   // App icon
   static const String appIcon = 'assets/icons/gov_icon.png';
+
+  // Dashboard illustrations
+  static const String dashboardHeroBuildings =
+      'assets/images/dashboard_hero_buildings.png';
+  static const String governanceClipboard =
+      'assets/images/governance_clipboard.png';
 }

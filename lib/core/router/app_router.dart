@@ -32,17 +32,16 @@ final GoRouter appRouter = GoRouter(
     // Let onboarding through freely
     if (location == AppRoutes.onboarding) return null;
 
-    final hasToken = HiveStorage.authToken != null &&
-        HiveStorage.authToken!.isNotEmpty;
+    final hasSession = HiveStorage.isLoggedIn;
 
-    // If token exists and user tries to visit login/onboarding → dashboard
-    if (hasToken &&
+    // If session exists and user tries to visit login/onboarding → dashboard
+    if (hasSession &&
         (location == AppRoutes.login || location == AppRoutes.onboarding)) {
       return AppRoutes.dashboard;
     }
 
-    // If no token and user tries to visit dashboard → login
-    if (!hasToken && location == AppRoutes.dashboard) {
+    // If no session and user tries to visit dashboard → login
+    if (!hasSession && location == AppRoutes.dashboard) {
       return AppRoutes.login;
     }
 

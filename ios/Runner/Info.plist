@@ -47,5 +47,12 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<key>NSAppTransportSecurity</key>
+		<dict>
+			<key>NSAllowsArbitraryLoads</key>
+			<true/>
+		</dict>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>PropCare Governance requires location access to verify attendance check-in and check-out at sites.</string>
 	</dict>
 </plist>
