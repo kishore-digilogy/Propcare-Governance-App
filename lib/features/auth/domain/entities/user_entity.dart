@@ -30,6 +30,29 @@ class UserEntity extends Equatable {
     this.updatedAt,
   });
 
+  /// Formatted role string. CRRM is treated as equal to Super Admin.
+  String get roleDisplay {
+    final upper = role.trim().toUpperCase();
+    if (upper == 'CRRM' ||
+        upper == 'SUPER_ADMIN' ||
+        upper == 'SUPERADMIN' ||
+        upper == 'ADMIN') {
+      return 'CRRM / Super Admin';
+    }
+    return role;
+  }
+
+  /// Whether user has Super Admin level access (CRRM / Super Admin).
+  bool get isSuperAdmin {
+    final upper = role.trim().toUpperCase();
+    return upper == 'CRRM' ||
+        upper == 'SUPER_ADMIN' ||
+        upper == 'SUPERADMIN' ||
+        upper == 'ADMIN' ||
+        upper.contains('CRRM') ||
+        upper.contains('SUPER');
+  }
+
   @override
   List<Object?> get props => [
         id,

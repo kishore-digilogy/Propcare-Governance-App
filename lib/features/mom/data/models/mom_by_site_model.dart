@@ -83,10 +83,16 @@ class MomBySiteModel {
 
   factory MomBySiteModel.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'] as List<dynamic>? ?? [];
-    final parsedItems = rawItems
-        .whereType<Map<String, dynamic>>()
-        .map(MomSiteItemModel.fromJson)
-        .toList();
+    final parsedItems = <MomSiteItemModel>[];
+    for (final raw in rawItems) {
+      if (raw is Map) {
+        try {
+          parsedItems.add(
+            MomSiteItemModel.fromJson(Map<String, dynamic>.from(raw)),
+          );
+        } catch (_) {}
+      }
+    }
 
     return MomBySiteModel(
       items: parsedItems,

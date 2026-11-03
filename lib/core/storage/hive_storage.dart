@@ -18,12 +18,29 @@ class HiveStorage {
 
   // ── Generic Getters & Setters ──────────────────────────────────────────────
 
-  static T? get<T>(String key) => _box.get(key) as T?;
+  static T? get<T>(String key) {
+    try {
+      return _box.get(key) as T?;
+    } catch (_) {
+      return null;
+    }
+  }
 
-  static String? getString(String key) => _box.get(key) as String?;
+  static String? getString(String key) {
+    try {
+      return _box.get(key) as String?;
+    } catch (_) {
+      return null;
+    }
+  }
 
-  static bool getBool(String key, {bool defaultValue = false}) =>
-      _box.get(key, defaultValue: defaultValue) as bool;
+  static bool getBool(String key, {bool defaultValue = false}) {
+    try {
+      return _box.get(key, defaultValue: defaultValue) as bool;
+    } catch (_) {
+      return defaultValue;
+    }
+  }
 
   static Future<void> put(String key, dynamic value) => _box.put(key, value);
 
@@ -65,9 +82,63 @@ class HiveStorage {
   // ── User Profile & Details ─────────────────────────────────────────────────
 
   static String? get userId => getString(StorageKeys.userId);
+  static String? _mockUserRole;
+  static set mockUserRole(String? role) => _mockUserRole = role;
+
   static String? get userEmail => getString(StorageKeys.userEmail);
   static String? get userName => getString(StorageKeys.userName);
-  static String? get userRole => getString(StorageKeys.userRole);
+  static String? get userRole => _mockUserRole ?? getString(StorageKeys.userRole);
+
+  /// Display role string for the logged-in user.
+  /// CRRM is treated with full Super Admin parity across PropCare Governance.
+  static String get displayRole {
+    final raw = userRole;
+    if (raw == null || raw.trim().isEmpty) return 'CRRM / Super Admin';
+    final upper = raw.trim().toUpperCase();
+    if (upper == 'CRRM' ||
+        upper == 'SUPER_ADMIN' ||
+        upper == 'SUPERADMIN' ||
+        upper == 'ADMIN' ||
+        upper == 'CRRM / SUPER ADMIN' ||
+        upper == 'CRRM/SUPER ADMIN') {
+      return 'CRRM / Super Admin';
+    }
+    if (isLdRole) {
+      if (upper == 'LD_HEAD' || upper == 'LD HEAD' || upper == 'L&D_HEAD' || upper == 'L&D HEAD') {
+        return 'L&D Head';
+      }
+      if (upper == 'LD_LEAD' || upper == 'LD LEAD' || upper == 'L&D_LEAD' || upper == 'L&D LEAD') {
+        return 'L&D Lead';
+      }
+      return 'L&D';
+    }
+    return raw;
+  }
+
+  /// Whether the logged-in user has an L&D (Learning & Development) role.
+  /// (e.g. LD_HEAD, LD_LEAD, L&D, LD).
+  static bool get isLdRole {
+    final raw = userRole;
+    if (raw == null || raw.trim().isEmpty) return false;
+    final upper = raw.trim().toUpperCase();
+    return upper.startsWith('LD') ||
+        upper.startsWith('L&D') ||
+        upper.contains(RegExp(r'(^|[_\s\W])(LD|L&D)([_\s\W]|$)'));
+  }
+
+  /// Whether the current logged-in user is a Super Admin / CRRM.
+  /// CRRM has equal rights and full access as Super Admin.
+  static bool get isSuperAdmin {
+    final raw = userRole;
+    if (raw == null || raw.trim().isEmpty) return true;
+    final upper = raw.trim().toUpperCase();
+    return upper == 'CRRM' ||
+        upper == 'SUPER_ADMIN' ||
+        upper == 'SUPERADMIN' ||
+        upper == 'ADMIN' ||
+        upper.contains('CRRM') ||
+        upper.contains('SUPER');
+  }
 
   static Map<String, dynamic>? get userProfile {
     final raw = getString(StorageKeys.userProfile);

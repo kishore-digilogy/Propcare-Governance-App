@@ -16,10 +16,17 @@ const _kBorder = Color(0xFFE8EDF2);
 const _kBg = Colors.white;
 
 class AttendancePage extends StatelessWidget {
-  const AttendancePage({super.key});
+  final AttendanceBloc? bloc;
+  const AttendancePage({super.key, this.bloc});
 
   @override
   Widget build(BuildContext context) {
+    if (bloc != null) {
+      return BlocProvider.value(
+        value: bloc!,
+        child: const _AttendanceView(),
+      );
+    }
     return BlocProvider(
       create: (_) => AttendanceBloc(
         dataSource: AttendanceRemoteDataSourceImpl(),
@@ -75,30 +82,17 @@ class _AttendanceViewState extends State<_AttendanceView> {
             }
 
             if (state is AttendanceLoaded) {
-              return AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeIn,
-                layoutBuilder: (currentChild, previousChildren) {
-                  return Stack(
-                    alignment: Alignment.topLeft,
-                    children: [
-                      ...previousChildren.map((w) => IgnorePointer(child: w)),
-                      if (currentChild != null) currentChild,
-                    ],
-                  );
-                },
-                child: state.selectedSite != null
-                    ? _SiteActivitiesDetailView(
-                        key: ValueKey('site_${state.selectedSite!.siteId}'),
-                        state: state,
-                        searchController: _activitySearchController,
-                      )
-                    : _SitesListView(
-                        key: const ValueKey('sites_list'),
-                        state: state,
-                        searchController: _siteSearchController,
-                      ),
+              if (state.selectedSite != null) {
+                return _SiteActivitiesDetailView(
+                  key: ValueKey('site_${state.selectedSite!.siteId}'),
+                  state: state,
+                  searchController: _activitySearchController,
+                );
+              }
+              return _SitesListView(
+                key: const ValueKey('sites_list'),
+                state: state,
+                searchController: _siteSearchController,
               );
             }
 
@@ -463,6 +457,7 @@ class _SiteActivitiesDetailView extends StatelessWidget {
             for (final activity in paginatedActivities)
               _ActivityVisitCard(
                 activity: activity,
+                onTap: () => _showActivityDetailSheet(context, activity),
                 onCheckIn: () => _handleCheckIn(context, activity),
                 onCheckOut: () => _handleCheckOut(context, activity),
               ),
@@ -483,6 +478,25 @@ class _SiteActivitiesDetailView extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  void _showActivityDetailSheet(BuildContext context, ActivityVisitModel activity) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _ActivityDetailSheet(
+        activity: activity,
+        onCheckIn: () {
+          Navigator.of(ctx).pop();
+          _handleCheckIn(context, activity);
+        },
+        onCheckOut: () {
+          Navigator.of(ctx).pop();
+          _handleCheckOut(context, activity);
+        },
       ),
     );
   }
@@ -855,11 +869,13 @@ class _SiteAttendanceCard extends StatelessWidget {
 
 class _ActivityVisitCard extends StatelessWidget {
   final ActivityVisitModel activity;
+  final VoidCallback onTap;
   final VoidCallback onCheckIn;
   final VoidCallback onCheckOut;
 
   const _ActivityVisitCard({
     required this.activity,
+    required this.onTap,
     required this.onCheckIn,
     required this.onCheckOut,
   });
@@ -892,8 +908,14 @@ class _ActivityVisitCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1064,6 +1086,12 @@ class _ActivityVisitCard extends StatelessWidget {
                     ),
                   ),
                 ],
+                const SizedBox(width: 6),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: Color(0xFF94A3B8),
+                ),
               ],
             ),
             const SizedBox(height: 6),
@@ -1360,6 +1388,762 @@ class _ActivityVisitCard extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    ),
+    ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACTIVITY DETAIL SHEET (Shows all fields for Pending and Completed, like web)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ActivityDetailSheet extends StatelessWidget {
+  final ActivityVisitModel activity;
+  final VoidCallback onCheckIn;
+  final VoidCallback onCheckOut;
+
+  const _ActivityDetailSheet({
+    required this.activity,
+    required this.onCheckIn,
+    required this.onCheckOut,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isOnSite = activity.isOnSite;
+    final isCompleted = activity.isCompleted;
+
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.90,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag Handle
+          const SizedBox(height: 12),
+          Container(
+            width: 44,
+            height: 4.5,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE2E8F0),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Header Row
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          if (activity.code.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: Text(
+                                activity.code,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF475569),
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(width: 8),
+                          // Status Badge
+                          if (isCompleted)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDCFCE7),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFFBBF7D0)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.check_circle_rounded, size: 12, color: Color(0xFF16A34A)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Completed',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF16A34A),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else if (isOnSite)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFFFDE68A)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFD97706),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    'On Site',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFFD97706),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEEF2FF),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFFE0E7FF)),
+                              ),
+                              child: Text(
+                                activity.statusLabel.isNotEmpty ? activity.statusLabel : 'Scheduled',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF4F46E5),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        activity.title,
+                        style: GoogleFonts.outfit(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.secondary,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: _kSlate, size: 22),
+                  onPressed: () => Navigator.of(context).pop(),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: _kBorder),
+
+          // Scrollable Content
+          Flexible(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              children: [
+                // ── Site & Assignee Details Card ──
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildDetailRow(
+                        icon: Icons.domain_rounded,
+                        label: 'Site',
+                        value: activity.siteName.isNotEmpty ? activity.siteName : 'Digi-demo2',
+                        trailingBadge: activity.siteClientType.isNotEmpty || activity.clientType.isNotEmpty
+                            ? (activity.siteClientType.isNotEmpty ? activity.siteClientType : activity.clientType)
+                            : null,
+                      ),
+                      const Divider(height: 16, color: Color(0xFFE2E8F0)),
+                      _buildDetailRow(
+                        icon: Icons.person_outline_rounded,
+                        label: 'Role & Assignee',
+                        value: activity.roleLabel.isNotEmpty ? activity.roleLabel : activity.role,
+                        subtitle: activity.assignedToName != null && activity.assignedToName!.isNotEmpty
+                            ? activity.assignedToName
+                            : 'Unassigned',
+                      ),
+                      const Divider(height: 16, color: Color(0xFFE2E8F0)),
+                      _buildDetailRow(
+                        icon: Icons.event_note_rounded,
+                        label: 'Due Date',
+                        value: activity.formattedDueDate,
+                        subtitle: activity.scheduledDate.isNotEmpty && activity.scheduledDate != activity.dueDate
+                            ? 'Scheduled: ${activity.scheduledDate}'
+                            : null,
+                      ),
+                      const Divider(height: 16, color: Color(0xFFE2E8F0)),
+                      _buildDetailRow(
+                        icon: Icons.repeat_rounded,
+                        label: 'Frequency & Client Type',
+                        value: activity.frequencyLabel.isNotEmpty ? activity.frequencyLabel : 'Weekly',
+                        subtitle: 'Client Type: ${activity.clientType.isNotEmpty ? activity.clientType : 'A'}',
+                      ),
+                      if (activity.clusterName.isNotEmpty) ...[
+                        const Divider(height: 16, color: Color(0xFFE2E8F0)),
+                        _buildDetailRow(
+                          icon: Icons.location_on_outlined,
+                          label: 'Cluster',
+                          value: activity.clusterName,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // ── Requirements Chips ──
+                _buildSectionTitle('Visit Requirements'),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildRequirementChip(
+                      label: 'Geo Check-in',
+                      icon: Icons.location_on_rounded,
+                      isRequired: activity.requirements['geo'] != false,
+                    ),
+                    _buildRequirementChip(
+                      label: 'Checklist',
+                      icon: Icons.checklist_rounded,
+                      isRequired: activity.requirements['checklist'] != false,
+                    ),
+                    _buildRequirementChip(
+                      label: 'MOM & Mail',
+                      icon: Icons.mail_outline_rounded,
+                      isRequired: activity.requirements['mom'] != false,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+
+                // ── Geolocation & Timings ──
+                _buildSectionTitle('Attendance & Geolocation Verification'),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTimingCell(
+                              icon: Icons.login_rounded,
+                              label: 'Check-in Time',
+                              value: activity.formattedCheckIn,
+                              verifiedDistance: activity.geo.checkIn?.distanceMeters != null
+                                  ? '${(activity.geo.checkIn!.distanceMeters! / 1000).toStringAsFixed(1)} km from site'
+                                  : null,
+                            ),
+                          ),
+                          Container(width: 1, height: 44, color: const Color(0xFFE2E8F0)),
+                          Expanded(
+                            child: _buildTimingCell(
+                              icon: Icons.logout_rounded,
+                              label: 'Check-out Time',
+                              value: activity.formattedCheckOut,
+                              verifiedDistance: activity.geo.checkOut?.distanceMeters != null
+                                  ? '${(activity.geo.checkOut!.distanceMeters! / 1000).toStringAsFixed(1)} km from site'
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 18, color: Color(0xFFF1F5F9)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.timer_outlined, size: 15, color: Color(0xFF64748B)),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Recorded Duration',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF475569),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            activity.formattedDuration,
+                            style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: isOnSite ? const Color(0xFFD97706) : AppColors.secondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // ── Completion Note (if available) ──
+                if (activity.completionNote != null && activity.completionNote!.isNotEmpty) ...[
+                  _buildSectionTitle('Completion Note'),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFBBF7D0)),
+                    ),
+                    child: Text(
+                      activity.completionNote!,
+                      style: GoogleFonts.outfit(
+                        fontSize: 12.5,
+                        color: const Color(0xFF166534),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                ],
+
+                // ── Checklist Questions / Answers ──
+                if (isCompleted && activity.answers.isNotEmpty) ...[
+                  _buildSectionTitle('Checklist Results (${activity.answers.length} items)'),
+                  const SizedBox(height: 8),
+                  for (final ans in activity.answers)
+                    _buildAnswerTile(ans),
+                  const SizedBox(height: 14),
+                ] else if (activity.template.isNotEmpty) ...[
+                  _buildSectionTitle('Checklist Questions (${activity.template.length} items)'),
+                  const SizedBox(height: 8),
+                  for (final t in activity.template)
+                    _buildTemplateTile(t),
+                  const SizedBox(height: 14),
+                ] else ...[
+                  _buildSectionTitle('Checklist'),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Text(
+                      isCompleted
+                          ? 'No checklist answers recorded for this visit.'
+                          : 'Checklist questions will be loaded and evaluated during site visit.',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        color: _kSlate,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+
+                // Action Buttons at bottom of sheet
+                if (!isCompleted) ...[
+                  const SizedBox(height: 8),
+                  if (isOnSite)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: ElevatedButton.icon(
+                        onPressed: onCheckOut,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _kBlue,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.logout_rounded, size: 18, color: Colors.white),
+                        label: Text(
+                          'Check Out from Site',
+                          style: GoogleFonts.outfit(fontWeight: FontWeight.w700, color: Colors.white),
+                        ),
+                      ),
+                    )
+                  else
+                    SizedBox(
+                      width: double.infinity,
+                      height: 46,
+                      child: ElevatedButton.icon(
+                        onPressed: onCheckIn,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _kBlue,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.login_rounded, size: 18, color: Colors.white),
+                        label: Text(
+                          'Check In to Site',
+                          style: GoogleFonts.outfit(fontWeight: FontWeight.w700, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: GoogleFonts.outfit(
+        fontSize: 13.5,
+        fontWeight: FontWeight.w700,
+        color: AppColors.secondary,
+        letterSpacing: -0.1,
+      ),
+    );
+  }
+
+  Widget _buildDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    String? subtitle,
+    String? trailingBadge,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: _kBlue),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: _kSlate,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: GoogleFonts.outfit(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.secondary,
+                ),
+              ),
+              if (subtitle != null && subtitle.isNotEmpty) ...[
+                const SizedBox(height: 1),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.outfit(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF475569),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (trailingBadge != null && trailingBadge.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0xFFDBEAFE)),
+            ),
+            child: Text(
+              trailingBadge,
+              style: GoogleFonts.outfit(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                color: _kBlue,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildRequirementChip({
+    required String label,
+    required IconData icon,
+    required bool isRequired,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: isRequired ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isRequired ? const Color(0xFFBBF7D0) : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 13,
+            color: isRequired ? const Color(0xFF16A34A) : _kSlate,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: GoogleFonts.outfit(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: isRequired ? const Color(0xFF16A34A) : _kSlate,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimingCell({
+    required IconData icon,
+    required String label,
+    required String value,
+    String? verifiedDistance,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 12, color: const Color(0xFF94A3B8)),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: GoogleFonts.outfit(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF334155),
+            ),
+          ),
+          if (verifiedDistance != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              verifiedDistance,
+              style: GoogleFonts.outfit(
+                fontSize: 10,
+                color: const Color(0xFF64748B),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnswerTile(ActivityAnswerItem ans) {
+    Color badgeBg;
+    Color badgeBorder;
+    Color badgeText;
+    IconData badgeIcon;
+
+    if (ans.isOk) {
+      badgeBg = const Color(0xFFDCFCE7);
+      badgeBorder = const Color(0xFFBBF7D0);
+      badgeText = const Color(0xFF16A34A);
+      badgeIcon = Icons.check_circle_rounded;
+    } else if (ans.isNotOk) {
+      badgeBg = const Color(0xFFFEE2E8);
+      badgeBorder = const Color(0xFFFECDD3);
+      badgeText = const Color(0xFFE11D48);
+      badgeIcon = Icons.cancel_rounded;
+    } else {
+      badgeBg = const Color(0xFFF1F5F9);
+      badgeBorder = const Color(0xFFE2E8F0);
+      badgeText = const Color(0xFF64748B);
+      badgeIcon = Icons.remove_circle_outline_rounded;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEDF2F7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  ans.title,
+                  style: GoogleFonts.outfit(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.secondary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: badgeBg,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: badgeBorder),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(badgeIcon, size: 12, color: badgeText),
+                    const SizedBox(width: 4),
+                    Text(
+                      ans.status,
+                      style: GoogleFonts.outfit(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: badgeText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (ans.remarks.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Remarks: ${ans.remarks}',
+              style: GoogleFonts.outfit(
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTemplateTile(ActivityChecklistItem item) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEDF2F7)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (item.section.isNotEmpty) ...[
+                  Text(
+                    item.section.toUpperCase(),
+                    style: GoogleFonts.outfit(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: _kBlue,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                ],
+                Text(
+                  item.title,
+                  style: GoogleFonts.outfit(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.secondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              'Pending',
+              style: GoogleFonts.outfit(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

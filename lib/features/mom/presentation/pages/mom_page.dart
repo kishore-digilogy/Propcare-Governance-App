@@ -9,6 +9,7 @@ import '../../data/models/mom_by_site_model.dart';
 import '../bloc/mom_bloc.dart';
 import '../bloc/mom_event.dart';
 import '../bloc/mom_state.dart';
+import '../widgets/mom_activity_form_view.dart';
 
 const _kBlue = Color(0xFF1A73E8);
 const _kSlate = Color(0xFF64748B);
@@ -17,7 +18,7 @@ const _kAmber = Color(0xFFF59E0B);
 const _kGreen = Color(0xFF16A34A);
 
 /// MOM & Email page with full mobile-adaptive design, search, metric cards,
-/// tab filters, and detail bottom sheets.
+/// segmented pill toggle, and site activity MOM form views.
 class MomPage extends StatelessWidget {
   const MomPage({super.key});
 
@@ -58,9 +59,42 @@ class _MomViewState extends State<_MomView> {
             // Standard Left-aligned PropCare App Header
             const AppTopHeader(),
 
-            // Main Body with BlocBuilder
+            // Main Body with BlocConsumer
             Expanded(
-              child: BlocBuilder<MomBloc, MomState>(
+              child: BlocConsumer<MomBloc, MomState>(
+                listener: (context, state) {
+                  if (state is MomLoaded) {
+                    if (state.momSendSuccess && state.actionMessage != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            state.actionMessage!,
+                            style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+                          ),
+                          backgroundColor: const Color(0xFF16A34A),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      );
+                    } else if (state.actionError != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            state.actionError!,
+                            style: GoogleFonts.outfit(),
+                          ),
+                          backgroundColor: Colors.redAccent,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                },
                 builder: (context, state) {
                   if (state is MomLoading || state is MomInitial) {
                     return _buildLoading();
@@ -71,7 +105,10 @@ class _MomViewState extends State<_MomView> {
                   }
 
                   if (state is MomLoaded) {
-                    return _buildLoadedBody(context, state);
+                    if (state.selectedSite != null) {
+                      return _buildSiteActivitiesView(context, state);
+                    }
+                    return _buildSitesListView(context, state);
                   }
 
                   return const SizedBox();
@@ -173,7 +210,127 @@ class _MomViewState extends State<_MomView> {
     );
   }
 
-  Widget _buildLoadedBody(BuildContext context, MomLoaded state) {
+  // ─────────────────────────────────────────────────────────────────────────
+  // Site Activities / Form View (When a site is selected)
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _buildSiteActivitiesView(BuildContext context, MomLoaded state) {
+    final site = state.selectedSite!;
+
+    if (state.isSiteActivitiesLoading) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(color: _kBlue, strokeWidth: 2.5),
+            const SizedBox(height: 16),
+            Text(
+              'Loading MOM activities for ${site.siteName}...',
+              style: GoogleFonts.outfit(fontSize: 13, color: _kSlate),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final activities = state.currentTabActivities;
+    final activeActivity = state.selectedActivity;
+
+    if (activities.isEmpty || activeActivity == null) {
+      final isPendingTab = state.selectedTabIndex == 0;
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
+        children: [
+          // Back button
+          InkWell(
+            onTap: () {
+              context.read<MomBloc>().add(const BackToMomSitesList());
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.arrow_back_rounded, size: 16, color: _kBlue),
+                  const SizedBox(width: 6),
+                  Text(
+                    'All sites',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _kBlue,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            site.siteName,
+            style: GoogleFonts.outfit(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.secondary,
+            ),
+          ),
+          const SizedBox(height: 40),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isPendingTab ? Icons.check_circle_outline_rounded : Icons.inbox_outlined,
+                  size: 48,
+                  color: isPendingTab ? _kGreen : _kSlate,
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  isPendingTab ? 'No Pending MOM Emails' : 'No Completed MOMs Yet',
+                  style: GoogleFonts.outfit(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.secondary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  isPendingTab
+                      ? 'All MOM emails for ${site.siteName} have already been sent.'
+                      : 'Completed MOMs will appear here once sent.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.outfit(fontSize: 12.5, color: _kSlate),
+                ),
+                const SizedBox(height: 18),
+                OutlinedButton(
+                  onPressed: () {
+                    context.read<MomBloc>().add(ChangeMomTab(isPendingTab ? 1 : 0));
+                  },
+                  child: Text(
+                    isPendingTab ? 'View Completed MOM' : 'View Pending MOM',
+                    style: GoogleFonts.outfit(color: _kBlue),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return MomActivityFormView(
+      key: ValueKey('mom_activity_${activeActivity.id}'),
+      site: site,
+      activities: activities,
+      activity: activeActivity,
+      isPendingMode: state.selectedTabIndex == 0,
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Sites List View (Root screen)
+  // ─────────────────────────────────────────────────────────────────────────
+  Widget _buildSitesListView(BuildContext context, MomLoaded state) {
     final filteredSites = state.filteredItems;
 
     return RefreshIndicator(
@@ -245,7 +402,7 @@ class _MomViewState extends State<_MomView> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
 
           // ── Search & Filter Input ──────────────────────────────────────────
           Container(
@@ -322,7 +479,7 @@ class _MomViewState extends State<_MomView> {
                         : 'Completed Reviews',
                     style: GoogleFonts.outfit(
                       fontSize: 11,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                       color: state.selectedTabIndex == 0 ? _kAmber : _kGreen,
                     ),
                   ),
@@ -334,7 +491,9 @@ class _MomViewState extends State<_MomView> {
               _MomSiteCard(
                 site: site,
                 isPendingTab: state.selectedTabIndex == 0,
-                onTap: () => _showSiteDetailsBottomSheet(context, site),
+                onTap: () {
+                  context.read<MomBloc>().add(SelectMomSite(site));
+                },
               ),
           ],
           const SizedBox(height: 24),
@@ -419,266 +578,6 @@ class _MomViewState extends State<_MomView> {
           ],
         ],
       ),
-    );
-  }
-
-  void _showSiteDetailsBottomSheet(
-    BuildContext context,
-    MomSiteItemModel site,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top handle
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE2E8F0),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Site Name & Status Row
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFDBEAFE)),
-                      ),
-                      child: const Icon(
-                        Icons.apartment_rounded,
-                        color: _kBlue,
-                        size: 26,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            site.siteName,
-                            style: GoogleFonts.outfit(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.secondary,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            site.siteCode,
-                            style: GoogleFonts.outfit(
-                              fontSize: 12,
-                              color: _kSlate,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: site.isLive
-                            ? const Color(0xFFDCFCE7)
-                            : const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        site.siteStatus,
-                        style: GoogleFonts.outfit(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: site.isLive
-                              ? const Color(0xFF15803D)
-                              : _kSlate,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                const Divider(color: Color(0xFFF1F5F9)),
-                const SizedBox(height: 12),
-
-                // Info Grid
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DetailItem(
-                        label: 'Cluster',
-                        value: site.clusterName.isNotEmpty
-                            ? site.clusterName
-                            : 'N/A',
-                        icon: Icons.hub_outlined,
-                      ),
-                    ),
-                    Expanded(
-                      child: _DetailItem(
-                        label: 'Zone',
-                        value: site.zoneName.isNotEmpty
-                            ? site.zoneName
-                            : 'N/A',
-                        icon: Icons.public_rounded,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DetailItem(
-                        label: 'City',
-                        value: site.siteCity.isNotEmpty
-                            ? site.siteCity
-                            : 'N/A',
-                        icon: Icons.location_city_rounded,
-                      ),
-                    ),
-                    Expanded(
-                      child: _DetailItem(
-                        label: 'Client Type',
-                        value: 'Type ${site.siteClientType}',
-                        icon: Icons.badge_outlined,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-
-                // MOM Status Breakdown
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: _kBorder),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _StatCol(
-                        label: 'Pending MOM',
-                        value: '${site.pending}',
-                        color: const Color(0xFFD97706),
-                      ),
-                      Container(
-                        height: 30,
-                        width: 1,
-                        color: const Color(0xFFE2E8F0),
-                      ),
-                      _StatCol(
-                        label: 'Completed MOM',
-                        value: '${site.completed}',
-                        color: const Color(0xFF16A34A),
-                      ),
-                      Container(
-                        height: 30,
-                        width: 1,
-                        color: const Color(0xFFE2E8F0),
-                      ),
-                      _StatCol(
-                        label: 'Total Visits',
-                        value: '${site.total}',
-                        color: AppColors.secondary,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Action Button
-                if (site.pending > 0)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.of(ctx).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Sending MOM email workflow for ${site.siteName}...',
-                              style: GoogleFonts.outfit(),
-                            ),
-                            backgroundColor: _kBlue,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.send_rounded, size: 18),
-                      label: Text(
-                        'Send Pending MOM (${site.pending})',
-                        style: GoogleFonts.outfit(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _kBlue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      icon: const Icon(Icons.check_circle_outline, size: 18),
-                      label: Text(
-                        'Review Completed MOM',
-                        style: GoogleFonts.outfit(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: _kGreen,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFFBBF7D0)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }
@@ -784,13 +683,7 @@ class _SummaryMetricCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Pill Tab Bar
-// ─────────────────────────────────────────────────────────────────────────────
-
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Individual Site Card Component
+// Individual Site Card Component (Image 9)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MomSiteCard extends StatelessWidget {
@@ -899,13 +792,13 @@ class _MomSiteCard extends StatelessWidget {
                                     size: 10,
                                     color: _kSlate,
                                   ),
-                                  const SizedBox(width: 3),
+                                  const SizedBox(width: 4),
                                   Text(
                                     site.clusterName,
                                     style: GoogleFonts.outfit(
                                       fontSize: 10,
-                                      fontWeight: FontWeight.w500,
                                       color: _kSlate,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ],
@@ -926,8 +819,8 @@ class _MomSiteCard extends StatelessWidget {
                               'Client ${site.siteClientType}',
                               style: GoogleFonts.outfit(
                                 fontSize: 10,
-                                fontWeight: FontWeight.w600,
                                 color: _kBlue,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
@@ -938,15 +831,22 @@ class _MomSiteCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
 
-                // Right Badge & Arrow
+                // Count Badge
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(16),
+                    color: isPendingTab
+                        ? const Color(0xFFFFFBEB)
+                        : const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isPendingTab
+                          ? const Color(0xFFFDE68A)
+                          : const Color(0xFFBBF7D0),
+                    ),
                   ),
                   child: Text(
                     '$count',
@@ -958,6 +858,8 @@ class _MomSiteCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
+
+                // Chevron
                 const Icon(
                   Icons.chevron_right_rounded,
                   color: Color(0xFFCBD5E1),
@@ -971,91 +873,3 @@ class _MomSiteCard extends StatelessWidget {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers for Modal Bottom Sheet
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _DetailItem extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _DetailItem({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: _kSlate),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: GoogleFonts.outfit(
-                  fontSize: 10,
-                  color: _kSlate,
-                ),
-              ),
-              Text(
-                value,
-                style: GoogleFonts.outfit(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.secondary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatCol extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatCol({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: GoogleFonts.outfit(
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: GoogleFonts.outfit(
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-            color: _kSlate,
-          ),
-        ),
-      ],
-    );
-  }
-}
-

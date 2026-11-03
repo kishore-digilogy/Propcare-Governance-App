@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 const _kMonths = [
   'Jan',
   'Feb',
@@ -61,11 +63,11 @@ class ActivityGeoModel {
 
   factory ActivityGeoModel.fromJson(Map<String, dynamic> json) {
     return ActivityGeoModel(
-      checkIn: json['checkIn'] is Map<String, dynamic>
-          ? GeoPointInfo.fromJson(json['checkIn'] as Map<String, dynamic>)
+      checkIn: json['checkIn'] is Map
+          ? GeoPointInfo.fromJson(Map<String, dynamic>.from(json['checkIn'] as Map))
           : null,
-      checkOut: json['checkOut'] is Map<String, dynamic>
-          ? GeoPointInfo.fromJson(json['checkOut'] as Map<String, dynamic>)
+      checkOut: json['checkOut'] is Map
+          ? GeoPointInfo.fromJson(Map<String, dynamic>.from(json['checkOut'] as Map))
           : null,
       checkInAt: json['checkInAt']?.toString(),
       checkOutAt: json['checkOutAt']?.toString(),
@@ -76,6 +78,58 @@ class ActivityGeoModel {
   bool get hasCheckedIn => checkIn != null || checkInAt != null;
   bool get hasCheckedOut => checkOut != null || checkOutAt != null;
   bool get isOnSite => hasCheckedIn && !hasCheckedOut;
+}
+
+/// An individual checklist question or item in an activity visit.
+class ActivityChecklistItem {
+  final String key;
+  final String title;
+  final String section;
+  final int sortOrder;
+
+  const ActivityChecklistItem({
+    required this.key,
+    required this.title,
+    required this.section,
+    this.sortOrder = 0,
+  });
+
+  factory ActivityChecklistItem.fromJson(Map<String, dynamic> json) {
+    return ActivityChecklistItem(
+      key: json['key']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      section: json['section']?.toString() ?? '',
+      sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// An answer recorded for a checklist item.
+class ActivityAnswerItem {
+  final String key;
+  final String title;
+  final String status; // 'OK', 'NOT_OK', 'NA'
+  final String remarks;
+
+  const ActivityAnswerItem({
+    required this.key,
+    required this.title,
+    required this.status,
+    this.remarks = '',
+  });
+
+  factory ActivityAnswerItem.fromJson(Map<String, dynamic> json) {
+    return ActivityAnswerItem(
+      key: json['key']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'OK',
+      remarks: json['remarks']?.toString() ?? '',
+    );
+  }
+
+  bool get isOk => status.toUpperCase() == 'OK';
+  bool get isNotOk => status.toUpperCase() == 'NOT_OK';
+  bool get isNa => status.toUpperCase() == 'NA';
 }
 
 /// Individual activity visit item (e.g. Field Executive Visit, Cluster Lead Visit).
@@ -105,6 +159,10 @@ class ActivityVisitModel {
   final String? completedAt;
   final String? visitDate;
   final String? completionNote;
+  final List<ActivityChecklistItem> template;
+  final List<ActivityAnswerItem> answers;
+  final Map<String, dynamic> requirements;
+  final Map<String, dynamic> mom;
 
   const ActivityVisitModel({
     required this.id,
@@ -132,6 +190,10 @@ class ActivityVisitModel {
     this.completedAt,
     this.visitDate,
     this.completionNote,
+    this.template = const [],
+    this.answers = const [],
+    this.requirements = const {},
+    this.mom = const {},
   });
 
   factory ActivityVisitModel.fromJson(Map<String, dynamic> json) {
@@ -157,12 +219,26 @@ class ActivityVisitModel {
       frequencyLabel: json['frequencyLabel']?.toString() ?? '',
       priority: json['priority']?.toString() ?? 'Medium',
       statusLabel: json['statusLabel']?.toString() ?? '',
-      geo: json['geo'] is Map<String, dynamic>
-          ? ActivityGeoModel.fromJson(json['geo'] as Map<String, dynamic>)
+      geo: json['geo'] is Map
+          ? ActivityGeoModel.fromJson(Map<String, dynamic>.from(json['geo'] as Map))
           : const ActivityGeoModel(),
       completedAt: json['completedAt']?.toString(),
       visitDate: json['visitDate']?.toString(),
       completionNote: json['completionNote']?.toString(),
+      template: (json['template'] as List<dynamic>? ?? [])
+          .whereType<Map>()
+          .map((m) => ActivityChecklistItem.fromJson(Map<String, dynamic>.from(m)))
+          .toList(),
+      answers: (json['answers'] as List<dynamic>? ?? [])
+          .whereType<Map>()
+          .map((m) => ActivityAnswerItem.fromJson(Map<String, dynamic>.from(m)))
+          .toList(),
+      requirements: json['requirements'] is Map
+          ? Map<String, dynamic>.from(json['requirements'] as Map)
+          : const {},
+      mom: json['mom'] is Map
+          ? Map<String, dynamic>.from(json['mom'] as Map)
+          : const {},
     );
   }
 
@@ -273,17 +349,25 @@ class SiteActivitiesResponseModel {
 
   factory SiteActivitiesResponseModel.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'] as List<dynamic>? ?? [];
-    final parsedItems = rawItems
-        .whereType<Map<String, dynamic>>()
-        .map(ActivityVisitModel.fromJson)
-        .toList();
+    final parsedItems = <ActivityVisitModel>[];
+    for (final raw in rawItems) {
+      if (raw is Map) {
+        try {
+          parsedItems.add(
+            ActivityVisitModel.fromJson(Map<String, dynamic>.from(raw)),
+          );
+        } catch (e, st) {
+          developer.log('Failed to parse ActivityVisitModel: $e', error: e, stackTrace: st);
+        }
+      }
+    }
 
     int pending = 0;
     int completed = 0;
 
     // Read counts from counts map if present, or count from items
-    if (json['counts'] is Map<String, dynamic>) {
-      final counts = json['counts'] as Map<String, dynamic>;
+    if (json['counts'] is Map) {
+      final counts = Map<String, dynamic>.from(json['counts'] as Map);
       pending = (counts['pending'] as num?)?.toInt() ?? 0;
       completed = (counts['completed'] as num?)?.toInt() ?? 0;
     } else {

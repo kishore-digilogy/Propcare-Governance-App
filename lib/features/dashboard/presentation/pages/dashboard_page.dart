@@ -9,6 +9,10 @@ import '../../../../core/constants/app_assets.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../activities/presentation/pages/activity_execution_page.dart';
+import '../../../governance_matrix/presentation/pages/governance_matrix_page.dart';
+import '../../../issues/presentation/pages/issues_page.dart';
+import '../../../reports/presentation/pages/reports_page.dart';
 import '../../data/datasources/dashboard_remote_datasource.dart';
 import '../../data/models/dashboard_model.dart';
 import '../bloc/dashboard_bloc.dart';
@@ -178,7 +182,7 @@ class _ProfileDropdownPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final userName = HiveStorage.userName ?? 'PropCare Administrator';
     final userEmail = HiveStorage.userEmail ?? 'admin@casagrandepropcare.com';
-    final userRole = HiveStorage.userRole ?? 'CRRM / Super Admin';
+    final userRole = HiveStorage.displayRole;
 
     return PopupMenuButton<String>(
       tooltip: 'Account Menu',
@@ -422,7 +426,10 @@ class _ProfileDropdownPill extends StatelessWidget {
                     border: Border.all(color: const Color(0xFFBFDBFE)),
                   ),
                   child: Text(
-                    role,
+                    (role.toUpperCase() == 'CRRM' ||
+                            role.toUpperCase().contains('ADMIN'))
+                        ? 'CRRM / Super Admin'
+                        : role,
                     style: GoogleFonts.outfit(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -442,7 +449,11 @@ class _ProfileDropdownPill extends StatelessWidget {
                 _ProfileInfoTile(
                   icon: Icons.shield_outlined,
                   label: 'Account Role',
-                  value: role,
+                  value:
+                      (role.toUpperCase() == 'CRRM' ||
+                          role.toUpperCase().contains('ADMIN'))
+                      ? 'CRRM / Super Admin'
+                      : role,
                 ),
                 _ProfileInfoTile(
                   icon: Icons.verified_user_outlined,
@@ -657,7 +668,7 @@ class _BodyState extends State<_Body> {
   late final PageController _pageController;
   int _activeToggle = 0; // 0: Governance Overview, 1: Quick Actions
   final ValueNotifier<double> _scrollOffset = ValueNotifier<double>(0.0);
-  static const double _maxHeroOffset = 126.0;
+  static const double _maxHeroOffset = 136.0;
 
   @override
   void initState() {
@@ -670,26 +681,6 @@ class _BodyState extends State<_Body> {
     _pageController.dispose();
     _scrollOffset.dispose();
     super.dispose();
-  }
-
-  bool _isSuperAdmin(DashboardModel data) {
-    final role =
-        (data.workspace.viewer.role.isNotEmpty
-                ? data.workspace.viewer.role
-                : (HiveStorage.userRole ?? ''))
-            .toLowerCase();
-    final roleLabel =
-        (data.workspace.viewer.roleLabel.isNotEmpty
-                ? data.workspace.viewer.roleLabel
-                : (HiveStorage.userRole ?? ''))
-            .toLowerCase();
-
-    return role.contains('super') ||
-        role.contains('admin') ||
-        role.contains('crrm') ||
-        roleLabel.contains('super') ||
-        roleLabel.contains('admin') ||
-        roleLabel.contains('crrm');
   }
 
   bool _onScrollNotification(ScrollNotification notification) {
@@ -708,8 +699,6 @@ class _BodyState extends State<_Body> {
     final userName = data.workspace.viewer.name.isNotEmpty
         ? data.workspace.viewer.name
         : (HiveStorage.userName ?? 'PropCare Administrator');
-
-    final isSuperAdmin = _isSuperAdmin(data);
 
     return Column(
       children: [
@@ -740,29 +729,26 @@ class _BodyState extends State<_Body> {
             );
           },
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
             child: _HeroBanner(userName: userName),
           ),
         ),
 
-        // Toggle Bar for Super Admin (Moves to top directly below header)
-        if (isSuperAdmin) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: _DashboardToggleBar(
-              selectedIndex: _activeToggle,
-              onSelect: (idx) {
-                setState(() => _activeToggle = idx);
-                _pageController.animateToPage(
-                  idx,
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeInOutCubic,
-                );
-              },
-            ),
+        // Toggle Bar (Capsule design matching new Dashboard layout)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: _DashboardToggleBar(
+            selectedIndex: _activeToggle,
+            onSelect: (idx) {
+              setState(() => _activeToggle = idx);
+              _pageController.animateToPage(
+                idx,
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeInOutCubic,
+              );
+            },
           ),
-        ] else
-          const SizedBox(height: 6),
+        ),
 
         // PageView: Page 0 = Governance Overview, Page 1 = Quick Actions
         Expanded(
@@ -770,9 +756,7 @@ class _BodyState extends State<_Body> {
             onNotification: _onScrollNotification,
             child: PageView(
               controller: _pageController,
-              physics: isSuperAdmin
-                  ? const BouncingScrollPhysics()
-                  : const NeverScrollableScrollPhysics(),
+              physics: const BouncingScrollPhysics(),
               onPageChanged: (idx) {
                 setState(() => _activeToggle = idx);
               },
@@ -780,11 +764,8 @@ class _BodyState extends State<_Body> {
                 // Page 0: Governance Overview
                 _buildGovernanceOverviewPage(data),
 
-                // Page 1: Quick Actions (Only for Super Admin)
-                if (isSuperAdmin)
-                  _buildQuickActionsPage(data)
-                else
-                  const SizedBox.shrink(),
+                // Page 1: Quick Actions
+                _buildQuickActionsPage(data),
               ],
             ),
           ),
@@ -881,112 +862,103 @@ class _HeroBanner extends StatelessWidget {
     } else if (userName.trim().isNotEmpty) {
       displayName = userName.trim();
     } else {
-      displayName = 'PropCare Administrator';
+      displayName = 'PropCare Admin';
     }
+
+    if (displayName.toLowerCase().contains('administrator')) {
+      displayName = 'PropCare Admin';
+    }
+
+    final formattedName = displayName.endsWith('!')
+        ? displayName
+        : '$displayName!';
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 6, 8, 8),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.white, Color(0xFFF8FAFD), Color(0xFFF0F6FF)],
+          colors: [Colors.white, Color(0xFFFAFCFF), Color(0xFFEEF5FE)],
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-      ),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Background soft cloud accents
-          Positioned(
-            right: 88,
-            top: 2,
-            child: Icon(
-              Icons.cloud_rounded,
-              size: 34,
-              color: const Color(0xFFDCEAF9).withValues(alpha: 0.65),
-            ),
-          ),
-          Positioned(
-            right: 18,
-            top: 0,
-            child: Icon(
-              Icons.cloud_rounded,
-              size: 24,
-              color: const Color(0xFFE5F0FC).withValues(alpha: 0.55),
-            ),
-          ),
-          Positioned(
-            right: 130,
-            bottom: 6,
-            child: Icon(
-              Icons.cloud_rounded,
-              size: 22,
-              color: const Color(0xFFE8F3FD).withValues(alpha: 0.6),
-            ),
-          ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      greeting,
-                      style: GoogleFonts.outfit(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1E293B),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            displayName,
-                            style: GoogleFonts.outfit(
-                              fontSize: displayName.length > 16 ? 18 : 23,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF0F172A),
-                              letterSpacing: -0.4,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text('👋', style: TextStyle(fontSize: 19)),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Monitor and manage governance across all modules.',
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
-                        color: const Color(0xFF64748B),
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Light sky blue buildings illustration with orange shield & trees
-              Image.asset(
-                AppAssets.dashboardHeroBuildings,
-                width: 148,
-                height: 108,
-                fit: BoxFit.contain,
-              ),
-            ],
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(17),
+        child: Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            // Right illustration seamlessly positioned
+            Positioned(
+              right: -4,
+              bottom: 0,
+              top: 0,
+              child: Image.asset(
+                AppAssets.dashboardHeroBuildings,
+                width: 170,
+                fit: BoxFit.contain,
+                alignment: Alignment.bottomRight,
+              ),
+            ),
+            // Left text content
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 160, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    greeting,
+                    style: GoogleFonts.outfit(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          formattedName,
+                          style: GoogleFonts.outfit(
+                            fontSize: formattedName.length > 16 ? 19 : 22,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0F172A),
+                            letterSpacing: -0.4,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      const Text('👋', style: TextStyle(fontSize: 19)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Monitor and manage governance across all modules.',
+                    style: GoogleFonts.outfit(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF64748B),
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1010,10 +982,8 @@ class _DashboardToggleBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(
-          0xFFF1F5F9,
-        ), // Light grey capsule background (Image 2)
-        borderRadius: BorderRadius.circular(24),
+        color: const Color(0xFFF1F5F9), // Light grey capsule background
+        borderRadius: BorderRadius.circular(26),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
@@ -1059,49 +1029,68 @@ class _ToggleTabItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(22),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
-        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
+        height: 40,
         decoration: BoxDecoration(
           color: isSelected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(22),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: Colors.black.withValues(alpha: 0.06),
                     blurRadius: 4,
                     offset: const Offset(0, 1.5),
                   ),
                 ]
               : null,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected
-                  ? const Color(0xFF0F172A)
-                  : const Color(0xFF64748B),
-            ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                title,
-                style: GoogleFonts.outfit(
-                  fontSize: 12.5,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 17,
                   color: isSelected
                       ? const Color(0xFF0F172A)
                       : const Color(0xFF64748B),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+                const SizedBox(width: 7),
+                Flexible(
+                  child: Text(
+                    title,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w600,
+                      color: isSelected
+                          ? const Color(0xFF0F172A)
+                          : const Color(0xFF64748B),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
+            if (isSelected)
+              Positioned(
+                bottom: 0,
+                child: Container(
+                  height: 3,
+                  width: 64,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF59E0B),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -1131,13 +1120,13 @@ class _QuickActionsGridView extends StatelessWidget {
         iconColor: const Color(0xFFEF4444),
         bgColor: const Color(0xFFFEF2F2),
       ),
-      (
-        title: 'Approvals',
-        subtitle: 'Work permits, sign-offs & budget requests',
-        icon: Icons.assignment_turned_in_rounded,
-        iconColor: const Color(0xFF2563EB),
-        bgColor: const Color(0xFFEFF6FF),
-      ),
+      // (
+      //   title: 'Approvals',
+      //   subtitle: 'Work permits, sign-offs & budget requests',
+      //   icon: Icons.assignment_turned_in_rounded,
+      //   iconColor: const Color(0xFF2563EB),
+      //   bgColor: const Color(0xFFEFF6FF),
+      // ),
       (
         title: 'Governance Matrix',
         subtitle: 'Compliance matrix, standards & audit rules',
@@ -1180,6 +1169,27 @@ class _QuickActionsGridView extends StatelessWidget {
   }
 
   void _handleQuickActionTap(BuildContext context, String title) {
+    if (title == 'Issues') {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const IssuesPage()));
+      return;
+    }
+
+    if (title == 'Governance Matrix') {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const GovernanceMatrixPage()));
+      return;
+    }
+
+    if (title == 'Reports') {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ReportsPage()));
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -1839,23 +1849,14 @@ class _RenewalDetailsList extends StatelessWidget {
 // Sites By Zone — Teal Capsule Progress Bars + View All
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SitesByZoneCard extends StatefulWidget {
+class _SitesByZoneCard extends StatelessWidget {
   final List<GeographyItemModel> geography;
   final List<ZoneModel> zones;
   const _SitesByZoneCard({required this.geography, required this.zones});
 
   @override
-  State<_SitesByZoneCard> createState() => _SitesByZoneCardState();
-}
-
-class _SitesByZoneCardState extends State<_SitesByZoneCard> {
-  bool _showAll = false;
-
-  @override
   Widget build(BuildContext context) {
-    final geo = widget.geography;
-    final maxSites = geo.fold<int>(1, (m, g) => g.sites > m ? g.sites : m);
-    final displayed = _showAll ? geo : geo.take(4).toList();
+    final maxSites = geography.fold<int>(1, (m, g) => g.sites > m ? g.sites : m);
 
     return _WCard(
       child: Column(
@@ -1877,37 +1878,10 @@ class _SitesByZoneCardState extends State<_SitesByZoneCard> {
                   color: const Color(0xFF0F172A),
                 ),
               ),
-              const Spacer(),
-              if (geo.length > 2)
-                InkWell(
-                  onTap: () {
-                    setState(() {
-                      _showAll = !_showAll;
-                    });
-                  },
-                  child: Row(
-                    children: [
-                      Text(
-                        _showAll ? 'Show Less' : 'View All',
-                        style: GoogleFonts.outfit(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFFD97706),
-                        ),
-                      ),
-                      const SizedBox(width: 2),
-                      const Icon(
-                        Icons.arrow_forward_rounded,
-                        color: Color(0xFFD97706),
-                        size: 14,
-                      ),
-                    ],
-                  ),
-                ),
             ],
           ),
           const SizedBox(height: 16),
-          ...displayed.map((g) {
+          ...geography.map((g) {
             final frac = maxSites == 0 ? 0.0 : g.sites / maxSites;
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -1995,11 +1969,11 @@ class _GovernanceCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.025),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -2008,32 +1982,68 @@ class _GovernanceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Header Row ──
           Row(
             children: [
-              const Icon(
-                Icons.shield_outlined,
-                color: Color(0xFF1E60EB),
-                size: 22,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Governance Overview',
-                style: GoogleFonts.outfit(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  color: const Color(0xFF0F172A),
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEBF3FF),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.verified_user_rounded,
+                    color: Color(0xFF1E60EB),
+                    size: 22,
+                  ),
                 ),
               ),
+              const SizedBox(width: 12),
+              Container(
+                width: 1,
+                height: 28,
+                color: const Color(0xFFE2E8F0),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Governance Overview',
+                      style: GoogleFonts.outfit(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16.5,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      'Current status of governance',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // View Details is omitted as requested by user
             ],
           ),
-          const SizedBox(height: 18),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // 1. Donut Chart
-              SizedBox(
-                width: 100,
-                height: 100,
+          const SizedBox(height: 20),
+
+          // ── Body: Donut Chart on Left, Divider, 3 Stat Cards on Right ──
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isVeryNarrow = constraints.maxWidth < 340;
+
+              final donutWidget = SizedBox(
+                width: 116,
+                height: 116,
                 child: CustomPaint(
                   painter: _DonutPainter(
                     pending: overview.governancePending,
@@ -2049,13 +2059,14 @@ class _GovernanceCard extends StatelessWidget {
                           '$total',
                           style: GoogleFonts.outfit(
                             fontWeight: FontWeight.w800,
-                            fontSize: 24,
+                            fontSize: 28,
                             color: const Color(0xFF0F172A),
                             height: 1.1,
                           ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
-                          'Total',
+                          'Total Items',
                           style: GoogleFonts.outfit(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
@@ -2066,44 +2077,87 @@ class _GovernanceCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 14),
+              );
 
-              // 2. Legend Items
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              final cardsWidget = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _GovStatCard(
+                          count: overview.governancePending,
+                          label: 'Pending',
+                          icon: Icons.access_time_rounded,
+                          iconColor: const Color(0xFF1E60EB),
+                          iconBg: const Color(0xFFDBEAFE),
+                          cardBg: const Color(0xFFF0F7FF),
+                          borderColor: const Color(0xFFE0EDFD),
+                          waveColor: const Color(0xFFBFDBFE),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _GovStatCard(
+                          count: overview.governanceCompleted,
+                          label: 'Completed',
+                          icon: Icons.check_rounded,
+                          iconColor: const Color(0xFF16A34A),
+                          iconBg: const Color(0xFFDCFCE7),
+                          cardBg: const Color(0xFFF0FDF4),
+                          borderColor: const Color(0xFFDCFCE7),
+                          waveColor: const Color(0xFFBBF7D0),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _GovStatCard(
+                          count: overview.governanceDue,
+                          label: 'Due',
+                          icon: Icons.priority_high_rounded,
+                          iconColor: const Color(0xFFEF4444),
+                          iconBg: const Color(0xFFFEE2E2),
+                          cardBg: const Color(0xFFFEF2F2),
+                          borderColor: const Color(0xFFFEE2E2),
+                          waveColor: const Color(0xFFFECACA),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(child: SizedBox.shrink()),
+                    ],
+                  ),
+                ],
+              );
+
+              if (isVeryNarrow) {
+                return Column(
                   children: [
-                    _GovLegendRow(
-                      dotColor: const Color(0xFF1E60EB),
-                      label: 'Pending',
-                      count: overview.governancePending,
-                    ),
-                    const SizedBox(height: 11),
-                    _GovLegendRow(
-                      dotColor: const Color(0xFF22C55E),
-                      label: 'Completed',
-                      count: overview.governanceCompleted,
-                    ),
-                    const SizedBox(height: 11),
-                    _GovLegendRow(
-                      dotColor: const Color(0xFFEF4444),
-                      label: 'Due',
-                      count: overview.governanceDue,
-                    ),
+                    donutWidget,
+                    const SizedBox(height: 16),
+                    cardsWidget,
                   ],
-                ),
-              ),
-              const SizedBox(width: 8),
+                );
+              }
 
-              // 3. Right side 3D illustration (Image 3)
-              Image.asset(
-                AppAssets.governanceClipboard,
-                width: 105,
-                height: 105,
-                fit: BoxFit.contain,
-              ),
-            ],
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  donutWidget,
+                  const SizedBox(width: 12),
+                  Container(
+                    width: 1,
+                    height: 120,
+                    color: const Color(0xFFE2E8F0),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: cardsWidget),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -2111,48 +2165,139 @@ class _GovernanceCard extends StatelessWidget {
   }
 }
 
-class _GovLegendRow extends StatelessWidget {
-  final Color dotColor;
-  final String label;
+class _GovStatCard extends StatelessWidget {
   final int count;
+  final String label;
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBg;
+  final Color cardBg;
+  final Color borderColor;
+  final Color waveColor;
 
-  const _GovLegendRow({
-    required this.dotColor,
-    required this.label,
+  const _GovStatCard({
     required this.count,
+    required this.label,
+    required this.icon,
+    required this.iconColor,
+    required this.iconBg,
+    required this.cardBg,
+    required this.borderColor,
+    required this.waveColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            label,
-            style: GoogleFonts.outfit(
-              fontSize: 13,
-              color: const Color(0xFF0F172A),
-              fontWeight: FontWeight.w500,
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: CustomPaint(
+                painter: _CardWavePainter(color: waveColor),
+              ),
             ),
           ),
-        ),
-        Text(
-          '$count',
-          style: GoogleFonts.outfit(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF0F172A),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: iconBg,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Icon(icon, size: 14, color: iconColor),
+                      ),
+                    ),
+                    Text(
+                      '$count',
+                      style: GoogleFonts.outfit(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0F172A),
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    label,
+                    style: GoogleFonts.outfit(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF475569),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
+}
+
+class _CardWavePainter extends CustomPainter {
+  final Color color;
+  const _CardWavePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final fillPath = Path()
+      ..moveTo(0, h * 0.70)
+      ..cubicTo(w * 0.25, h * 0.55, w * 0.45, h * 0.90, w * 0.70, h * 0.75)
+      ..cubicTo(w * 0.85, h * 0.65, w * 0.95, h * 0.85, w, h * 0.70)
+      ..lineTo(w, h)
+      ..lineTo(0, h)
+      ..close();
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          color.withValues(alpha: 0.35),
+          color.withValues(alpha: 0.08),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawPath(fillPath, fillPaint);
+
+    final linePath = Path()
+      ..moveTo(0, h * 0.70)
+      ..cubicTo(w * 0.25, h * 0.55, w * 0.45, h * 0.90, w * 0.70, h * 0.75)
+      ..cubicTo(w * 0.85, h * 0.65, w * 0.95, h * 0.85, w, h * 0.70);
+
+    final linePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = color.withValues(alpha: 0.6);
+    canvas.drawPath(linePath, linePaint);
+  }
+
+  @override
+  bool shouldRepaint(_CardWavePainter old) => old.color != color;
 }
 
 class _DonutPainter extends CustomPainter {
@@ -2166,44 +2311,68 @@ class _DonutPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const stroke = 15.0;
-    final rect = Rect.fromLTWH(
-      stroke / 2,
-      stroke / 2,
-      size.width - stroke,
-      size.height - stroke,
-    );
+    final stroke = 12.0;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - stroke) / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    // Base background track (soft light grey/blue)
+    final trackPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..color = const Color(0xFFEFF4FB);
+    canvas.drawArc(rect, 0, 2 * math.pi, false, trackPaint);
+
+    if (total == 0) return;
+
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = stroke
       ..strokeCap = StrokeCap.round;
 
-    if (total == 0) {
-      paint.color = const Color(0xFFE2E8F0);
-      canvas.drawArc(rect, -math.pi / 2, 2 * math.pi, false, paint);
-      return;
-    }
+    // Start angle: top-right (~ -0.15 * pi)
+    double start = -math.pi * 0.15;
 
-    // Base background track
-    final trackPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..color = const Color(0xFFF1F5F9);
-    canvas.drawArc(rect, 0, 2 * math.pi, false, trackPaint);
-
-    // Green segment at top-left (~ -0.65 pi)
-    double start = -math.pi * 0.65;
+    // Segments: Pending (gradient/vibrant blue), Completed (green), Due (red)
     final segs = [
+      (count: pending, color: const Color(0xFF0284C7)),
       (count: completed, color: const Color(0xFF22C55E)),
-      (count: pending, color: const Color(0xFF1E60EB)),
       (count: due, color: const Color(0xFFEF4444)),
     ];
-    for (final s in segs) {
+
+    double? firstSegmentEndAngle;
+
+    for (var i = 0; i < segs.length; i++) {
+      final s = segs[i];
       if (s.count == 0) continue;
       final sweep = 2 * math.pi * (s.count / total);
       paint.color = s.color;
-      canvas.drawArc(rect, start, sweep - 0.05, false, paint);
+
+      canvas.drawArc(rect, start, sweep.clamp(0.05, 2 * math.pi - 0.05), false, paint);
+
+      if (i == 0) {
+        firstSegmentEndAngle = start;
+      }
       start += sweep;
+    }
+
+    // Draw the stylish indicator circle on the blue arc endpoint (as seen in screenshot)
+    if (firstSegmentEndAngle != null && pending > 0) {
+      final dotAngle = firstSegmentEndAngle;
+      final dotCenter = Offset(
+        center.dx + radius * math.cos(dotAngle),
+        center.dy + radius * math.sin(dotAngle),
+      );
+
+      final outerDot = Paint()
+        ..color = const Color(0xFF0284C7)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(dotCenter, stroke * 0.65, outerDot);
+
+      final innerDot = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(dotCenter, stroke * 0.28, innerDot);
     }
   }
 
@@ -2572,9 +2741,11 @@ class _ClusterRow extends StatelessWidget {
 // Recent Governance Activity
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _RecentGovernanceCard extends StatelessWidget {
+typedef _RecentGovernanceCard = RecentGovernanceCard;
+
+class RecentGovernanceCard extends StatelessWidget {
   final List<GovernanceListItemModel> items;
-  const _RecentGovernanceCard({required this.items});
+  const RecentGovernanceCard({super.key, required this.items});
 
   @override
   Widget build(BuildContext context) {
@@ -2611,16 +2782,18 @@ class _RecentGovernanceCard extends StatelessWidget {
               ),
             )
           else
-            ...items.map((i) => _GovActivityRow(item: i)),
+            ...items.map((i) => GovActivityRow(item: i)),
         ],
       ),
     );
   }
 }
 
-class _GovActivityRow extends StatelessWidget {
+typedef _GovActivityRow = GovActivityRow;
+
+class GovActivityRow extends StatelessWidget {
   final GovernanceListItemModel item;
-  const _GovActivityRow({required this.item});
+  const GovActivityRow({super.key, required this.item});
 
   @override
   Widget build(BuildContext context) {
@@ -2628,56 +2801,84 @@ class _GovActivityRow extends StatelessWidget {
     return Column(
       children: [
         const Divider(height: 1, color: _kBorder),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title,
-                      style: GoogleFonts.outfit(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: AppColors.secondary,
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: item.id.isNotEmpty
+                ? () async {
+                    final result = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute(
+                        builder: (_) => ActivityExecutionPage(
+                          activityId: item.id,
+                          siteName: item.siteName.isNotEmpty ? item.siteName : null,
+                        ),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    );
+                    if (result == true && context.mounted) {
+                      context.read<DashboardBloc>().add(const LoadDashboard());
+                    }
+                  }
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          style: GoogleFonts.outfit(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: AppColors.secondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${item.siteName}  ·  ${item.roleLabel}',
+                          style: GoogleFonts.outfit(fontSize: 11, color: _kBlue),
+                        ),
+                        Text(
+                          'Assignee: ${item.assigneeName}  ·  Due: ${item.dueDate}',
+                          style: GoogleFonts.outfit(fontSize: 11, color: _kSlate),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${item.siteName}  ·  ${item.roleLabel}',
-                      style: GoogleFonts.outfit(fontSize: 11, color: _kBlue),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isPending
+                          ? const Color(0xFFEFF6FF)
+                          : const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    Text(
-                      'Assignee: ${item.assigneeName}  ·  Due: ${item.dueDate}',
-                      style: GoogleFonts.outfit(fontSize: 11, color: _kSlate),
+                    child: Text(
+                      item.state,
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isPending ? _kBlue : _kGreen,
+                      ),
+                    ),
+                  ),
+                  if (item.id.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: Color(0xFF94A3B8),
                     ),
                   ],
-                ),
+                ],
               ),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isPending
-                      ? const Color(0xFFEFF6FF)
-                      : const Color(0xFFF0FDF4),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  item.state,
-                  style: GoogleFonts.outfit(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: isPending ? _kBlue : _kGreen,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ],

@@ -65,8 +65,8 @@ class AttendanceLoaded extends AttendanceState {
     }).toList();
   }
 
-  // Show pagination ONLY if more than 20 elements!
-  bool get showSitesPagination => filteredSites.length > 20;
+  // Show pagination ONLY if more than 10 elements!
+  bool get showSitesPagination => filteredSites.length > 10;
 
   int get totalSitesPages {
     if (filteredSites.isEmpty) return 1;
@@ -75,7 +75,7 @@ class AttendanceLoaded extends AttendanceState {
 
   List<AttendanceSiteItemModel> get paginatedSites {
     final list = filteredSites;
-    if (list.length <= 20) return list;
+    if (list.length <= 10) return list;
     final start = (sitesCurrentPage - 1) * sitesItemsPerPage;
     if (start >= list.length) return [];
     final end = (start + sitesItemsPerPage).clamp(0, list.length);
@@ -97,8 +97,8 @@ class AttendanceLoaded extends AttendanceState {
     }).toList();
   }
 
-  // Show pagination ONLY if more than 20 elements!
-  bool get showActivitiesPagination => filteredActivities.length > 20;
+  // Show pagination ONLY if more than 10 elements!
+  bool get showActivitiesPagination => filteredActivities.length > 10;
 
   int get totalActivitiesPages {
     if (filteredActivities.isEmpty) return 1;
@@ -107,7 +107,7 @@ class AttendanceLoaded extends AttendanceState {
 
   List<ActivityVisitModel> get paginatedActivities {
     final list = filteredActivities;
-    if (list.length <= 20) return list;
+    if (list.length <= 10) return list;
     final start = (activitiesCurrentPage - 1) * activitiesItemsPerPage;
     if (start >= list.length) return [];
     final end = (start + activitiesItemsPerPage).clamp(0, list.length);

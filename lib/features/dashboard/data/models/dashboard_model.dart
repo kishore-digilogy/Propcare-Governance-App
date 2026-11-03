@@ -240,13 +240,16 @@ class GovernanceListItemModel {
 
   factory GovernanceListItemModel.fromJson(Map<String, dynamic> j) =>
       GovernanceListItemModel(
-        id: j['id'] as String? ?? '',
-        title: j['title'] as String? ?? '',
+        id: j['id'] as String? ??
+            j['activityId'] as String? ??
+            j['_id'] as String? ??
+            '',
+        title: j['title'] as String? ?? j['name'] as String? ?? '',
         siteName: j['siteName'] as String? ?? '',
-        roleLabel: j['roleLabel'] as String? ?? '',
+        roleLabel: j['roleLabel'] as String? ?? j['role'] as String? ?? '',
         dueDate: j['dueDate'] as String? ?? '',
-        assigneeName: j['assigneeName'] as String? ?? '',
-        state: j['state'] as String? ?? '',
+        assigneeName: j['assigneeName'] as String? ?? j['assignee'] as String? ?? '',
+        state: j['state'] as String? ?? j['status'] as String? ?? '',
       );
 }
 

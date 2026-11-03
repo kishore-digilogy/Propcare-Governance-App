@@ -18,14 +18,16 @@ class AppTopHeader extends StatelessWidget {
   const AppTopHeader({super.key});
 
   static String resolveInitials() {
-    final name = HiveStorage.userName;
-    if (name != null && name.trim().isNotEmpty) {
-      final parts = name.trim().split(RegExp(r'\s+'));
-      if (parts.length >= 2) {
-        return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    try {
+      final name = HiveStorage.userName;
+      if (name != null && name.trim().isNotEmpty) {
+        final parts = name.trim().split(RegExp(r'\s+'));
+        if (parts.length >= 2) {
+          return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+        }
+        return name.substring(0, math.min(2, name.length)).toUpperCase();
       }
-      return name.substring(0, math.min(2, name.length)).toUpperCase();
-    }
+    } catch (_) {}
     return 'PA';
   }
 
@@ -93,9 +95,14 @@ class _ProfileDropdownPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final userName = HiveStorage.userName ?? 'PropCare Administrator';
-    final userEmail = HiveStorage.userEmail ?? 'admin@casagrandepropcare.com';
-    final userRole = HiveStorage.userRole ?? 'CRRM / Super Admin';
+    String userName = 'PropCare Administrator';
+    String userEmail = 'admin@casagrandepropcare.com';
+    String userRole = 'CRRM / Super Admin';
+    try {
+      userName = HiveStorage.userName ?? userName;
+      userEmail = HiveStorage.userEmail ?? userEmail;
+      userRole = HiveStorage.displayRole;
+    } catch (_) {}
 
     return PopupMenuButton<String>(
       tooltip: 'Account Menu',
@@ -336,7 +343,9 @@ class _ProfileDropdownPill extends StatelessWidget {
                     border: Border.all(color: const Color(0xFFBFDBFE)),
                   ),
                   child: Text(
-                    role,
+                    (role.toUpperCase() == 'CRRM' || role.toUpperCase().contains('ADMIN'))
+                        ? 'CRRM / Super Admin'
+                        : role,
                     style: GoogleFonts.outfit(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -355,8 +364,10 @@ class _ProfileDropdownPill extends StatelessWidget {
                 ),
                 _ProfileInfoTile(
                   icon: Icons.shield_outlined,
-                  label: 'Role',
-                  value: role,
+                  label: 'Account Role',
+                  value: (role.toUpperCase() == 'CRRM' || role.toUpperCase().contains('ADMIN'))
+                      ? 'CRRM / Super Admin'
+                      : role,
                 ),
                 const _ProfileInfoTile(
                   icon: Icons.business_outlined,

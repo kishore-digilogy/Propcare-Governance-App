@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
@@ -28,7 +29,15 @@ class AttendanceRemoteDataSourceImpl implements AttendanceRemoteDataSource {
     developer.log('🌐 Attendance API call → $fullUrl', name: 'Attendance');
 
     try {
-      final response = await _dio.get(path);
+      final response = await _dio.get(
+        path,
+        options: Options(
+          headers: const {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        ),
+      );
 
       developer.log(
         '✅ Attendance response [${response.statusCode}]\n${response.data}',
@@ -72,6 +81,12 @@ class AttendanceRemoteDataSourceImpl implements AttendanceRemoteDataSource {
       final response = await _dio.get(
         path,
         queryParameters: queryParams,
+        options: Options(
+          headers: const {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+          },
+        ),
       );
 
       developer.log(
@@ -79,10 +94,17 @@ class AttendanceRemoteDataSourceImpl implements AttendanceRemoteDataSource {
         name: 'Attendance',
       );
 
-      if (response.data is Map<String, dynamic>) {
+      if (response.data is Map) {
         return SiteActivitiesResponseModel.fromJson(
-          response.data as Map<String, dynamic>,
+          Map<String, dynamic>.from(response.data as Map),
         );
+      } else if (response.data is String && (response.data as String).isNotEmpty) {
+        final decoded = jsonDecode(response.data as String);
+        if (decoded is Map) {
+          return SiteActivitiesResponseModel.fromJson(
+            Map<String, dynamic>.from(decoded),
+          );
+        }
       }
 
       return SiteActivitiesResponseModel.empty;

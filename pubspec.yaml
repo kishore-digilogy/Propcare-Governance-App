@@ -66,6 +66,9 @@ dependencies:
   # Splash screen
   flutter_native_splash: ^2.4.3
 
+  # Dropdown with search and fixed height
+  dropdown_button2: ^2.3.9
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

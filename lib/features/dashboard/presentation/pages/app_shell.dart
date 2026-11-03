@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../activities/presentation/pages/activities_page.dart';
 import '../../../attendance/presentation/pages/attendance_page.dart';
 import '../../../mom/presentation/pages/mom_page.dart';
+import '../../../sites/presentation/pages/all_sites_page.dart';
+import '../../../sites/presentation/pages/renewal_sites_page.dart';
+import '../../../sites/presentation/pages/transition_sites_page.dart';
 import 'dashboard_page.dart';
 import 'placeholder_page_view.dart';
 
@@ -30,7 +35,8 @@ class NavItemData {
 }
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  final List<Widget>? pages;
+  const AppShell({super.key, this.pages});
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -90,8 +96,57 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   }
 
   List<NavItemData> _buildCurrentNavItems() {
+    final isLd = HiveStorage.isLdRole;
+
     switch (_menuState) {
       case NavMenuState.main:
+        if (isLd) {
+          // L&D roles (e.g. LD_HEAD, LD_LEAD) only see Dashboard, Sites, Transition, and MOM & Mail
+          return [
+            NavItemData(
+              label: 'Dashboard',
+              icon: Icons.dashboard_rounded,
+              isSelected: _activePageIndex == 0,
+              onTap: () {
+                setState(() {
+                  _activePageIndex = 0;
+                });
+              },
+            ),
+            NavItemData(
+              label: 'Sites',
+              icon: Icons.apartment_rounded,
+              isSelected: _activePageIndex == 1 || _activePageIndex == 2,
+              onTap: () {
+                setState(() {
+                  _menuState = NavMenuState.sites;
+                  _activePageIndex = 1;
+                });
+              },
+            ),
+            NavItemData(
+              label: 'Transition',
+              icon: Icons.swap_horiz_rounded,
+              isSelected: _activePageIndex == 4,
+              onTap: () {
+                setState(() {
+                  _activePageIndex = 4;
+                });
+              },
+            ),
+            NavItemData(
+              label: 'MOM & Mail',
+              icon: Icons.mail_outline_rounded,
+              isSelected: _activePageIndex == 8,
+              onTap: () {
+                setState(() {
+                  _activePageIndex = 8;
+                });
+              },
+            ),
+          ];
+        }
+
         return [
           NavItemData(
             label: 'Dashboard',
@@ -146,12 +201,12 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
             isSelected: _activePageIndex == 2,
             onTap: () => setState(() => _activePageIndex = 2),
           ),
-          NavItemData(
-            label: 'Create',
-            icon: Icons.add_business_rounded,
-            isSelected: _activePageIndex == 3,
-            onTap: () => setState(() => _activePageIndex = 3),
-          ),
+          // NavItemData(
+          //   label: 'Create',
+          //   icon: Icons.add_business_rounded,
+          //   isSelected: _activePageIndex == 3,
+          //   onTap: () => setState(() => _activePageIndex = 3),
+          // ),
           NavItemData(
             label: 'Transition',
             icon: Icons.swap_horiz_rounded,
@@ -192,41 +247,22 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
     return Scaffold(
       body: IndexedStack(
         index: _activePageIndex,
-        children: const [
-          DashboardPage(),
-          PlaceholderPageView(
-            title: 'All Sites',
-            parentTitle: 'Sites',
-            icon: Icons.domain_rounded,
-          ),
-          PlaceholderPageView(
-            title: 'Renewal Sites',
-            parentTitle: 'Sites',
-            icon: Icons.history_rounded,
-          ),
-          PlaceholderPageView(
-            title: 'Create Site',
-            parentTitle: 'Sites',
-            icon: Icons.add_business_rounded,
-          ),
-          PlaceholderPageView(
-            title: 'Transition & Start-Up',
-            parentTitle: 'Sites',
-            icon: Icons.swap_horiz_rounded,
-          ),
-          PlaceholderPageView(
-            title: 'My Activities',
-            parentTitle: 'Activities',
-            icon: Icons.person_outline_rounded,
-          ),
-          PlaceholderPageView(
-            title: 'Team Activities',
-            parentTitle: 'Activities',
-            icon: Icons.groups_rounded,
-          ),
-          AttendancePage(),
-          MomPage(),
-        ],
+        children: widget.pages ??
+            const [
+              DashboardPage(),
+              AllSitesPage(),
+              RenewalSitesPage(),
+              PlaceholderPageView(
+                title: 'Create Site',
+                parentTitle: 'Sites',
+                icon: Icons.add_business_rounded,
+              ),
+              TransitionSitesPage(),
+              ActivitiesPage(isTeam: false),
+              ActivitiesPage(isTeam: true),
+              AttendancePage(),
+              MomPage(),
+            ],
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
