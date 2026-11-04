@@ -21,6 +21,7 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     on<BackToSitesList>(_onBackToSitesList);
     on<SearchSiteActivities>(_onSearchSiteActivities);
     on<ChangeActivitiesPage>(_onChangeActivitiesPage);
+    on<MarkActivityAttendance>(_onMarkActivityAttendance);
   }
 
   Future<void> _onLoadAttendance(
@@ -169,6 +170,55 @@ class AttendanceBloc extends Bloc<AttendanceEvent, AttendanceState> {
     if (state is AttendanceLoaded) {
       final current = state as AttendanceLoaded;
       emit(current.copyWith(activitiesCurrentPage: event.page));
+    }
+  }
+
+  Future<void> _onMarkActivityAttendance(
+    MarkActivityAttendance event,
+    Emitter<AttendanceState> emit,
+  ) async {
+    if (state is! AttendanceLoaded) return;
+    final current = state as AttendanceLoaded;
+
+    emit(current.copyWith(
+      submittingActivityId: () => event.activityId,
+      attendanceActionMessage: () => null,
+      attendanceErrorMessage: () => null,
+    ));
+
+    try {
+      final updated = await _dataSource.markAttendance(
+        activityId: event.activityId,
+        type: event.type,
+        latitude: event.latitude,
+        longitude: event.longitude,
+        accuracy: event.accuracy,
+        capturedAt: event.capturedAt,
+      );
+
+      final updatedActivities = current.activitiesData?.updateActivity(updated);
+      final isCheckin = event.type.toLowerCase() == 'checkin';
+      final actionMsg = isCheckin
+          ? 'Checked in successfully'
+          : 'Checked out successfully';
+
+      emit(current.copyWith(
+        submittingActivityId: () => null,
+        activitiesData: () => updatedActivities,
+        attendanceActionMessage: () => actionMsg,
+        attendanceErrorMessage: () => null,
+      ));
+    } catch (e, stack) {
+      developer.log(
+        'Error marking attendance for activity ${event.activityId}',
+        error: e,
+        stackTrace: stack,
+      );
+      emit(current.copyWith(
+        submittingActivityId: () => null,
+        attendanceErrorMessage: () => e.toString().replaceAll('Exception: ', ''),
+        attendanceActionMessage: () => null,
+      ));
     }
   }
 }

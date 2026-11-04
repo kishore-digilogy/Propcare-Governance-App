@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../../core/storage/hive_storage.dart';
+
 /// Formatter utility for Transition dates.
 class TransitionDateHelper {
   static String formatDate(String? dateStr) {
@@ -137,6 +139,69 @@ class TransitionSiteInfoModel extends Equatable {
       ];
 }
 
+/// Zone User in transition details response.
+class ZoneUserModel extends Equatable {
+  final String id;
+  final String name;
+  final String role;
+  final String email;
+
+  const ZoneUserModel({
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.email,
+  });
+
+  factory ZoneUserModel.fromJson(Map<String, dynamic> j) => ZoneUserModel(
+        id: j['id']?.toString() ?? '',
+        name: j['name']?.toString() ?? '',
+        role: j['role']?.toString() ?? '',
+        email: j['email']?.toString() ?? '',
+      );
+
+  String get roleDisplay {
+    final upper = role.toUpperCase();
+    if (HiveStorage.knownRoles.containsKey(upper)) {
+      return HiveStorage.knownRoles[upper]!;
+    }
+    return role.replaceAll('_', ' ');
+  }
+
+  String get department {
+    final upper = role.toUpperCase();
+    if (upper.contains('L&D') ||
+        upper.startsWith('LD_') ||
+        upper.startsWith('L_D_') ||
+        upper.endsWith('_LD') ||
+        upper == 'LD' ||
+        upper.contains('TRANSITION') ||
+        upper.contains('TRAIN')) {
+      return 'L&D';
+    }
+    if (upper == 'HR') return 'HR';
+    if (upper == 'EHS') return 'EHS';
+    if (upper == 'SALES') return 'Sales';
+    if (upper == 'CRRM' || upper.contains('ADMIN')) return 'CRRM';
+    if (upper == 'MACHINE_TECHNICIAN') return 'Machine';
+    return 'Operations';
+  }
+
+  bool get isLdDepartment {
+    final upper = role.toUpperCase();
+    return upper.contains('L&D') ||
+        upper.startsWith('LD_') ||
+        upper.startsWith('L_D_') ||
+        upper.endsWith('_LD') ||
+        upper == 'LD' ||
+        upper.contains('TRANSITION') ||
+        upper.contains('TRAIN');
+  }
+
+  @override
+  List<Object?> get props => [id, name, role, email];
+}
+
 /// Kickoff details inside ldPreview.
 class TransitionKickoffModel extends Equatable {
   final String withClient;
@@ -156,6 +221,36 @@ class TransitionKickoffModel extends Equatable {
     this.contractStartDate,
     this.contractEndDate,
   });
+
+  TransitionKickoffModel copyWith({
+    String? withClient,
+    String? date,
+    List<String>? participants,
+    String? meeting,
+    String? contractAwardDate,
+    String? contractStartDate,
+    String? contractEndDate,
+  }) {
+    return TransitionKickoffModel(
+      withClient: withClient ?? this.withClient,
+      date: date ?? this.date,
+      participants: participants ?? this.participants,
+      meeting: meeting ?? this.meeting,
+      contractAwardDate: contractAwardDate ?? this.contractAwardDate,
+      contractStartDate: contractStartDate ?? this.contractStartDate,
+      contractEndDate: contractEndDate ?? this.contractEndDate,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'withClient': withClient,
+        'date': date,
+        'participants': participants,
+        'meeting': meeting,
+        if (contractAwardDate != null) 'contractAwardDate': contractAwardDate,
+        if (contractStartDate != null) 'contractStartDate': contractStartDate,
+        if (contractEndDate != null) 'contractEndDate': contractEndDate,
+      };
 
   factory TransitionKickoffModel.fromJson(Map<String, dynamic> json) {
     final rawParticipants = json['participants'];
@@ -201,6 +296,20 @@ class TransitionReviewModel extends Equatable {
     this.note = '',
   });
 
+  TransitionReviewModel copyWith({
+    String? status,
+    String? submittedAt,
+    String? verifiedAt,
+    String? note,
+  }) {
+    return TransitionReviewModel(
+      status: status ?? this.status,
+      submittedAt: submittedAt ?? this.submittedAt,
+      verifiedAt: verifiedAt ?? this.verifiedAt,
+      note: note ?? this.note,
+    );
+  }
+
   factory TransitionReviewModel.fromJson(Map<String, dynamic> json) {
     return TransitionReviewModel(
       status: json['status']?.toString() ?? 'OPEN',
@@ -245,6 +354,48 @@ class TransitionChecklistItemModel extends Equatable {
     this.remarks,
     this.issue,
   });
+
+  TransitionChecklistItemModel copyWith({
+    String? id,
+    String? phase,
+    String? key,
+    String? title,
+    int? sortOrder,
+    bool? canRaiseTicket,
+    String? status,
+    bool? done,
+    String? startDate,
+    String? endDate,
+    String? targetDate,
+    String? remarks,
+    String? issue,
+  }) {
+    return TransitionChecklistItemModel(
+      id: id ?? this.id,
+      phase: phase ?? this.phase,
+      key: key ?? this.key,
+      title: title ?? this.title,
+      sortOrder: sortOrder ?? this.sortOrder,
+      canRaiseTicket: canRaiseTicket ?? this.canRaiseTicket,
+      status: status ?? this.status,
+      done: done ?? this.done,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      targetDate: targetDate ?? this.targetDate,
+      remarks: remarks ?? this.remarks,
+      issue: issue ?? this.issue,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'phase': phase,
+        'key': key,
+        'status': status,
+        'done': done,
+        'remark': remarks ?? '',
+        if (startDate != null) 'startDate': startDate,
+        if (endDate != null) 'endDate': endDate,
+      };
 
   factory TransitionChecklistItemModel.fromJson(Map<String, dynamic> json) {
     return TransitionChecklistItemModel(
@@ -298,6 +449,20 @@ class LdPreviewModel extends Equatable {
     this.ldTransition = const [],
   });
 
+  LdPreviewModel copyWith({
+    TransitionKickoffModel? kickoff,
+    TransitionReviewModel? review,
+    List<TransitionChecklistItemModel>? internal,
+    List<TransitionChecklistItemModel>? ldTransition,
+  }) {
+    return LdPreviewModel(
+      kickoff: kickoff ?? this.kickoff,
+      review: review ?? this.review,
+      internal: internal ?? this.internal,
+      ldTransition: ldTransition ?? this.ldTransition,
+    );
+  }
+
   factory LdPreviewModel.fromJson(Map<String, dynamic> json) {
     final kickoff = json['kickoff'] is Map<String, dynamic>
         ? TransitionKickoffModel.fromJson(json['kickoff'])
@@ -341,26 +506,59 @@ class LdPreviewModel extends Equatable {
   List<Object?> get props => [kickoff, review, internal, ldTransition];
 }
 
-/// Top-level response model for GET /api/sites/{id}?view=transition.
+/// Top-level response model for GET /api/ld-transition/sites/{id} or /api/sites/{id}?view=transition.
 class TransitionSiteDetailResponseModel extends Equatable {
   final TransitionSiteInfoModel site;
   final LdPreviewModel ldPreview;
   final List<TransitionChecklistItemModel> transitions;
+  final List<ZoneUserModel> zoneUsers;
+  final bool canEdit;
+  final bool canVerify;
+  final bool canSubmit;
+  final bool canManageAccess;
 
   const TransitionSiteDetailResponseModel({
     required this.site,
     this.ldPreview = const LdPreviewModel(),
     this.transitions = const [],
+    this.zoneUsers = const [],
+    this.canEdit = true,
+    this.canVerify = false,
+    this.canSubmit = true,
+    this.canManageAccess = true,
   });
+
+  TransitionSiteDetailResponseModel copyWith({
+    TransitionSiteInfoModel? site,
+    LdPreviewModel? ldPreview,
+    List<TransitionChecklistItemModel>? transitions,
+    List<ZoneUserModel>? zoneUsers,
+    bool? canEdit,
+    bool? canVerify,
+    bool? canSubmit,
+    bool? canManageAccess,
+  }) {
+    return TransitionSiteDetailResponseModel(
+      site: site ?? this.site,
+      ldPreview: ldPreview ?? this.ldPreview,
+      transitions: transitions ?? this.transitions,
+      zoneUsers: zoneUsers ?? this.zoneUsers,
+      canEdit: canEdit ?? this.canEdit,
+      canVerify: canVerify ?? this.canVerify,
+      canSubmit: canSubmit ?? this.canSubmit,
+      canManageAccess: canManageAccess ?? this.canManageAccess,
+    );
+  }
 
   factory TransitionSiteDetailResponseModel.fromJson(Map<String, dynamic> json) {
     final siteMap = json['site'] is Map
         ? Map<String, dynamic>.from(json['site'])
         : <String, dynamic>{};
 
+    // If ldPreview key is present, use it; otherwise use root json
     final ldPreviewMap = json['ldPreview'] is Map
         ? Map<String, dynamic>.from(json['ldPreview'])
-        : <String, dynamic>{};
+        : json;
 
     final transitionsList = <TransitionChecklistItemModel>[];
     if (json['transitions'] is List) {
@@ -371,14 +569,37 @@ class TransitionSiteDetailResponseModel extends Equatable {
       }
     }
 
+    final zoneUsersList = <ZoneUserModel>[];
+    if (json['zoneUsers'] is List) {
+      for (final item in json['zoneUsers']) {
+        if (item is Map) {
+          zoneUsersList.add(ZoneUserModel.fromJson(Map<String, dynamic>.from(item)));
+        }
+      }
+    }
+
     return TransitionSiteDetailResponseModel(
       site: TransitionSiteInfoModel.fromJson(siteMap),
       ldPreview: LdPreviewModel.fromJson(ldPreviewMap),
       transitions: transitionsList,
+      zoneUsers: zoneUsersList,
+      canEdit: json['canEdit'] as bool? ?? true,
+      canVerify: json['canVerify'] as bool? ?? false,
+      canSubmit: json['canSubmit'] as bool? ?? true,
+      canManageAccess: json['canManageAccess'] as bool? ?? true,
     );
   }
 
   @override
-  List<Object?> get props => [site, ldPreview, transitions];
+  List<Object?> get props => [
+        site,
+        ldPreview,
+        transitions,
+        zoneUsers,
+        canEdit,
+        canVerify,
+        canSubmit,
+        canManageAccess,
+      ];
 }
 

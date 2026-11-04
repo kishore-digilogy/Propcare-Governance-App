@@ -11,7 +11,7 @@ class PlaceholderPageView extends StatelessWidget {
   const PlaceholderPageView({
     super.key,
     required this.title,
-    required this.parentTitle,
+    this.parentTitle = '',
     required this.icon,
   });
 
@@ -59,9 +59,42 @@ class PlaceholderPageView extends StatelessWidget {
                   color: AppColors.secondary,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFBFDBFE), width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.schedule_rounded,
+                      size: 14,
+                      color: Color(0xFF1A73E8),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Coming Soon',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1A73E8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
               Text(
-                'Section under $parentTitle',
+                parentTitle.isNotEmpty
+                    ? (parentTitle.contains(' ')
+                        ? parentTitle
+                        : 'Section under $parentTitle')
+                    : 'This module is currently under development.',
+                textAlign: TextAlign.center,
                 style: GoogleFonts.outfit(
                   fontSize: 14,
                   color: const Color(0xFF64748B),

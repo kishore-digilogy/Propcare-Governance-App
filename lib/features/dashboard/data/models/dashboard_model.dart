@@ -227,6 +227,8 @@ class GovernanceListItemModel {
   final String dueDate;
   final String assigneeName;
   final String state;
+  final String? activityLabel;
+  final String? href;
 
   const GovernanceListItemModel({
     required this.id,
@@ -236,6 +238,8 @@ class GovernanceListItemModel {
     required this.dueDate,
     required this.assigneeName,
     required this.state,
+    this.activityLabel,
+    this.href,
   });
 
   factory GovernanceListItemModel.fromJson(Map<String, dynamic> j) =>
@@ -244,12 +248,17 @@ class GovernanceListItemModel {
             j['activityId'] as String? ??
             j['_id'] as String? ??
             '',
-        title: j['title'] as String? ?? j['name'] as String? ?? '',
+        title: j['title'] as String? ??
+            j['activityLabel'] as String? ??
+            j['name'] as String? ??
+            '',
         siteName: j['siteName'] as String? ?? '',
         roleLabel: j['roleLabel'] as String? ?? j['role'] as String? ?? '',
         dueDate: j['dueDate'] as String? ?? '',
         assigneeName: j['assigneeName'] as String? ?? j['assignee'] as String? ?? '',
         state: j['state'] as String? ?? j['status'] as String? ?? '',
+        activityLabel: j['activityLabel'] as String?,
+        href: j['href'] as String?,
       );
 }
 

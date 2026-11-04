@@ -87,7 +87,46 @@ class HiveStorage {
 
   static String? get userEmail => getString(StorageKeys.userEmail);
   static String? get userName => getString(StorageKeys.userName);
-  static String? get userRole => _mockUserRole ?? getString(StorageKeys.userRole);
+  static String? get userRole {
+    if (_mockUserRole != null) return _mockUserRole;
+    final r = getString(StorageKeys.userRole);
+    if (r != null && r.trim().isNotEmpty) return r;
+    final profile = userProfile;
+    if (profile != null) {
+      final pr = profile['role'] ?? profile['roleLabel'] ?? profile['userRole'];
+      if (pr != null && pr.toString().trim().isNotEmpty) return pr.toString();
+    }
+    return null;
+  }
+
+  /// Known roles map matching backend role definitions
+  static const Map<String, String> knownRoles = {
+    'CRRM': 'CRRM / Super Admin',
+    'SUPER_ADMIN': 'CRRM / Super Admin',
+    'SUPERADMIN': 'CRRM / Super Admin',
+    'ADMIN': 'CRRM / Super Admin',
+    'CEO': 'CEO',
+    'COO': 'COO',
+    'OPERATIONS_HEAD': 'Operations Head',
+    'ZONAL_HEAD': 'Zonal Head',
+    'GROUP_CLUSTER_HEAD': 'Group Cluster Head',
+    'CLUSTER_HEAD': 'Cluster Head',
+    'CLUSTER_LEAD': 'Cluster Lead',
+    'CLUSTER_EXECUTIVE': 'Cluster Executive',
+    'FIELD_EXECUTIVE': 'Field Executive',
+    'LD': 'Transition',
+    'LD_HEAD': 'L&D Head',
+    'LD_LEAD': 'L&D Lead',
+    'LD_TRAINER': 'L&D Trainer',
+    'L_D_ASSIT_MANAGER': 'L&D-Assit-Manager',
+    'L_D_DEPUTY_MANAGER': 'L&D-Deputy-manager',
+    'L_D_EXECUTIVE': 'L&D-Executive',
+    'L_D_SR_EXECUTIVE': 'L&D-Sr.Executive',
+    'HR': 'HR',
+    'EHS': 'EHS',
+    'MACHINE_TECHNICIAN': 'Machine Technician',
+    'SALES': 'Sales',
+  };
 
   /// Display role string for the logged-in user.
   /// CRRM is treated with full Super Admin parity across PropCare Governance.
@@ -95,6 +134,9 @@ class HiveStorage {
     final raw = userRole;
     if (raw == null || raw.trim().isEmpty) return 'CRRM / Super Admin';
     final upper = raw.trim().toUpperCase();
+    if (knownRoles.containsKey(upper)) {
+      return knownRoles[upper]!;
+    }
     if (upper == 'CRRM' ||
         upper == 'SUPER_ADMIN' ||
         upper == 'SUPERADMIN' ||
@@ -116,14 +158,41 @@ class HiveStorage {
   }
 
   /// Whether the logged-in user has an L&D (Learning & Development) role.
-  /// (e.g. LD_HEAD, LD_LEAD, L&D, LD).
+  /// (e.g. LD, LD_HEAD, LD_LEAD, LD_TRAINER, L_D_ASSIT_MANAGER, etc.).
   static bool get isLdRole {
     final raw = userRole;
     if (raw == null || raw.trim().isEmpty) return false;
     final upper = raw.trim().toUpperCase();
     return upper.startsWith('LD') ||
+        upper.startsWith('L_D') ||
         upper.startsWith('L&D') ||
-        upper.contains(RegExp(r'(^|[_\s\W])(LD|L&D)([_\s\W]|$)'));
+        upper.contains('L&D') ||
+        upper.contains('TRANSITION') ||
+        upper.contains(RegExp(r'(^|[_\s\W])(LD|L_D|L&D)([_\s\W]|$)'));
+  }
+
+  /// Whether the logged-in user specifically has an L&D Head role (or Super Admin).
+  static bool get isLdHead {
+    final raw = userRole;
+    if (raw == null || raw.trim().isEmpty) return false;
+    final upper = raw.trim().toUpperCase();
+    if (isSuperAdmin) return true;
+    return upper == 'LD_HEAD' ||
+        upper == 'L&D_HEAD' ||
+        upper == 'L&D HEAD' ||
+        upper.contains('LD_HEAD') ||
+        (isLdRole && upper.contains('HEAD'));
+  }
+
+  /// Whether the logged-in user specifically has a Cluster Lead role.
+  static bool get isClusterLead {
+    final raw = userRole;
+    if (raw == null || raw.trim().isEmpty) return false;
+    final upper = raw.trim().toUpperCase();
+    return upper == 'CLUSTER_LEAD' ||
+        upper == 'CLUSTER LEAD' ||
+        upper.contains('CLUSTER_LEAD') ||
+        upper.contains('CLUSTER LEAD');
   }
 
   /// Whether the current logged-in user is a Super Admin / CRRM.
@@ -161,8 +230,9 @@ class HiveStorage {
     if (userMap['name'] != null) {
       await put(StorageKeys.userName, userMap['name'].toString());
     }
-    if (userMap['role'] != null) {
-      await put(StorageKeys.userRole, userMap['role'].toString());
+    final r = userMap['role'] ?? userMap['roleLabel'] ?? userMap['userRole'];
+    if (r != null) {
+      await put(StorageKeys.userRole, r.toString());
     }
   }
 

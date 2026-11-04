@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/services/meta_service.dart';
 import '../../data/datasources/activities_remote_datasource.dart';
 import '../../data/models/activity_site_summary_model.dart';
+import '../../data/models/site_activity_item_model.dart';
 import 'activities_event.dart';
 import 'activities_state.dart';
 
@@ -10,11 +11,25 @@ class ActivitiesBloc extends Bloc<ActivitiesEvent, ActivitiesState> {
   final ActivitiesRemoteDataSource remoteDataSource;
 
   ActivitiesBloc({required this.remoteDataSource}) : super(const ActivitiesInitial()) {
+    on<LoadActivities>(_onLoadActivities);
     on<LoadActivitiesBySite>(_onLoadActivitiesBySite);
+    on<ChangeActivitiesSiteFilter>(_onChangeSiteFilter);
+    on<LoadActivitiesPage>(_onLoadActivitiesPage);
     on<ChangeActivitiesZoneFilter>(_onChangeZoneFilter);
     on<ChangeActivitiesClusterFilter>(_onChangeClusterFilter);
     on<ChangeActivitiesStatusFilter>(_onChangeStatusFilter);
     on<ChangeActivitiesRoleFilter>(_onChangeRoleFilter);
+    on<ResetActivitiesFilters>((event, emit) {
+      final currentState = state;
+      if (currentState is ActivitiesLoaded) {
+        emit(currentState.copyWith(
+          selectedSiteId: () => null,
+          selectedZoneId: () => null,
+          selectedClusterId: () => null,
+          selectedStatus: () => null,
+        ));
+      }
+    });
     on<SearchActivitiesQueryChanged>(_onSearchQueryChanged);
     on<SelectSiteForActivities>(_onSelectSite);
     on<CloseSiteActivitiesDetail>(_onCloseSiteDetail);
@@ -23,6 +38,80 @@ class ActivitiesBloc extends Bloc<ActivitiesEvent, ActivitiesState> {
     on<CloseActivityDetail>(_onCloseActivityDetail);
     on<SubmitActivityVisit>(_onSubmitActivityVisit);
     on<SendActivityMomEmail>(_onSendActivityMomEmail);
+  }
+
+  Future<void> _onLoadActivities(
+    LoadActivities event,
+    Emitter<ActivitiesState> emit,
+  ) async {
+    MetaService.instance.fetchMetadata().catchError((_) => MetaService.instance.meta);
+    final currentState = state;
+    if (!event.isRefresh && currentState is! ActivitiesLoaded) {
+      emit(const ActivitiesLoading());
+    } else if (currentState is ActivitiesLoaded) {
+      emit(currentState.copyWith(isLoadingActivities: true));
+    }
+
+    try {
+      final activitiesRes = await remoteDataSource.getActivities(
+        view: event.view,
+        kind: event.kind,
+        siteId: event.siteId,
+        status: event.status,
+        role: event.role,
+        offset: event.offset,
+        limit: event.limit,
+      );
+
+      // Extract unique sites from the response and combine with previously known sites
+      final discoveredSites = <ActivitySiteOptionModel>[];
+      final seenIds = <String>{};
+
+      if (currentState is ActivitiesLoaded) {
+        for (final s in currentState.knownSites) {
+          if (!seenIds.contains(s.siteId)) {
+            seenIds.add(s.siteId);
+            discoveredSites.add(s);
+          }
+        }
+      }
+
+      for (final it in activitiesRes.items) {
+        if (it.siteId.isNotEmpty && !seenIds.contains(it.siteId)) {
+          seenIds.add(it.siteId);
+          discoveredSites.add(ActivitySiteOptionModel(
+            siteId: it.siteId,
+            siteName: it.siteName.isNotEmpty ? it.siteName : 'Site ${it.siteId}',
+          ));
+        }
+      }
+
+      if (currentState is ActivitiesLoaded) {
+        emit(currentState.copyWith(
+          activitiesResponse: activitiesRes,
+          view: () => event.view,
+          kind: () => event.kind ?? currentState.kind,
+          selectedSiteId: () => event.siteId,
+          selectedStatus: () => event.status,
+          selectedRole: () => event.role,
+          knownSites: discoveredSites,
+          isLoadingActivities: false,
+        ));
+      } else {
+        emit(ActivitiesLoaded(
+          activitiesResponse: activitiesRes,
+          view: event.view,
+          kind: event.kind,
+          selectedSiteId: event.siteId,
+          selectedStatus: event.status,
+          selectedRole: event.role,
+          knownSites: discoveredSites,
+          isLoadingActivities: false,
+        ));
+      }
+    } catch (e) {
+      emit(ActivitiesError(e.toString()));
+    }
   }
 
   Future<void> _onLoadActivitiesBySite(
@@ -39,20 +128,108 @@ class ActivitiesBloc extends Bloc<ActivitiesEvent, ActivitiesState> {
       final res = await remoteDataSource.getActivitiesBySite(
         view: event.view,
       );
+      final activitiesRes = await remoteDataSource.getActivities(
+        view: event.view,
+      );
 
-      if (currentState is ActivitiesLoaded && event.isRefresh) {
-        emit(currentState.copyWith(
-          response: res,
-          view: event.view,
-        ));
-      } else {
-        emit(ActivitiesLoaded(
-          response: res,
-          view: event.view,
-        ));
+      final discoveredSites = <ActivitySiteOptionModel>[];
+      final seenIds = <String>{};
+
+      for (final it in activitiesRes.items) {
+        if (it.siteId.isNotEmpty && !seenIds.contains(it.siteId)) {
+          seenIds.add(it.siteId);
+          discoveredSites.add(ActivitySiteOptionModel(
+            siteId: it.siteId,
+            siteName: it.siteName.isNotEmpty ? it.siteName : 'Site ${it.siteId}',
+          ));
+        }
       }
+
+      emit(ActivitiesLoaded(
+        response: res,
+        activitiesResponse: activitiesRes,
+        view: event.view,
+        knownSites: discoveredSites,
+      ));
     } catch (e) {
       emit(ActivitiesError(e.toString()));
+    }
+  }
+
+  Future<void> _onChangeSiteFilter(
+    ChangeActivitiesSiteFilter event,
+    Emitter<ActivitiesState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is ActivitiesLoaded) {
+      emit(currentState.copyWith(
+        selectedSiteId: () => event.siteId,
+        isLoadingActivities: true,
+      ));
+
+      try {
+        final res = await remoteDataSource.getActivities(
+          view: currentState.view,
+          kind: currentState.kind,
+          siteId: event.siteId,
+          status: currentState.selectedStatus,
+          role: currentState.selectedRole,
+          offset: 0,
+          limit: 10,
+        );
+
+        final latest = state;
+        if (latest is ActivitiesLoaded) {
+          emit(latest.copyWith(
+            activitiesResponse: res,
+            selectedSiteId: () => event.siteId,
+            isLoadingActivities: false,
+          ));
+        }
+      } catch (e) {
+        final latest = state;
+        if (latest is ActivitiesLoaded) {
+          emit(latest.copyWith(
+            isLoadingActivities: false,
+            actionErrorMessage: () => 'Failed to filter by site: $e',
+          ));
+        }
+      }
+    }
+  }
+
+  Future<void> _onLoadActivitiesPage(
+    LoadActivitiesPage event,
+    Emitter<ActivitiesState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is ActivitiesLoaded) {
+      emit(currentState.copyWith(isLoadingActivities: true));
+
+      try {
+        final res = await remoteDataSource.getActivities(
+          view: currentState.view,
+          kind: currentState.kind,
+          siteId: currentState.selectedSiteId,
+          status: currentState.selectedStatus,
+          role: currentState.selectedRole,
+          offset: event.offset,
+          limit: event.limit,
+        );
+
+        final latest = state;
+        if (latest is ActivitiesLoaded) {
+          emit(latest.copyWith(
+            activitiesResponse: res,
+            isLoadingActivities: false,
+          ));
+        }
+      } catch (e) {
+        final latest = state;
+        if (latest is ActivitiesLoaded) {
+          emit(latest.copyWith(isLoadingActivities: false));
+        }
+      }
     }
   }
 
@@ -89,7 +266,34 @@ class ActivitiesBloc extends Bloc<ActivitiesEvent, ActivitiesState> {
     if (currentState is ActivitiesLoaded) {
       emit(currentState.copyWith(
         selectedStatus: () => event.status,
+        isLoadingActivities: true,
       ));
+
+      try {
+        final res = await remoteDataSource.getActivities(
+          view: currentState.view,
+          kind: currentState.kind,
+          siteId: currentState.selectedSiteId,
+          status: event.status,
+          role: currentState.selectedRole,
+          offset: 0,
+          limit: 10,
+        );
+
+        final latest = state;
+        if (latest is ActivitiesLoaded) {
+          emit(latest.copyWith(
+            activitiesResponse: res,
+            selectedStatus: () => event.status,
+            isLoadingActivities: false,
+          ));
+        }
+      } catch (e) {
+        final latest = state;
+        if (latest is ActivitiesLoaded) {
+          emit(latest.copyWith(isLoadingActivities: false));
+        }
+      }
     }
   }
 
@@ -101,30 +305,37 @@ class ActivitiesBloc extends Bloc<ActivitiesEvent, ActivitiesState> {
     if (currentState is ActivitiesLoaded) {
       emit(currentState.copyWith(
         selectedRole: () => event.role,
+        isLoadingActivities: true,
         isLoadingDetail: true,
       ));
 
       try {
-        final res = await remoteDataSource.getActivitiesBySite(
+        final res = await remoteDataSource.getActivities(
           view: currentState.view,
-          role: event.role,
-          zoneId: currentState.selectedZoneId,
-          clusterId: currentState.selectedClusterId,
+          kind: currentState.kind,
+          siteId: currentState.selectedSiteId,
           status: currentState.selectedStatus,
+          role: event.role,
+          offset: 0,
+          limit: 10,
         );
 
         final latest = state;
         if (latest is ActivitiesLoaded) {
           emit(latest.copyWith(
-            response: res,
+            activitiesResponse: res,
             selectedRole: () => event.role,
+            isLoadingActivities: false,
             isLoadingDetail: false,
           ));
         }
       } catch (e) {
         final latest = state;
         if (latest is ActivitiesLoaded) {
-          emit(latest.copyWith(isLoadingDetail: false));
+          emit(latest.copyWith(
+            isLoadingActivities: false,
+            isLoadingDetail: false,
+          ));
         }
       }
     }
@@ -153,7 +364,7 @@ class ActivitiesBloc extends Bloc<ActivitiesEvent, ActivitiesState> {
 
       try {
         final siteActivities = await remoteDataSource.getSiteActivities(
-          view: currentState.view,
+          view: currentState.view ?? 'mine',
           siteId: event.site.siteId,
           offset: 0,
           limit: 10,
@@ -200,7 +411,7 @@ class ActivitiesBloc extends Bloc<ActivitiesEvent, ActivitiesState> {
 
       try {
         final siteActivities = await remoteDataSource.getSiteActivities(
-          view: currentState.view,
+          view: currentState.view ?? 'mine',
           siteId: event.siteId,
           offset: event.offset,
           limit: event.limit,

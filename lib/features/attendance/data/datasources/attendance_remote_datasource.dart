@@ -14,6 +14,14 @@ abstract class AttendanceRemoteDataSource {
     int limit = 100,
     int offset = 0,
   });
+  Future<ActivityVisitModel> markAttendance({
+    required String activityId,
+    required String type, // 'checkin' | 'checkout'
+    required double latitude,
+    required double longitude,
+    required double accuracy,
+    required String capturedAt,
+  });
 }
 
 class AttendanceRemoteDataSourceImpl implements AttendanceRemoteDataSource {
@@ -119,6 +127,71 @@ class AttendanceRemoteDataSourceImpl implements AttendanceRemoteDataSource {
         '❌ Site Activities unexpected error: $e',
         name: 'Attendance',
       );
+      rethrow;
+    }
+  }
+
+  @override
+  Future<ActivityVisitModel> markAttendance({
+    required String activityId,
+    required String type,
+    required double latitude,
+    required double longitude,
+    required double accuracy,
+    required String capturedAt,
+  }) async {
+    final path = '/activities/$activityId/attendance';
+    final payload = {
+      'type': type,
+      'geo': {
+        'latitude': latitude,
+        'longitude': longitude,
+        'accuracy': accuracy,
+        'capturedAt': capturedAt,
+      },
+    };
+
+    final fullUrl = '${_dio.options.baseUrl}$path';
+    developer.log(
+      '🌐 Mark Attendance API call → $fullUrl with payload: $payload',
+      name: 'Attendance',
+    );
+
+    try {
+      final response = await _dio.post(
+        path,
+        data: payload,
+        options: Options(
+          headers: const {
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      developer.log(
+        '✅ Mark Attendance response [${response.statusCode}]\n${response.data}',
+        name: 'Attendance',
+      );
+
+      if (response.data is Map) {
+        final map = Map<String, dynamic>.from(response.data as Map);
+        final activityData = map['activity'] is Map
+            ? Map<String, dynamic>.from(map['activity'] as Map)
+            : (map['item'] is Map
+                ? Map<String, dynamic>.from(map['item'] as Map)
+                : map);
+        return ActivityVisitModel.fromJson(activityData);
+      }
+
+      throw Exception('Invalid response format from attendance API');
+    } on DioException catch (e) {
+      developer.log('❌ Mark Attendance API error: ${e.message}', name: 'Attendance');
+      final msg = e.response?.data is Map && (e.response?.data as Map)['message'] != null
+          ? (e.response?.data as Map)['message'].toString()
+          : (e.message ?? 'Failed to submit attendance');
+      throw Exception(msg);
+    } catch (e) {
+      developer.log('❌ Mark Attendance unexpected error: $e', name: 'Attendance');
       rethrow;
     }
   }

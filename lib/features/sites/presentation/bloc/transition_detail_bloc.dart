@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/storage/hive_storage.dart';
 import '../../data/datasources/sites_remote_datasource.dart';
 import 'transition_detail_event.dart';
 import 'transition_detail_state.dart';
@@ -10,6 +11,10 @@ class TransitionDetailBloc extends Bloc<TransitionDetailEvent, TransitionDetailS
   TransitionDetailBloc({required this.dataSource}) : super(const TransitionDetailInitial()) {
     on<LoadTransitionDetail>(_onLoadTransitionDetail);
     on<SelectTransitionStep>(_onSelectTransitionStep);
+    on<UpdateKickoffField>(_onUpdateKickoffField);
+    on<UpdateChecklistItemEvent>(_onUpdateChecklistItem);
+    on<SaveTransitionActionEvent>(_onSaveTransitionAction);
+    on<RaiseTransitionIssueEvent>(_onRaiseTransitionIssue);
   }
 
   Future<void> _onLoadTransitionDetail(
@@ -23,14 +28,21 @@ class TransitionDetailBloc extends Bloc<TransitionDetailEvent, TransitionDetailS
     try {
       final response = await dataSource.getTransitionDetail(event.siteId);
 
-      // Determine default active step:
-      // If site is already LIVE / Transition in progress, default to step 2 (Internal Checklist)
-      // matching the user screenshot!
-      int defaultStep = 2;
-      if (response.site.status == 'DRAFT') {
+      // 3-step default step calculation:
+      // Step 1: Internal Checklist
+      // Step 2: L&D Checklist
+      // Step 3: Stability Verify
+      int defaultStep = 1;
+      final internalDone = response.ldPreview.internal.isNotEmpty &&
+          response.ldPreview.internal.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
+
+      final revStatus = response.ldPreview.review.status.toUpperCase();
+      if (revStatus == 'VERIFIED' || revStatus == 'STABILITY_PENDING') {
+        defaultStep = 3;
+      } else if (internalDone) {
+        defaultStep = 2;
+      } else {
         defaultStep = 1;
-      } else if (response.site.ldTransitionComplete) {
-        defaultStep = 4;
       }
 
       emit(TransitionDetailLoaded(
@@ -48,7 +60,179 @@ class TransitionDetailBloc extends Bloc<TransitionDetailEvent, TransitionDetailS
   ) {
     if (state is TransitionDetailLoaded) {
       final current = state as TransitionDetailLoaded;
+      // Step 3 is restricted to L&D Head role (or Super Admin)
+      if (event.step == 3 && !HiveStorage.isLdHead) {
+        emit(current.copyWith(
+          errorMessage: 'Stability Verify is restricted to L&D Head role.',
+        ));
+        return;
+      }
       emit(current.copyWith(selectedStep: event.step));
+    }
+  }
+
+  void _onUpdateKickoffField(
+    UpdateKickoffField event,
+    Emitter<TransitionDetailState> emit,
+  ) {
+    if (state is TransitionDetailLoaded) {
+      final current = state as TransitionDetailLoaded;
+      final oldKickoff = current.response.ldPreview.kickoff;
+      final newKickoff = oldKickoff.copyWith(
+        withClient: event.withClient,
+        date: event.date,
+        participants: event.participants,
+        meeting: event.meeting,
+      );
+      final newPreview = current.response.ldPreview.copyWith(kickoff: newKickoff);
+      emit(current.copyWith(
+        response: current.response.copyWith(ldPreview: newPreview),
+      ));
+    }
+  }
+
+  void _onUpdateChecklistItem(
+    UpdateChecklistItemEvent event,
+    Emitter<TransitionDetailState> emit,
+  ) {
+    if (state is TransitionDetailLoaded) {
+      final current = state as TransitionDetailLoaded;
+      final preview = current.response.ldPreview;
+
+      if (event.phase.toUpperCase() == 'INTERNAL') {
+        final updatedInternal = preview.internal.map((item) {
+          if (item.key == event.key) {
+            return item.copyWith(
+              status: event.status,
+              done: event.done,
+              startDate: event.startDate ?? item.startDate,
+              endDate: event.endDate ?? item.endDate,
+            );
+          }
+          return item;
+        }).toList();
+
+        final newPreview = preview.copyWith(internal: updatedInternal);
+        emit(current.copyWith(
+          response: current.response.copyWith(ldPreview: newPreview),
+        ));
+      } else {
+        final updatedLd = preview.ldTransition.map((item) {
+          if (item.key == event.key) {
+            return item.copyWith(
+              status: event.status,
+              done: event.done,
+              startDate: event.startDate ?? item.startDate,
+              endDate: event.endDate ?? item.endDate,
+            );
+          }
+          return item;
+        }).toList();
+
+        final newPreview = preview.copyWith(ldTransition: updatedLd);
+        emit(current.copyWith(
+          response: current.response.copyWith(ldPreview: newPreview),
+        ));
+      }
+    }
+  }
+
+  Future<void> _onSaveTransitionAction(
+    SaveTransitionActionEvent event,
+    Emitter<TransitionDetailState> emit,
+  ) async {
+    if (state is TransitionDetailLoaded) {
+      final current = state as TransitionDetailLoaded;
+      emit(current.copyWith(isSaving: true));
+
+      try {
+        final preview = current.response.ldPreview;
+        final items = [
+          ...preview.internal.map((e) => e.toJson()),
+          ...preview.ldTransition.map((e) => e.toJson()),
+        ];
+        final kickoff = preview.kickoff.toJson();
+
+        final updatedResponse = await dataSource.saveTransitionAction(
+          event.siteId,
+          action: event.action,
+          items: items,
+          kickoff: kickoff,
+        );
+
+        int nextStep = current.selectedStep;
+        if (event.action == 'save' && current.selectedStep == 1) {
+          nextStep = 2;
+        } else if (event.action == 'stability') {
+          nextStep = 3;
+        }
+
+        String message = 'Progress saved successfully';
+        if (event.action == 'stability') {
+          message = 'Submitted for Stability Check';
+        } else if (event.action == 'verify') {
+          message = 'Stability successfully verified!';
+        }
+
+        emit(current.copyWith(
+          response: updatedResponse,
+          selectedStep: nextStep,
+          isSaving: false,
+          actionMessage: message,
+        ));
+      } catch (e) {
+        emit(current.copyWith(
+          isSaving: false,
+          errorMessage: e.toString(),
+        ));
+      }
+    }
+  }
+
+  Future<void> _onRaiseTransitionIssue(
+    RaiseTransitionIssueEvent event,
+    Emitter<TransitionDetailState> emit,
+  ) async {
+    if (state is TransitionDetailLoaded) {
+      final current = state as TransitionDetailLoaded;
+      emit(current.copyWith(isSaving: true));
+
+      try {
+        await dataSource.raiseTransitionIssue(
+          event.siteId,
+          phase: event.phase,
+          key: event.key,
+          issue: event.issue,
+          ownerId: event.ownerId,
+          remarks: event.remarks,
+        );
+
+        final preview = current.response.ldPreview;
+        final updatedInternal = preview.internal.map((item) {
+          if (item.key == event.key) {
+            return item.copyWith(
+              status: 'PENDING',
+              done: false,
+              issue: event.issue,
+              remarks: event.remarks,
+            );
+          }
+          return item;
+        }).toList();
+
+        emit(current.copyWith(
+          response: current.response.copyWith(
+            ldPreview: preview.copyWith(internal: updatedInternal),
+          ),
+          isSaving: false,
+          actionMessage: 'Issue raised successfully for ${event.key}!',
+        ));
+      } catch (e) {
+        emit(current.copyWith(
+          isSaving: false,
+          errorMessage: e.toString(),
+        ));
+      }
     }
   }
 }

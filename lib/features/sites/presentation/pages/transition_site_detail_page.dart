@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/services/meta_service.dart';
+import '../../../../core/services/user_service.dart';
+import '../../../../core/storage/hive_storage.dart';
 import '../../data/datasources/sites_remote_datasource.dart';
 import '../../data/models/transition_detail_model.dart';
 import '../bloc/transition_detail_bloc.dart';
@@ -46,17 +49,84 @@ class TransitionSiteDetailPage extends StatelessWidget {
   }
 }
 
-class _TransitionSiteDetailView extends StatelessWidget {
+class _TransitionSiteDetailView extends StatefulWidget {
   final String siteId;
 
   const _TransitionSiteDetailView({required this.siteId});
+
+  @override
+  State<_TransitionSiteDetailView> createState() => _TransitionSiteDetailViewState();
+}
+
+class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
+  final Map<String, bool> _openPendingForms = {};
+  final Map<String, TextEditingController> _issueControllers = {};
+  final Map<String, TextEditingController> _remarksControllers = {};
+  final Map<String, String?> _selectedOwnerIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-cache admin users so kickoff participants' name & department are always resolved
+    UserService.instance.getAdminUsers().then((_) {
+      if (mounted) setState(() {});
+    }).catchError((_) {});
+  }
+
+  @override
+  void dispose() {
+    for (final c in _issueControllers.values) {
+      c.dispose();
+    }
+    for (final c in _remarksControllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  String _formatDateWithDay(String? dateStr) {
+    if (dateStr == null || dateStr.trim().isEmpty) return 'Select date';
+    try {
+      final parsed = DateTime.parse(dateStr.trim());
+      const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ];
+      const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+      return '${parsed.day} ${months[parsed.month - 1]} ${parsed.year}  ${days[parsed.weekday - 1]}';
+    } catch (_) {
+      return dateStr;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _kBg,
       body: SafeArea(
-        child: BlocBuilder<TransitionDetailBloc, TransitionDetailState>(
+        child: BlocConsumer<TransitionDetailBloc, TransitionDetailState>(
+          listener: (context, state) {
+            if (state is TransitionDetailLoaded) {
+              if (state.actionMessage != null && state.actionMessage!.isNotEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(state.actionMessage!),
+                    backgroundColor: const Color(0xFF0F172A),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+              if (state.errorMessage != null && state.errorMessage!.isNotEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(state.errorMessage!),
+                    backgroundColor: Colors.redAccent,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            }
+          },
           builder: (context, state) {
             if (state is TransitionDetailLoading || state is TransitionDetailInitial) {
               return const Center(
@@ -111,7 +181,7 @@ class _TransitionSiteDetailView extends StatelessWidget {
               onPressed: () {
                 context
                     .read<TransitionDetailBloc>()
-                    .add(LoadTransitionDetail(siteId: siteId, isRefresh: true));
+                    .add(LoadTransitionDetail(siteId: widget.siteId, isRefresh: true));
               },
               child: const Text('Retry'),
             ),
@@ -129,7 +199,7 @@ class _TransitionSiteDetailView extends StatelessWidget {
       onRefresh: () async {
         context
             .read<TransitionDetailBloc>()
-            .add(LoadTransitionDetail(siteId: siteId, isRefresh: true));
+            .add(LoadTransitionDetail(siteId: widget.siteId, isRefresh: true));
       },
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -147,11 +217,17 @@ class _TransitionSiteDetailView extends StatelessWidget {
               _buildSiteHeaderCard(context, site, isDesktop),
               const SizedBox(height: 16),
 
-              // ── 4-Stage Stepper Bar ─────────────────────────────────────────
+              // ── 3-Stage Stepper Bar ─────────────────────────────────────────
               _buildStepperCard(context, state, isDesktop),
               const SizedBox(height: 16),
 
               // ── Active Step Body ───────────────────────────────────────────
+              if (state.isSaving) ...[
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: LinearProgressIndicator(color: _kBlue),
+                ),
+              ],
               _buildStepContent(context, state, isDesktop),
               const SizedBox(height: 32),
             ],
@@ -192,7 +268,7 @@ class _TransitionSiteDetailView extends StatelessWidget {
               const Icon(Icons.arrow_back_rounded, size: 16, color: _kBlue),
               const SizedBox(width: 6),
               Text(
-                'Back to Sites List',
+                'All LIVE Sites',
                 style: GoogleFonts.outfit(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -223,9 +299,7 @@ class _TransitionSiteDetailView extends StatelessWidget {
           ? Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Site title & code
                 _buildSiteTitleAndCode(site),
-                // 3 Date cards
                 Row(
                   children: [
                     _buildContractDateBox('Contract Award Date', site.formattedAwardDate),
@@ -263,8 +337,10 @@ class _TransitionSiteDetailView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 10,
+          runSpacing: 4,
           children: [
             Text(
               site.name,
@@ -274,7 +350,6 @@ class _TransitionSiteDetailView extends StatelessWidget {
                 color: _kDark,
               ),
             ),
-            const SizedBox(width: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(
@@ -282,7 +357,7 @@ class _TransitionSiteDetailView extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                site.status.isNotEmpty ? site.status[0].toUpperCase() + site.status.substring(1).toLowerCase() : 'Live',
+                'L&D Transition',
                 style: GoogleFonts.outfit(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w600,
@@ -294,7 +369,7 @@ class _TransitionSiteDetailView extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          site.code,
+          '${site.code} · ${site.status} · Open',
           style: GoogleFonts.outfit(
             fontSize: 12.5,
             fontWeight: FontWeight.w500,
@@ -345,13 +420,45 @@ class _TransitionSiteDetailView extends StatelessWidget {
     );
   }
 
-  // ── 4-Stage Stepper Card ────────────────────────────────────────────────────
+  // ── 3-Stage Stepper Card (Matching Web Images 1, 2, 3) ──────────────────────
   Widget _buildStepperCard(
     BuildContext context,
     TransitionDetailLoaded state,
     bool isDesktop,
   ) {
+    final preview = state.response.ldPreview;
     final selectedStep = state.selectedStep;
+
+    final isInternalDone = preview.internal.isNotEmpty &&
+        preview.internal.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
+    final isLdDone = preview.ldTransition.isNotEmpty &&
+        preview.ldTransition.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
+    final isVerified = preview.review.status.toUpperCase() == 'VERIFIED';
+
+    final steps = [
+      _StepConfig(
+        stepIndex: 1,
+        title: 'Internal Checklist',
+        subtitle: 'L&D Team',
+        isCompleted: isInternalDone,
+        isSelected: selectedStep == 1,
+      ),
+      _StepConfig(
+        stepIndex: 2,
+        title: 'L&D Checklist',
+        subtitle: 'L&D Team',
+        isCompleted: isLdDone,
+        isSelected: selectedStep == 2,
+      ),
+      _StepConfig(
+        stepIndex: 3,
+        title: 'Stability Verify',
+        subtitle: 'L&D Head',
+        isCompleted: isVerified,
+        isSelected: selectedStep == 3,
+        isRestrictedToHead: true,
+      ),
+    ];
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -363,144 +470,51 @@ class _TransitionSiteDetailView extends StatelessWidget {
       child: isDesktop
           ? Row(
               children: [
-                Expanded(
-                  child: _buildStepItem(
-                    context: context,
-                    stepIndex: 1,
-                    title: 'Site Creation',
-                    subtitle: 'Completed',
-                    isCompleted: true,
-                    isSelected: selectedStep == 1,
-                    icon: Icons.apartment_outlined,
-                    isDesktop: true,
-                  ),
-                ),
+                Expanded(child: _buildStepItem(context, steps[0], true)),
                 _buildStepArrow(),
-                Expanded(
-                  child: _buildStepItem(
-                    context: context,
-                    stepIndex: 2,
-                    title: 'Internal Checklist',
-                    subtitle: 'L&D Team',
-                    isCompleted: false,
-                    isSelected: selectedStep == 2,
-                    icon: Icons.assignment_outlined,
-                    isDesktop: true,
-                  ),
-                ),
+                Expanded(child: _buildStepItem(context, steps[1], true)),
                 _buildStepArrow(),
-                Expanded(
-                  child: _buildStepItem(
-                    context: context,
-                    stepIndex: 3,
-                    title: 'L&D Checklist',
-                    subtitle: 'L&D Team',
-                    isCompleted: false,
-                    isSelected: selectedStep == 3,
-                    icon: Icons.auto_awesome_outlined,
-                    isDesktop: true,
-                  ),
-                ),
-                _buildStepArrow(),
-                Expanded(
-                  child: _buildStepItem(
-                    context: context,
-                    stepIndex: 4,
-                    title: 'Stability Verify',
-                    subtitle: 'L&D Head',
-                    isCompleted: false,
-                    isSelected: selectedStep == 4,
-                    icon: Icons.verified_user_outlined,
-                    isDesktop: true,
-                  ),
-                ),
+                Expanded(child: _buildStepItem(context, steps[2], true)),
               ],
             )
           : SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildStepItem(
-                    context: context,
-                    stepIndex: 1,
-                    title: 'Site Creation',
-                    subtitle: 'Completed',
-                    isCompleted: true,
-                    isSelected: selectedStep == 1,
-                    icon: Icons.apartment_outlined,
-                    isDesktop: false,
-                  ),
+                  _buildStepItem(context, steps[0], false),
                   _buildStepArrow(),
-                  _buildStepItem(
-                    context: context,
-                    stepIndex: 2,
-                    title: 'Internal Checklist',
-                    subtitle: 'L&D Team',
-                    isCompleted: false,
-                    isSelected: selectedStep == 2,
-                    icon: Icons.assignment_outlined,
-                    isDesktop: false,
-                  ),
+                  _buildStepItem(context, steps[1], false),
                   _buildStepArrow(),
-                  _buildStepItem(
-                    context: context,
-                    stepIndex: 3,
-                    title: 'L&D Checklist',
-                    subtitle: 'L&D Team',
-                    isCompleted: false,
-                    isSelected: selectedStep == 3,
-                    icon: Icons.auto_awesome_outlined,
-                    isDesktop: false,
-                  ),
-                  _buildStepArrow(),
-                  _buildStepItem(
-                    context: context,
-                    stepIndex: 4,
-                    title: 'Stability Verify',
-                    subtitle: 'L&D Head',
-                    isCompleted: false,
-                    isSelected: selectedStep == 4,
-                    icon: Icons.verified_user_outlined,
-                    isDesktop: false,
-                  ),
+                  _buildStepItem(context, steps[2], false),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildStepItem({
-    required BuildContext context,
-    required int stepIndex,
-    required String title,
-    required String subtitle,
-    required bool isCompleted,
-    required bool isSelected,
-    required IconData icon,
-    required bool isDesktop,
-  }) {
+  Widget _buildStepItem(BuildContext context, _StepConfig cfg, bool isDesktop) {
     final titleColumn = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          title,
+          cfg.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.outfit(
             fontSize: 13,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            fontWeight: cfg.isSelected ? FontWeight.w700 : FontWeight.w600,
             color: _kDark,
           ),
         ),
         Text(
-          subtitle,
+          cfg.subtitle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.outfit(
             fontSize: 11,
             fontWeight: FontWeight.w500,
-            color: isCompleted ? _kGreen : _kSlate,
+            color: cfg.isCompleted ? _kGreen : _kSlate,
           ),
         ),
       ],
@@ -509,15 +523,24 @@ class _TransitionSiteDetailView extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: () {
-        context.read<TransitionDetailBloc>().add(SelectTransitionStep(stepIndex));
+        if (cfg.isRestrictedToHead && !HiveStorage.isLdHead) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Stability Verify is restricted to L&D Head role.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return;
+        }
+        context.read<TransitionDetailBloc>().add(SelectTransitionStep(cfg.stepIndex));
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFF0F7FF) : Colors.transparent,
+          color: cfg.isSelected ? const Color(0xFFF0F7FF) : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? _kBlue : Colors.transparent,
+            color: cfg.isSelected ? _kBlue : Colors.transparent,
             width: 1.5,
           ),
         ),
@@ -525,7 +548,7 @@ class _TransitionSiteDetailView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Badge / Number Circle
-            if (isCompleted)
+            if (cfg.isCompleted)
               Container(
                 width: 26,
                 height: 26,
@@ -540,35 +563,22 @@ class _TransitionSiteDetailView extends StatelessWidget {
                 width: 26,
                 height: 26,
                 decoration: BoxDecoration(
-                  color: isSelected ? _kBlue : const Color(0xFFF1F5F9),
+                  color: cfg.isSelected ? _kBlue : const Color(0xFFF1F5F9),
                   shape: BoxShape.circle,
-                  border: isSelected ? null : Border.all(color: const Color(0xFFCBD5E1)),
+                  border: cfg.isSelected ? null : Border.all(color: const Color(0xFFCBD5E1)),
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  '$stepIndex',
+                  '${cfg.stepIndex}',
                   style: GoogleFonts.outfit(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: isSelected ? Colors.white : _kSlate,
+                    color: cfg.isSelected ? Colors.white : _kSlate,
                   ),
                 ),
               ),
             const SizedBox(width: 10),
-
-            // Titles
-            if (isDesktop)
-              Expanded(child: titleColumn)
-            else
-              titleColumn,
-            const SizedBox(width: 8),
-
-            // Small side icon
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? _kBlue : (isCompleted ? _kGreen : const Color(0xFF94A3B8)),
-            ),
+            if (isDesktop) Expanded(child: titleColumn) else titleColumn,
           ],
         ),
       ),
@@ -590,99 +600,31 @@ class _TransitionSiteDetailView extends StatelessWidget {
   ) {
     switch (state.selectedStep) {
       case 1:
-        return _buildStep1SiteCreation(state.response.site);
+        return _buildStep1InternalChecklist(context, state);
       case 2:
-        return _buildStep2InternalChecklist(context, state);
+        return _buildStep2LdChecklist(context, state);
       case 3:
-        return _buildStep3LdChecklist(context, state);
-      case 4:
-        return _buildStep4StabilityVerify(state.response);
+        return _buildStep3StabilityVerify(context, state);
       default:
-        return _buildStep2InternalChecklist(context, state);
+        return _buildStep1InternalChecklist(context, state);
     }
   }
 
-  // ── Step 1: Site Creation Summary ──────────────────────────────────────────
-  Widget _buildStep1SiteCreation(TransitionSiteInfoModel site) {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: Text(
-                  'Site Creation',
-                  style: GoogleFonts.outfit(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: _kDark,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  'Completed',
-                  style: GoogleFonts.outfit(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    color: _kGreen,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1, color: _kBorder),
-          const SizedBox(height: 16),
-          _buildInfoRow('Client Name', site.clientName),
-          _buildInfoRow('Site Code', site.code),
-          _buildInfoRow('Zone & Cluster', '${site.zoneName} · ${site.clusterName}'),
-          _buildInfoRow('Service', site.serviceName.isNotEmpty ? site.serviceName : 'HK'),
-          _buildInfoRow('Client Type', site.clientType),
-          _buildInfoRow('Mode', site.mode),
-          _buildInfoRow('Billing PM', '₹${site.billingPm}'),
-          _buildInfoRow(
-            'Manpower',
-            'Deployed: ${site.manpowerDeployed} / Required: ${site.manpowerRequired} (Shortage: ${site.shortage})',
-          ),
-          _buildInfoRow('Contract Start', site.formattedStartDate),
-          _buildInfoRow('Contract End', site.formattedEndDate),
-        ],
-      ),
-    );
-  }
-
-  // ── Step 2: Internal Checklist ─────────────────────────────────────────────
-  Widget _buildStep2InternalChecklist(
+  // ── Step 1: Internal Checklist (Client Kick-Off + Internal Items) ───────────
+  Widget _buildStep1InternalChecklist(
     BuildContext context,
     TransitionDetailLoaded state,
   ) {
     final preview = state.response.ldPreview;
     final kickoff = preview.kickoff;
-    final items = preview.internal.isNotEmpty
-        ? preview.internal
-        : state.response.transitions.where((t) => t.phase == 'INTERNAL').toList();
-
+    final zoneUsers = state.response.zoneUsers;
+    final items = preview.internal;
     final openCount = items.where((i) => i.displayStatus != 'Completed').length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Card 1: Client Kick-Off ──
+        // ── Card 1: Client Kick-Off (Matching Image 1 & 5) ──
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -726,40 +668,61 @@ class _TransitionSiteDetailView extends StatelessWidget {
               ),
               const SizedBox(height: 18),
 
-              // Row 1: Kick-Off With Client, Date, Participants
+              // Row 1: Kick-Off With Client & Date Picker
               Wrap(
-                spacing: 32,
+                spacing: 24,
                 runSpacing: 16,
+                crossAxisAlignment: WrapCrossAlignment.start,
                 children: [
-                  _buildDisabledToggleField(
+                  _buildInteractiveToggleField(
                     label: 'Kick-Off With Client',
                     isYes: kickoff.isWithClientYes,
+                    onChanged: (yes) {
+                      context.read<TransitionDetailBloc>().add(
+                            UpdateKickoffField(withClient: yes ? 'YES' : 'NO'),
+                          );
+                    },
                   ),
-                  _buildKickoffField(
-                    label: 'Kick-Off Date',
-                    value: kickoff.date.isNotEmpty ? kickoff.formattedDate : '—',
-                  ),
-                  _buildKickoffField(
-                    label: 'Kick-Off Participants',
-                    value: kickoff.participants.isNotEmpty
-                        ? kickoff.participants.join(', ')
-                        : '—',
+                  _buildDatePickerButton(
+                    context: context,
+                    label: 'Kick-Off Date *',
+                    currentDate: kickoff.date,
+                    subtitle: 'Mandatory when kick-off = Yes',
+                    onDateSelected: (newDate) {
+                      context.read<TransitionDetailBloc>().add(
+                            UpdateKickoffField(date: newDate),
+                          );
+                    },
+                    onClear: () {
+                      context.read<TransitionDetailBloc>().add(
+                            const UpdateKickoffField(date: ''),
+                          );
+                    },
                   ),
                 ],
               ),
               const SizedBox(height: 18),
 
-              // Row 2: Pre-Transition Meeting
-              _buildDisabledToggleField(
+              // Row 2: Kick-Off Participants (L&D Department Multi-Select - Image 5)
+              _buildParticipantsSelector(context, kickoff, zoneUsers),
+              const SizedBox(height: 18),
+
+              // Row 3: Pre-Transition Meeting
+              _buildInteractiveToggleField(
                 label: 'Pre-Transition Meeting',
                 isYes: kickoff.isPreTransitionMeetingYes,
+                onChanged: (yes) {
+                  context.read<TransitionDetailBloc>().add(
+                        UpdateKickoffField(meeting: yes ? 'COMPLETED' : 'NO'),
+                      );
+                },
               ),
             ],
           ),
         ),
         const SizedBox(height: 16),
 
-        // ── Card 2: Internal Checklist Table ──
+        // ── Card 2: Internal Checklist Table (Matching Image 1 & 4) ──
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -791,7 +754,7 @@ class _TransitionSiteDetailView extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${items.length} Items · $openCount Open',
+                      '${items.length} items · $openCount open',
                       style: GoogleFonts.outfit(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -803,17 +766,17 @@ class _TransitionSiteDetailView extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              _buildChecklistCards(items),
+              ...items.map((item) => _buildChecklistItemRow(context, item, zoneUsers)),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
 
-        // ── Action Button: Continue To L&D Checklist → ──
+        // ── Action Button: Continue → (Image 1) ──
         Align(
-          alignment: Alignment.centerRight,
+          alignment: Alignment.centerLeft,
           child: SizedBox(
-            height: 40,
+            height: 42,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: _kBlue,
@@ -822,15 +785,20 @@ class _TransitionSiteDetailView extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 22),
               ),
               onPressed: () {
-                context.read<TransitionDetailBloc>().add(const SelectTransitionStep(3));
+                context.read<TransitionDetailBloc>().add(
+                      SaveTransitionActionEvent(
+                        siteId: widget.siteId,
+                        action: 'save',
+                      ),
+                    );
               },
               child: Text(
-                'Continue To L&D Checklist →',
+                'Continue →',
                 style: GoogleFonts.outfit(
-                  fontSize: 13,
+                  fontSize: 13.5,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -841,17 +809,24 @@ class _TransitionSiteDetailView extends StatelessWidget {
     );
   }
 
-  // ── Step 3: L&D Checklist ──────────────────────────────────────────────────
-  Widget _buildStep3LdChecklist(
+  // ── Step 2: L&D Checklist (Matching Image 2) ───────────────────────────────
+  Widget _buildStep2LdChecklist(
     BuildContext context,
     TransitionDetailLoaded state,
   ) {
     final preview = state.response.ldPreview;
-    final items = preview.ldTransition.isNotEmpty
-        ? preview.ldTransition
-        : state.response.transitions.where((t) => t.phase == 'LD_TRANSITION').toList();
-
+    final items = preview.ldTransition;
     final openCount = items.where((i) => i.displayStatus != 'Completed').length;
+    final zoneUsers = state.response.zoneUsers;
+
+    // Check conditions:
+    // "without internal checklist got completed also we can't enable stability check button..."
+    // "if checklist all status completed... then only need to enable submit stability..."
+    final allInternalDone = preview.internal.isNotEmpty &&
+        preview.internal.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
+    final allLdDone = preview.ldTransition.isNotEmpty &&
+        preview.ldTransition.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
+    final canSubmitStability = allInternalDone && allLdDone;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -899,46 +874,113 @@ class _TransitionSiteDetailView extends StatelessWidget {
               ),
               const SizedBox(height: 16),
 
-              _buildChecklistCards(items),
+              ...items.map((item) => _buildChecklistItemRow(context, item, zoneUsers)),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
 
-        // ── Action Button: Continue To Stability Verify → ──
-        Align(
-          alignment: Alignment.centerRight,
-          child: SizedBox(
-            height: 40,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _kBlue,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+        // ── Action Buttons: [Work in Progress] & [Stability Check] (Image 2) ──
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _kBorder),
+          ),
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _kBlue,
+                  side: const BorderSide(color: Color(0xFFBFDBFE)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-              ),
-              onPressed: () {
-                context.read<TransitionDetailBloc>().add(const SelectTransitionStep(4));
-              },
-              child: Text(
-                'Continue To Stability Verify →',
-                style: GoogleFonts.outfit(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                onPressed: () {
+                  context.read<TransitionDetailBloc>().add(
+                        SaveTransitionActionEvent(
+                          siteId: widget.siteId,
+                          action: 'save',
+                        ),
+                      );
+                },
+                child: Text(
+                  'Work in Progress',
+                  style: GoogleFonts.outfit(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: canSubmitStability ? _kBlue : const Color(0xFF93C5FD),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () {
+                  if (!allInternalDone) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'All Internal Checklist items must be Completed before Stability Check.',
+                        ),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                    return;
+                  }
+                  if (!allLdDone) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'All L&D Checklist items must be Completed before Stability Check.',
+                        ),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                    return;
+                  }
+
+                  context.read<TransitionDetailBloc>().add(
+                        SaveTransitionActionEvent(
+                          siteId: widget.siteId,
+                          action: 'stability',
+                        ),
+                      );
+                },
+                child: Text(
+                  'Stability Check',
+                  style: GoogleFonts.outfit(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
 
-  // ── Step 4: Stability Verify ───────────────────────────────────────────────
-  Widget _buildStep4StabilityVerify(TransitionSiteDetailResponseModel response) {
+  // ── Step 3: Stability Verify (Matching Image 3) ─────────────────────────────
+  Widget _buildStep3StabilityVerify(
+    BuildContext context,
+    TransitionDetailLoaded state,
+  ) {
+    final review = state.response.ldPreview.review;
+    final isVerified = review.status.toUpperCase() == 'VERIFIED';
+    final isHead = HiveStorage.isLdHead;
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -950,261 +992,107 @@ class _TransitionSiteDetailView extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Flexible(
-                child: Text(
-                  'Stability Verify',
-                  style: GoogleFonts.outfit(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: _kDark,
-                  ),
-                ),
-              ),
+              const Icon(Icons.verified_user_outlined, size: 20, color: _kBlue),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                decoration: BoxDecoration(
-                  color: response.site.ldTransitionComplete
-                      ? const Color(0xFFDCFCE7)
-                      : _kAmberBg,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  response.site.ldTransitionComplete ? 'Verified' : 'Pending',
-                  style: GoogleFonts.outfit(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: response.site.ldTransitionComplete ? _kGreen : _kAmber,
-                  ),
+              Text(
+                'Stability Check',
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: _kDark,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
-            'Stability Verify is done by L&D Head in the L&D Transition module.',
-            style: GoogleFonts.outfit(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w400,
-              color: _kSlate,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _kBorder),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline_rounded, size: 20, color: _kBlue),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'CRRM and Super Admin have read-only access to transition checklists and stability milestones.',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
-                      color: const Color(0xFF334155),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Common Checklist Cards (Simple Card View) ──────────────────────────────
-  Widget _buildChecklistCards(List<TransitionChecklistItemModel> items) {
-    if (items.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: Center(
-          child: Text(
-            'No checklist items available for this phase.',
+            'Finish Internal + L&D checklist, then use Stability Check to send this for L&D Head verify.',
             style: GoogleFonts.outfit(fontSize: 13, color: _kSlate),
           ),
-        ),
-      );
-    }
+          const SizedBox(height: 20),
 
-    return Column(
-      children: items.map((item) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _buildChecklistItemCard(item),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildChecklistItemCard(TransitionChecklistItemModel item) {
-    final isDone = item.displayStatus == 'Completed';
-    final isInProgress = item.displayStatus == 'In progress';
-
-    Color statusBg;
-    Color statusBorder;
-    Color statusText;
-    IconData statusIcon;
-
-    if (isDone) {
-      statusBg = const Color(0xFFF0FDF4);
-      statusBorder = const Color(0xFFBBF7D0);
-      statusText = const Color(0xFF16A34A);
-      statusIcon = Icons.check_circle_rounded;
-    } else if (isInProgress) {
-      statusBg = const Color(0xFFEFF6FF);
-      statusBorder = const Color(0xFFBFDBFE);
-      statusText = const Color(0xFF2563EB);
-      statusIcon = Icons.sync_rounded;
-    } else {
-      statusBg = const Color(0xFFFFFBEB);
-      statusBorder = const Color(0xFFFDE68A);
-      statusText = const Color(0xFFD97706);
-      statusIcon = Icons.schedule_rounded;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header: Title + Status Badge
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
+          if (isVerified) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFBBF7D0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: _kGreen, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Stability Verified',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: _kGreen,
+                    ),
+                  ),
+                  if (review.verifiedAt != null) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      '· ${TransitionDateHelper.formatDate(review.verifiedAt)}',
+                      style: GoogleFonts.outfit(fontSize: 12.5, color: _kSlate),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ] else if (!isHead) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.lock_outline_rounded, color: Color(0xFFD97706), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Stability Verify is restricted to L&D Head role. Awaiting L&D Head review.',
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFFB45309),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kBlue,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () {
+                  context.read<TransitionDetailBloc>().add(
+                        SaveTransitionActionEvent(
+                          siteId: widget.siteId,
+                          action: 'verify',
+                        ),
+                      );
+                },
                 child: Text(
-                  item.title,
+                  'Stability Check',
                   style: GoogleFonts.outfit(
                     fontSize: 13.5,
                     fontWeight: FontWeight.w600,
-                    color: _kDark,
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: statusBg,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: statusBorder),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(statusIcon, size: 12, color: statusText),
-                    const SizedBox(width: 4),
-                    Text(
-                      item.displayStatus,
-                      style: GoogleFonts.outfit(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: statusText,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // Date row: Start Date & Target Date
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      const Icon(Icons.calendar_today_outlined, size: 12, color: Color(0xFF94A3B8)),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Start: ',
-                        style: GoogleFonts.outfit(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
-                          color: const Color(0xFF64748B),
-                        ),
-                      ),
-                      Flexible(
-                        child: Text(
-                          item.formattedStartDate,
-                          style: GoogleFonts.outfit(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: item.formattedStartDate == '—'
-                                ? const Color(0xFF94A3B8)
-                                : const Color(0xFF334155),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(width: 1, height: 16, color: const Color(0xFFE2E8F0)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Row(
-                    children: [
-                      const Icon(Icons.flag_outlined, size: 12, color: Color(0xFF94A3B8)),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Target: ',
-                        style: GoogleFonts.outfit(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w500,
-                          color: const Color(0xFF64748B),
-                        ),
-                      ),
-                      Flexible(
-                        child: Text(
-                          item.formattedTargetDate,
-                          style: GoogleFonts.outfit(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: item.formattedTargetDate == '—'
-                                ? const Color(0xFF94A3B8)
-                                : const Color(0xFF334155),
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          if (item.remarks != null && item.remarks!.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              item.remarks!.trim(),
-              style: GoogleFonts.outfit(
-                fontSize: 11.5,
-                fontStyle: FontStyle.italic,
-                color: const Color(0xFF64748B),
               ),
             ),
           ],
@@ -1213,37 +1101,848 @@ class _TransitionSiteDetailView extends StatelessWidget {
     );
   }
 
-  // ── Disabled Kick-off Toggle Field (Yes / No) ──────────────────────────────
-  Widget _buildSegmentOption(String label, bool isSelected) {
+  // ── Checklist Item Row: Title, Dates, Status buttons, Issue Box ────────────
+  Widget _buildChecklistItemRow(
+    BuildContext context,
+    TransitionChecklistItemModel item,
+    List<ZoneUserModel> zoneUsers,
+  ) {
+    final isPendingFormOpen = _openPendingForms[item.key] == true;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.white : Colors.transparent,
-        borderRadius: BorderRadius.circular(4),
-        boxShadow: isSelected
-            ? [
-                BoxShadow(
-                  color: const Color(0x0A000000),
-                  blurRadius: 2,
-                  offset: const Offset(0, 1),
-                ),
-              ]
-            : null,
+        color: const Color(0xFFFAFAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _kBorder),
       ),
-      child: Text(
-        label,
-        style: GoogleFonts.outfit(
-          fontSize: 11,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-          color: isSelected ? const Color(0xFF334155) : const Color(0xFF94A3B8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Row: Title + Status Toggle Buttons
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              Text(
+                item.title,
+                style: GoogleFonts.outfit(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: _kDark,
+                ),
+              ),
+              _buildStatusButtons(context: context, item: item),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Date Row: Start Date & Target Date
+          Wrap(
+            spacing: 16,
+            runSpacing: 8,
+            children: [
+              _buildChecklistDateField(
+                context: context,
+                label: 'Start Date',
+                dateStr: item.startDate,
+                onSelected: (date) {
+                  context.read<TransitionDetailBloc>().add(
+                        UpdateChecklistItemEvent(
+                          phase: item.phase,
+                          key: item.key,
+                          status: item.status,
+                          done: item.done,
+                          startDate: date,
+                          endDate: item.endDate,
+                        ),
+                      );
+                },
+              ),
+              _buildChecklistDateField(
+                context: context,
+                label: 'Target Date',
+                dateStr: item.targetDate ?? item.endDate,
+                onSelected: (date) {
+                  context.read<TransitionDetailBloc>().add(
+                        UpdateChecklistItemEvent(
+                          phase: item.phase,
+                          key: item.key,
+                          status: item.status,
+                          done: item.done,
+                          startDate: item.startDate,
+                          endDate: date,
+                        ),
+                      );
+                },
+              ),
+            ],
+          ),
+
+          // Pending Issue Form (Image 4)
+          if (isPendingFormOpen && item.canRaiseTicket) ...[
+            _buildPendingIssueBox(
+              context: context,
+              item: item,
+              zoneUsers: zoneUsers,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ── Status Selection Buttons (Completed / Pending / In progress) ────────────
+  Widget _buildStatusButtons({
+    required BuildContext context,
+    required TransitionChecklistItemModel item,
+  }) {
+    final current = item.displayStatus.toLowerCase();
+
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        _buildSingleStatusBtn(
+          label: 'Completed',
+          isActive: current == 'completed',
+          activeColor: const Color(0xFF16A34A),
+          activeBg: const Color(0xFFF0FDF4),
+          activeBorder: const Color(0xFFBBF7D0),
+          onTap: () {
+            context.read<TransitionDetailBloc>().add(
+                  UpdateChecklistItemEvent(
+                    phase: item.phase,
+                    key: item.key,
+                    status: 'COMPLETED',
+                    done: true,
+                  ),
+                );
+            setState(() {
+              _openPendingForms[item.key] = false;
+            });
+          },
+        ),
+        const SizedBox(width: 4),
+        _buildSingleStatusBtn(
+          label: 'Pending',
+          isActive: current == 'pending',
+          activeColor: const Color(0xFFD97706),
+          activeBg: const Color(0xFFFFFBEB),
+          activeBorder: const Color(0xFFFDE68A),
+          onTap: () {
+            context.read<TransitionDetailBloc>().add(
+                  UpdateChecklistItemEvent(
+                    phase: item.phase,
+                    key: item.key,
+                    status: 'PENDING',
+                    done: false,
+                  ),
+                );
+            if (item.canRaiseTicket) {
+              setState(() {
+                _openPendingForms[item.key] = true;
+              });
+            }
+          },
+        ),
+        const SizedBox(width: 4),
+        _buildSingleStatusBtn(
+          label: 'In progress',
+          isActive: current == 'in progress',
+          activeColor: const Color(0xFF2563EB),
+          activeBg: const Color(0xFFEFF6FF),
+          activeBorder: const Color(0xFFBFDBFE),
+          onTap: () {
+            context.read<TransitionDetailBloc>().add(
+                  UpdateChecklistItemEvent(
+                    phase: item.phase,
+                    key: item.key,
+                    status: 'IN_PROGRESS',
+                    done: false,
+                  ),
+                );
+            setState(() {
+              _openPendingForms[item.key] = false;
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSingleStatusBtn({
+    required String label,
+    required bool isActive,
+    required Color activeColor,
+    required Color activeBg,
+    required Color activeBorder,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isActive ? activeBg : Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isActive ? activeBorder : const Color(0xFFCBD5E1),
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.outfit(
+            fontSize: 11,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+            color: isActive ? activeColor : const Color(0xFF64748B),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildDisabledToggleField({
+  Widget _buildChecklistDateField({
+    required BuildContext context,
+    required String label,
+    required String? dateStr,
+    required ValueChanged<String> onSelected,
+  }) {
+    final hasDate = dateStr != null && dateStr.trim().isNotEmpty;
+    final display = hasDate ? TransitionDateHelper.formatDate(dateStr) : 'Select date';
+
+    return InkWell(
+      onTap: () async {
+        final initial = DateTime.tryParse(dateStr ?? '') ?? DateTime.now();
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: initial,
+          firstDate: DateTime(2020),
+          lastDate: DateTime(2035),
+        );
+        if (picked != null) {
+          final ymd =
+              '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+          onSelected(ymd);
+        }
+      },
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.calendar_today_outlined, size: 13, color: _kBlue),
+            const SizedBox(width: 6),
+            Text(
+              display,
+              style: GoogleFonts.outfit(
+                fontSize: 11.5,
+                fontWeight: hasDate ? FontWeight.w600 : FontWeight.w400,
+                color: hasDate ? _kDark : const Color(0xFF94A3B8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Pending Issue Box (Matching Image 4) ────────────────────────────────────
+  Widget _buildPendingIssueBox({
+    required BuildContext context,
+    required TransitionChecklistItemModel item,
+    required List<ZoneUserModel> zoneUsers,
+  }) {
+    final issueCtrl = _issueControllers.putIfAbsent(
+      item.key,
+      () => TextEditingController(text: item.issue ?? ''),
+    );
+    final remarksCtrl = _remarksControllers.putIfAbsent(
+      item.key,
+      () => TextEditingController(text: item.remarks ?? ''),
+    );
+
+    if (_selectedOwnerIds[item.key] == null && zoneUsers.isNotEmpty) {
+      _selectedOwnerIds[item.key] = zoneUsers.first.id;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFDE68A), width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 600;
+              return isWide
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: issueCtrl,
+                            style: GoogleFonts.outfit(fontSize: 12.5),
+                            decoration: InputDecoration(
+                              hintText: 'Pending issue *',
+                              hintStyle: GoogleFonts.outfit(fontSize: 12, color: _kSlate),
+                              contentPadding:
+                                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: _selectedOwnerIds[item.key],
+                            style: GoogleFonts.outfit(fontSize: 12, color: _kDark),
+                            decoration: InputDecoration(
+                              hintText: 'Select HR Owner *',
+                              contentPadding:
+                                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              ),
+                            ),
+                            items: zoneUsers.map((u) {
+                              return DropdownMenuItem(
+                                value: u.id,
+                                child: Text(
+                                  '${u.name} · ${u.roleDisplay}',
+                                  style: GoogleFonts.outfit(fontSize: 12),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              setState(() {
+                                _selectedOwnerIds[item.key] = val;
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: remarksCtrl,
+                            style: GoogleFonts.outfit(fontSize: 12.5),
+                            decoration: InputDecoration(
+                              hintText: 'Remarks / details',
+                              hintStyle: GoogleFonts.outfit(fontSize: 12, color: _kSlate),
+                              contentPadding:
+                                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(6),
+                                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        TextField(
+                          controller: issueCtrl,
+                          style: GoogleFonts.outfit(fontSize: 12.5),
+                          decoration: InputDecoration(
+                            hintText: 'Pending issue *',
+                            hintStyle: GoogleFonts.outfit(fontSize: 12, color: _kSlate),
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: _selectedOwnerIds[item.key],
+                          style: GoogleFonts.outfit(fontSize: 12, color: _kDark),
+                          decoration: InputDecoration(
+                            hintText: 'Select HR Owner *',
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                          ),
+                          items: zoneUsers.map((u) {
+                            return DropdownMenuItem(
+                              value: u.id,
+                              child: Text(
+                                '${u.name} · ${u.roleDisplay}',
+                                style: GoogleFonts.outfit(fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            setState(() {
+                              _selectedOwnerIds[item.key] = val;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: remarksCtrl,
+                          style: GoogleFonts.outfit(fontSize: 12.5),
+                          decoration: InputDecoration(
+                            hintText: 'Remarks / details',
+                            hintStyle: GoogleFonts.outfit(fontSize: 12, color: _kSlate),
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(6),
+                              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+            },
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Ticket raise is enabled for this line — submit to create an issue.',
+                  style: GoogleFonts.outfit(fontSize: 11.5, color: _kSlate),
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _openPendingForms[item.key] = false;
+                      });
+                    },
+                    child: Text(
+                      'Cancel',
+                      style: GoogleFonts.outfit(fontSize: 12, color: _kSlate),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFFF59E0B)),
+                      backgroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                    ),
+                    onPressed: () {
+                      final issueText = issueCtrl.text.trim();
+                      if (issueText.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please enter pending issue description.')),
+                        );
+                        return;
+                      }
+                      context.read<TransitionDetailBloc>().add(
+                            RaiseTransitionIssueEvent(
+                              siteId: widget.siteId,
+                              phase: item.phase,
+                              key: item.key,
+                              issue: issueText,
+                              ownerId: _selectedOwnerIds[item.key] ?? '',
+                              remarks: remarksCtrl.text.trim(),
+                            ),
+                          );
+                      setState(() {
+                        _openPendingForms[item.key] = false;
+                      });
+                    },
+                    icon: const Icon(Icons.warning_amber_rounded,
+                        size: 14, color: Color(0xFFF59E0B)),
+                    label: Text(
+                      'Submit',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFFD97706),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Resolve Participant Info (Name, Department, Role) ──────────────────────
+  ({String name, String department, String roleDisplay}) _resolveParticipant(
+    String pId,
+    List<ZoneUserModel> zoneUsers,
+  ) {
+    // 1. Try ZoneUsers from the site response
+    final zUser = zoneUsers.where((u) => u.id == pId || u.name.toLowerCase() == pId.toLowerCase()).firstOrNull;
+    if (zUser != null) {
+      return (
+        name: zUser.name,
+        department: zUser.department,
+        roleDisplay: zUser.roleDisplay,
+      );
+    }
+
+    // 2. Try UserService (/api/admin/users)
+    final adminUser = UserService.instance.getUserById(pId) ??
+        UserService.instance.users.where((u) => u.name.toLowerCase() == pId.toLowerCase()).firstOrNull;
+    if (adminUser != null) {
+      return (
+        name: adminUser.name,
+        department: adminUser.department,
+        roleDisplay: adminUser.roleLabel,
+      );
+    }
+
+    // 3. Try MetaService (/api/meta)
+    final metaUser = MetaService.instance.meta.users
+        .where((u) => u.id == pId || u.name.toLowerCase() == pId.toLowerCase())
+        .firstOrNull;
+    if (metaUser != null) {
+      return (
+        name: metaUser.name,
+        department: metaUser.department,
+        roleDisplay: metaUser.displayWithRole.split(' · ').last,
+      );
+    }
+
+    // Fallback if not matched anywhere
+    return (
+      name: pId,
+      department: 'Participant',
+      roleDisplay: '',
+    );
+  }
+
+  // ── Participants Multi-Select (Matching Image 5) ───────────────────────────
+  Widget _buildParticipantsSelector(
+    BuildContext context,
+    TransitionKickoffModel kickoff,
+    List<ZoneUserModel> zoneUsers,
+  ) {
+    // Combine all available users from zoneUsers, UserService, and MetaService
+    final allUsersMap =
+        <String, ({String id, String name, String department, String roleDisplay, bool isLd})>{};
+
+    for (final u in zoneUsers) {
+      allUsersMap[u.id] = (
+        id: u.id,
+        name: u.name,
+        department: u.department,
+        roleDisplay: u.roleDisplay,
+        isLd: u.isLdDepartment,
+      );
+    }
+
+    for (final u in UserService.instance.users) {
+      if (!allUsersMap.containsKey(u.id)) {
+        allUsersMap[u.id] = (
+          id: u.id,
+          name: u.name,
+          department: u.department,
+          roleDisplay: u.roleLabel,
+          isLd: u.department == 'L&D',
+        );
+      }
+    }
+
+    for (final u in MetaService.instance.meta.users) {
+      if (!allUsersMap.containsKey(u.id)) {
+        allUsersMap[u.id] = (
+          id: u.id,
+          name: u.name,
+          department: u.department,
+          roleDisplay: u.displayWithRole.split(' · ').last,
+          isLd: u.department == 'L&D',
+        );
+      }
+    }
+
+    final availableUsers = allUsersMap.values.toList()
+      ..sort((a, b) {
+        if (a.isLd && !b.isLd) return -1;
+        if (!a.isLd && b.isLd) return 1;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Kick-Off Participants',
+          style: GoogleFonts.outfit(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: _kSlate,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _kBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (kickoff.participants.isNotEmpty) ...[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: kickoff.participants.map((pId) {
+                    final info = _resolveParticipant(pId, zoneUsers);
+
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text.rich(
+                              TextSpan(
+                                text: info.name,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: _kBlue,
+                                ),
+                                children: [
+                                  TextSpan(
+                                    text: '  ·  ${info.department}',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF2563EB),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          InkWell(
+                            onTap: () {
+                              final updated = List<String>.from(kickoff.participants)
+                                ..remove(pId);
+                              context.read<TransitionDetailBloc>().add(
+                                    UpdateKickoffField(participants: updated),
+                                  );
+                            },
+                            child: const Icon(Icons.close, size: 14, color: _kBlue),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 6),
+              ],
+              PopupMenuButton<String>(
+                tooltip: 'Select participant',
+                onSelected: (selectedId) {
+                  if (!kickoff.participants.contains(selectedId)) {
+                    final updated = List<String>.from(kickoff.participants)..add(selectedId);
+                    context.read<TransitionDetailBloc>().add(
+                          UpdateKickoffField(participants: updated),
+                        );
+                  }
+                },
+                itemBuilder: (context) {
+                  return availableUsers.map((u) {
+                    final isAlreadySelected = kickoff.participants.contains(u.id);
+                    return PopupMenuItem<String>(
+                      value: u.id,
+                      child: Row(
+                        children: [
+                          Icon(
+                            isAlreadySelected ? Icons.check_box : Icons.check_box_outline_blank,
+                            size: 18,
+                            color: isAlreadySelected ? _kBlue : _kSlate,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${u.name} · ${u.department} (${u.roleDisplay})',
+                              style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                fontWeight:
+                                    isAlreadySelected ? FontWeight.w600 : FontWeight.w400,
+                                color: _kDark,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList();
+                },
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        kickoff.participants.isEmpty
+                            ? 'Select participants...'
+                            : 'Add participant...',
+                        style: GoogleFonts.outfit(
+                          fontSize: 13,
+                          color: kickoff.participants.isEmpty
+                              ? const Color(0xFF94A3B8)
+                              : _kBlue,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.keyboard_arrow_down_rounded,
+                        size: 20, color: Color(0xFF94A3B8)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Everyone allocated to this site\'s zone. Select more than one.',
+          style: GoogleFonts.outfit(fontSize: 11, color: _kSlate),
+        ),
+      ],
+    );
+  }
+
+  // ── Date Picker Button with Day of Week (Image 5) ───────────────────────────
+  Widget _buildDatePickerButton({
+    required BuildContext context,
+    required String label,
+    required String currentDate,
+    required String subtitle,
+    required ValueChanged<String> onDateSelected,
+    required VoidCallback onClear,
+  }) {
+    final hasDate = currentDate.isNotEmpty;
+    final display = hasDate ? _formatDateWithDay(currentDate) : 'Select date';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.outfit(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: _kSlate,
+          ),
+        ),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: () async {
+            final initial = DateTime.tryParse(currentDate) ?? DateTime.now();
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: initial,
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2035),
+            );
+            if (picked != null) {
+              final ymd =
+                  '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+              onDateSelected(ymd);
+            }
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _kBorder),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.calendar_today_outlined, size: 16, color: _kBlue),
+                const SizedBox(width: 8),
+                Text(
+                  display,
+                  style: GoogleFonts.outfit(
+                    fontSize: 13,
+                    fontWeight: hasDate ? FontWeight.w600 : FontWeight.w400,
+                    color: hasDate ? _kDark : const Color(0xFF94A3B8),
+                  ),
+                ),
+                if (hasDate) ...[
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: onClear,
+                    child: const Icon(Icons.close, size: 14, color: _kSlate),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: GoogleFonts.outfit(fontSize: 11, color: _kSlate),
+        ),
+      ],
+    );
+  }
+
+  // ── Interactive Toggle Field (Yes / No) ────────────────────────────────────
+  Widget _buildInteractiveToggleField({
     required String label,
     required bool isYes,
+    required ValueChanged<bool> onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1267,8 +1966,8 @@ class _TransitionSiteDetailView extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildSegmentOption('Yes', isYes),
-              _buildSegmentOption('No', !isYes),
+              _buildClickableSegmentOption('Yes', isYes, () => onChanged(true)),
+              _buildClickableSegmentOption('No', !isYes, () => onChanged(false)),
             ],
           ),
         ),
@@ -1276,59 +1975,52 @@ class _TransitionSiteDetailView extends StatelessWidget {
     );
   }
 
-  Widget _buildKickoffField({
-    required String label,
-    required String value,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
+  Widget _buildClickableSegmentOption(String label, bool isSelected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(4),
+          boxShadow: isSelected
+              ? const [
+                  BoxShadow(
+                    color: Color(0x0A000000),
+                    blurRadius: 2,
+                    offset: Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
           label,
           style: GoogleFonts.outfit(
             fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: _kSlate,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: GoogleFonts.outfit(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: _kDark,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 140,
-            child: Text(
-              label,
-              style: GoogleFonts.outfit(fontSize: 12.5, color: _kSlate),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value.isNotEmpty ? value : '—',
-              style: GoogleFonts.outfit(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: _kDark,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
+}
+
+class _StepConfig {
+  final int stepIndex;
+  final String title;
+  final String subtitle;
+  final bool isCompleted;
+  final bool isSelected;
+  final bool isRestrictedToHead;
+
+  const _StepConfig({
+    required this.stepIndex,
+    required this.title,
+    required this.subtitle,
+    required this.isCompleted,
+    required this.isSelected,
+    this.isRestrictedToHead = false,
+  });
 }

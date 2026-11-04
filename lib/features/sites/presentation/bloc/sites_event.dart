@@ -9,11 +9,17 @@ abstract class SitesEvent extends Equatable {
 
 class LoadSites extends SitesEvent {
   final bool isRefresh;
+  final String? initialZoneId;
+  final String? initialClusterId;
 
-  const LoadSites({this.isRefresh = false});
+  const LoadSites({
+    this.isRefresh = false,
+    this.initialZoneId,
+    this.initialClusterId,
+  });
 
   @override
-  List<Object?> get props => [isRefresh];
+  List<Object?> get props => [isRefresh, initialZoneId, initialClusterId];
 }
 
 class ChangeSitesTab extends SitesEvent {

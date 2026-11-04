@@ -55,6 +55,25 @@ class MockSiteDetailRemoteDataSource implements SitesRemoteDataSource {
       throw UnimplementedError();
 
   @override
+  Future<TransitionSiteDetailResponseModel> saveTransitionAction(
+    String siteId, {
+    required String action,
+    required List<Map<String, dynamic>> items,
+    required Map<String, dynamic> kickoff,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> raiseTransitionIssue(
+    String siteId, {
+    required String phase,
+    required String key,
+    required String issue,
+    required String ownerId,
+    required String remarks,
+  }) async {}
+
+  @override
   Future<void> updateSpecialAttention(
     String siteId, {
     required bool enabled,

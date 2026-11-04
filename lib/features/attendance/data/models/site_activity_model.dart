@@ -52,6 +52,9 @@ class ActivityGeoModel {
   final String? checkInAt;
   final String? checkOutAt;
   final String? attendanceMarkedAt;
+  final double? latitude;
+  final double? longitude;
+  final double? accuracy;
 
   const ActivityGeoModel({
     this.checkIn,
@@ -59,24 +62,44 @@ class ActivityGeoModel {
     this.checkInAt,
     this.checkOutAt,
     this.attendanceMarkedAt,
+    this.latitude,
+    this.longitude,
+    this.accuracy,
   });
 
   factory ActivityGeoModel.fromJson(Map<String, dynamic> json) {
+    GeoPointInfo? checkIn;
+    if (json['checkIn'] is Map) {
+      checkIn = GeoPointInfo.fromJson(Map<String, dynamic>.from(json['checkIn'] as Map));
+    } else if (json['latitude'] != null && json['checkInAt'] != null) {
+      checkIn = GeoPointInfo.fromJson(json);
+    }
+
+    GeoPointInfo? checkOut;
+    if (json['checkOut'] is Map) {
+      checkOut = GeoPointInfo.fromJson(Map<String, dynamic>.from(json['checkOut'] as Map));
+    }
+
     return ActivityGeoModel(
-      checkIn: json['checkIn'] is Map
-          ? GeoPointInfo.fromJson(Map<String, dynamic>.from(json['checkIn'] as Map))
-          : null,
-      checkOut: json['checkOut'] is Map
-          ? GeoPointInfo.fromJson(Map<String, dynamic>.from(json['checkOut'] as Map))
-          : null,
-      checkInAt: json['checkInAt']?.toString(),
-      checkOutAt: json['checkOutAt']?.toString(),
+      checkIn: checkIn,
+      checkOut: checkOut,
+      checkInAt: json['checkInAt']?.toString() ?? checkIn?.capturedAt ?? checkIn?.verifiedAt,
+      checkOutAt: json['checkOutAt']?.toString() ?? checkOut?.capturedAt ?? checkOut?.verifiedAt,
       attendanceMarkedAt: json['attendanceMarkedAt']?.toString(),
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
+      accuracy: (json['accuracy'] as num?)?.toDouble(),
     );
   }
 
-  bool get hasCheckedIn => checkIn != null || checkInAt != null;
-  bool get hasCheckedOut => checkOut != null || checkOutAt != null;
+  bool get hasCheckedIn =>
+      checkIn != null ||
+      (checkInAt != null && checkInAt!.isNotEmpty) ||
+      (attendanceMarkedAt != null && attendanceMarkedAt!.isNotEmpty);
+
+  bool get hasCheckedOut =>
+      checkOut != null || (checkOutAt != null && checkOutAt!.isNotEmpty);
+
   bool get isOnSite => hasCheckedIn && !hasCheckedOut;
 }
 
@@ -318,6 +341,106 @@ class ActivityVisitModel {
       return '—';
     }
   }
+
+  /// Merges updated fields from a check-in/check-out response while preserving
+  /// any enriched display metadata (code, siteName, roleLabel, etc.).
+  ActivityVisitModel mergeWithUpdated(ActivityVisitModel updated) {
+    return ActivityVisitModel(
+      id: updated.id.isNotEmpty ? updated.id : id,
+      siteId: updated.siteId.isNotEmpty ? updated.siteId : siteId,
+      role: updated.role.isNotEmpty ? updated.role : role,
+      kind: updated.kind.isNotEmpty ? updated.kind : kind,
+      title: updated.title.isNotEmpty ? updated.title : title,
+      assignedToId: updated.assignedToId ?? assignedToId,
+      scheduledDate: updated.scheduledDate.isNotEmpty ? updated.scheduledDate : scheduledDate,
+      dueDate: updated.dueDate.isNotEmpty ? updated.dueDate : dueDate,
+      status: updated.status.isNotEmpty ? updated.status : status,
+      clientType: updated.clientType.isNotEmpty ? updated.clientType : clientType,
+      code: updated.code.isNotEmpty ? updated.code : code,
+      assignedToName: updated.assignedToName ?? assignedToName,
+      siteName: updated.siteName.isNotEmpty ? updated.siteName : siteName,
+      siteCity: updated.siteCity.isNotEmpty ? updated.siteCity : siteCity,
+      siteClientType: updated.siteClientType.isNotEmpty ? updated.siteClientType : siteClientType,
+      clusterName: updated.clusterName.isNotEmpty ? updated.clusterName : clusterName,
+      functionLabel: updated.functionLabel.isNotEmpty ? updated.functionLabel : functionLabel,
+      roleLabel: updated.roleLabel.isNotEmpty ? updated.roleLabel : roleLabel,
+      frequencyLabel: updated.frequencyLabel.isNotEmpty ? updated.frequencyLabel : frequencyLabel,
+      priority: updated.priority.isNotEmpty ? updated.priority : priority,
+      statusLabel: updated.statusLabel.isNotEmpty ? updated.statusLabel : statusLabel,
+      geo: updated.geo,
+      completedAt: updated.completedAt ?? completedAt,
+      visitDate: updated.visitDate ?? visitDate,
+      completionNote: updated.completionNote ?? completionNote,
+      template: updated.template.isNotEmpty ? updated.template : template,
+      answers: updated.answers.isNotEmpty ? updated.answers : answers,
+      requirements: updated.requirements.isNotEmpty ? updated.requirements : requirements,
+      mom: updated.mom.isNotEmpty ? updated.mom : mom,
+    );
+  }
+
+  ActivityVisitModel copyWith({
+    String? id,
+    String? siteId,
+    String? role,
+    String? kind,
+    String? title,
+    String? assignedToId,
+    String? scheduledDate,
+    String? dueDate,
+    String? status,
+    String? clientType,
+    String? code,
+    String? assignedToName,
+    String? siteName,
+    String? siteCity,
+    String? siteClientType,
+    String? clusterName,
+    String? functionLabel,
+    String? roleLabel,
+    String? frequencyLabel,
+    String? priority,
+    String? statusLabel,
+    ActivityGeoModel? geo,
+    String? completedAt,
+    String? visitDate,
+    String? completionNote,
+    List<ActivityChecklistItem>? template,
+    List<ActivityAnswerItem>? answers,
+    Map<String, dynamic>? requirements,
+    Map<String, dynamic>? mom,
+  }) {
+    return ActivityVisitModel(
+      id: id ?? this.id,
+      siteId: siteId ?? this.siteId,
+      role: role ?? this.role,
+      kind: kind ?? this.kind,
+      title: title ?? this.title,
+      assignedToId: assignedToId ?? this.assignedToId,
+      scheduledDate: scheduledDate ?? this.scheduledDate,
+      dueDate: dueDate ?? this.dueDate,
+      status: status ?? this.status,
+      clientType: clientType ?? this.clientType,
+      code: code ?? this.code,
+      assignedToName: assignedToName ?? this.assignedToName,
+      siteName: siteName ?? this.siteName,
+      siteCity: siteCity ?? this.siteCity,
+      siteClientType: siteClientType ?? this.siteClientType,
+      clusterName: clusterName ?? this.clusterName,
+      functionLabel: functionLabel ?? this.functionLabel,
+      roleLabel: roleLabel ?? this.roleLabel,
+      frequencyLabel: frequencyLabel ?? this.frequencyLabel,
+      priority: priority ?? this.priority,
+      statusLabel: statusLabel ?? this.statusLabel,
+      geo: geo ?? this.geo,
+      completedAt: completedAt ?? this.completedAt,
+      visitDate: visitDate ?? this.visitDate,
+      completionNote: completionNote ?? this.completionNote,
+      template: template ?? this.template,
+      answers: answers ?? this.answers,
+      requirements: requirements ?? this.requirements,
+      mom: mom ?? this.mom,
+    );
+  }
 }
 
 /// Root response model for GET /activities?kind=GOVERNANCE&siteId=...
@@ -392,6 +515,50 @@ class SiteActivitiesResponseModel {
       offset: (json['offset'] as num?)?.toInt() ?? 0,
       pending: pending,
       completed: completed,
+    );
+  }
+
+  SiteActivitiesResponseModel copyWith({
+    List<ActivityVisitModel>? items,
+    int? total,
+    int? limit,
+    int? offset,
+    int? pending,
+    int? completed,
+  }) {
+    return SiteActivitiesResponseModel(
+      items: items ?? this.items,
+      total: total ?? this.total,
+      limit: limit ?? this.limit,
+      offset: offset ?? this.offset,
+      pending: pending ?? this.pending,
+      completed: completed ?? this.completed,
+    );
+  }
+
+  /// Updates an activity and recalculates pending/completed counts.
+  SiteActivitiesResponseModel updateActivity(ActivityVisitModel updated) {
+    final newItems = items.map((item) {
+      if (item.id == updated.id) {
+        return item.mergeWithUpdated(updated);
+      }
+      return item;
+    }).toList();
+
+    int newCompleted = 0;
+    int newPending = 0;
+    for (final item in newItems) {
+      if (item.isCompleted) {
+        newCompleted++;
+      } else {
+        newPending++;
+      }
+    }
+
+    return copyWith(
+      items: newItems,
+      completed: newCompleted,
+      pending: newPending,
     );
   }
 }

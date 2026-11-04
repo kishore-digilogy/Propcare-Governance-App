@@ -1,3 +1,5 @@
+import '../storage/hive_storage.dart';
+
 /// Model for a unit in metadata (ZONE or CLUSTER)
 class MetaUnitModel {
   final String id;
@@ -57,15 +59,42 @@ class MetaUserModel {
     );
   }
 
+  /// Department derived from role
+  String get department {
+    final upper = role.toUpperCase();
+    if (upper.contains('L&D') ||
+        upper.startsWith('LD_') ||
+        upper.startsWith('L_D_') ||
+        upper.endsWith('_LD') ||
+        upper == 'LD' ||
+        upper.contains('TRANSITION') ||
+        upper.contains('TRAIN')) {
+      return 'L&D';
+    }
+    if (upper == 'HR') return 'HR';
+    if (upper == 'EHS') return 'EHS';
+    if (upper == 'SALES') return 'Sales';
+    if (upper == 'CRRM' || upper.contains('ADMIN')) return 'CRRM';
+    if (upper == 'MACHINE_TECHNICIAN') return 'Machine';
+    return 'Operations';
+  }
+
+  bool get isLdDepartment {
+    final upper = role.toUpperCase();
+    return upper.contains('L&D') ||
+        upper.startsWith('LD_') ||
+        upper.startsWith('L_D_') ||
+        upper.endsWith('_LD') ||
+        upper == 'LD' ||
+        upper.contains('TRANSITION') ||
+        upper.contains('TRAIN');
+  }
+
   /// Displays "PropCare Administrator · CRRM / Super Admin" or "Arun Kumar · Cluster Executive"
   String get displayWithRole {
     final upper = role.trim().toUpperCase();
-    final formattedRole = (upper == 'CRRM' ||
-            upper == 'SUPER_ADMIN' ||
-            upper == 'SUPERADMIN' ||
-            upper == 'ADMIN')
-        ? 'CRRM / Super Admin'
-        : role
+    final formattedRole = HiveStorage.knownRoles[upper] ??
+        role
             .replaceAll('_', ' ')
             .split(' ')
             .map((w) => w.isNotEmpty

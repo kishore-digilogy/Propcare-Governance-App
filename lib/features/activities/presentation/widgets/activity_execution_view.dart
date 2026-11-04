@@ -731,19 +731,17 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
 
           // Bottom Bar
           Container(
+            width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: isCompleted ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: isCompleted ? const Color(0xFFBBF7D0) : const Color(0xFFE2E8F0)),
             ),
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                Text(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 460;
+                final textWidget = Text(
                   isCompleted
                       ? (act.isMomSent
                           ? 'Visit completed on ${_formatDateShort(_visitDate)} · Client met ${_clientMet == true ? "Yes" : "No"} · MOM completed'
@@ -754,41 +752,62 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                     fontWeight: FontWeight.w500,
                     color: isCompleted ? const Color(0xFF16A34A) : const Color(0xFF475569),
                   ),
-                ),
-                if (isCompleted) ...[
-                  if (!act.isMomSent)
-                    ElevatedButton(
-                      onPressed: () => setState(() => _currentStep = 1),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF16A34A),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      child: Text(
-                        'Proceed to MOM →',
-                        style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white),
-                      ),
-                    ),
-                ] else
-                  ElevatedButton(
-                    onPressed: widget.isSubmittingVisit ? null : _submitVisit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: widget.isSubmittingVisit
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                );
+
+                final buttonWidget = isCompleted
+                    ? (!act.isMomSent
+                        ? ElevatedButton(
+                            onPressed: () => setState(() => _currentStep = 1),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF16A34A),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            child: Text(
+                              'Proceed to MOM →',
+                              style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white),
+                            ),
                           )
-                        : Text(
-                            'Submit visit',
-                            style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white),
-                          ),
-                  ),
-              ],
+                        : const SizedBox.shrink())
+                    : ElevatedButton(
+                        onPressed: widget.isSubmittingVisit ? null : _submitVisit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: widget.isSubmittingVisit
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : Text(
+                                'Submit visit',
+                                style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.white),
+                              ),
+                      );
+
+                if (isCompact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      textWidget,
+                      const SizedBox(height: 10),
+                      buttonWidget,
+                    ],
+                  );
+                }
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(child: textWidget),
+                    const SizedBox(width: 12),
+                    buttonWidget,
+                  ],
+                );
+              },
             ),
           ),
         ],

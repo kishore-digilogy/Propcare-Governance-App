@@ -7,17 +7,23 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/constants/app_assets.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/services/meta_service.dart';
 import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../activities/presentation/pages/activity_execution_page.dart';
+import '../../../activities/presentation/pages/mmr_mis_page.dart';
 import '../../../governance_matrix/presentation/pages/governance_matrix_page.dart';
 import '../../../issues/presentation/pages/issues_page.dart';
 import '../../../reports/presentation/pages/reports_page.dart';
+import '../../../sites/presentation/pages/all_sites_page.dart';
+import '../../../sites/presentation/pages/transition_sites_page.dart';
+import '../../../sites/presentation/pages/transition_site_detail_page.dart';
 import '../../data/datasources/dashboard_remote_datasource.dart';
 import '../../data/models/dashboard_model.dart';
 import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
 import '../bloc/dashboard_state.dart';
+import 'placeholder_page_view.dart';
 
 // ─── colour helpers ───────────────────────────────────────────────────────────
 const _kBlue = Color(0xFF1A73E8);
@@ -1102,46 +1108,129 @@ class _ToggleTabItem extends StatelessWidget {
 // Quick Actions Grid (Shown when Quick Actions pill is active)
 // ─────────────────────────────────────────────────────────────────────────────
 
+typedef QuickActionsGridView = _QuickActionsGridView;
+
 class _QuickActionsGridView extends StatelessWidget {
   const _QuickActionsGridView();
 
   @override
   Widget build(BuildContext context) {
-    // Exactly the 4 items requested for Super Admin:
-    // 1. Issues
-    // 2. Approvals
-    // 3. Governance Matrix
-    // 4. Reports
-    final items = [
-      (
-        title: 'Issues',
-        subtitle: 'Site incidents, complaints & escalations',
-        icon: Icons.warning_amber_rounded,
-        iconColor: const Color(0xFFEF4444),
-        bgColor: const Color(0xFFFEF2F2),
-      ),
-      // (
-      //   title: 'Approvals',
-      //   subtitle: 'Work permits, sign-offs & budget requests',
-      //   icon: Icons.assignment_turned_in_rounded,
-      //   iconColor: const Color(0xFF2563EB),
-      //   bgColor: const Color(0xFFEFF6FF),
-      // ),
-      (
-        title: 'Governance Matrix',
-        subtitle: 'Compliance matrix, standards & audit rules',
-        icon: Icons.grid_view_rounded,
-        iconColor: const Color(0xFF7C3AED),
-        bgColor: const Color(0xFFF5F3FF),
-      ),
-      (
-        title: 'Reports',
-        subtitle: 'Governance visits, metrics & performance exports',
-        icon: Icons.bar_chart_rounded,
-        iconColor: const Color(0xFF059669),
-        bgColor: const Color(0xFFECFDF5),
-      ),
-    ];
+    final isLd = HiveStorage.isLdRole;
+    final isClusterLead = HiveStorage.isClusterLead;
+    final isSuperAdmin = HiveStorage.isSuperAdmin;
+
+    // Role-based Quick Actions:
+    // 1. L&D Team: Training (Coming Soon), Role & Access (Coming Soon), Approvals, Reports.
+    // 2. Cluster Lead: MMR / MIS, Issues, Reports.
+    // 3. CRRM / Super Admin: Issues, Governance Matrix, Reports.
+    // 4. Others (HR, Operations, EHS, etc.): Issues, Reports (Transition & Governance Matrix hidden).
+    final List<({String title, String subtitle, IconData icon, Color iconColor, Color bgColor})> items;
+
+    if (isLd) {
+      items = [
+        (
+          title: 'Training',
+          subtitle: 'Training modules, sessions & certifications',
+          icon: Icons.school_outlined,
+          iconColor: const Color(0xFF2563EB),
+          bgColor: const Color(0xFFEFF6FF),
+        ),
+        (
+          title: 'Role & Access',
+          subtitle: 'User roles, permissions & site scope',
+          icon: Icons.badge_outlined,
+          iconColor: const Color(0xFF7C3AED),
+          bgColor: const Color(0xFFF5F3FF),
+        ),
+        (
+          title: 'Approvals',
+          subtitle: 'Site transition review & sign-offs',
+          icon: Icons.assignment_turned_in_outlined,
+          iconColor: const Color(0xFFD97706),
+          bgColor: const Color(0xFFFFFBEB),
+        ),
+        (
+          title: 'Reports',
+          subtitle: 'Governance visits, metrics & performance exports',
+          icon: Icons.bar_chart_rounded,
+          iconColor: const Color(0xFF059669),
+          bgColor: const Color(0xFFECFDF5),
+        ),
+      ];
+    } else if (isClusterLead) {
+      items = [
+        (
+          title: 'MMR / MIS',
+          subtitle: 'Monthly review & MIS preparation governance',
+          icon: Icons.fact_check_outlined,
+          iconColor: const Color(0xFF2563EB),
+          bgColor: const Color(0xFFEFF6FF),
+        ),
+        (
+          title: 'Issues',
+          subtitle: 'Site incidents, complaints & escalations',
+          icon: Icons.warning_amber_rounded,
+          iconColor: const Color(0xFFEF4444),
+          bgColor: const Color(0xFFFEF2F2),
+        ),
+        (
+          title: 'Reports',
+          subtitle: 'Governance visits, metrics & performance exports',
+          icon: Icons.bar_chart_rounded,
+          iconColor: const Color(0xFF059669),
+          bgColor: const Color(0xFFECFDF5),
+        ),
+      ];
+    } else if (isSuperAdmin) {
+      items = [
+        (
+          title: 'MMR / MIS',
+          subtitle: 'Monthly review & MIS preparation governance',
+          icon: Icons.fact_check_outlined,
+          iconColor: const Color(0xFF2563EB),
+          bgColor: const Color(0xFFEFF6FF),
+        ),
+        (
+          title: 'Issues',
+          subtitle: 'Site incidents, complaints & escalations',
+          icon: Icons.warning_amber_rounded,
+          iconColor: const Color(0xFFEF4444),
+          bgColor: const Color(0xFFFEF2F2),
+        ),
+        (
+          title: 'Governance Matrix',
+          subtitle: 'Compliance matrix, standards & audit rules',
+          icon: Icons.grid_view_rounded,
+          iconColor: const Color(0xFF7C3AED),
+          bgColor: const Color(0xFFF5F3FF),
+        ),
+        (
+          title: 'Reports',
+          subtitle: 'Governance visits, metrics & performance exports',
+          icon: Icons.bar_chart_rounded,
+          iconColor: const Color(0xFF059669),
+          bgColor: const Color(0xFFECFDF5),
+        ),
+      ];
+    } else {
+      // Others (HR, Operations, EHS, etc. as shown in image)
+      items = [
+        (
+          title: 'Issues',
+          subtitle: 'Site incidents, complaints & escalations',
+          icon: Icons.warning_amber_rounded,
+          iconColor: const Color(0xFFEF4444),
+          bgColor: const Color(0xFFFEF2F2),
+        ),
+        (
+          title: 'Reports',
+          subtitle: 'Governance visits, metrics & performance exports',
+          icon: Icons.bar_chart_rounded,
+          iconColor: const Color(0xFF059669),
+          bgColor: const Color(0xFFECFDF5),
+        ),
+      ];
+    }
 
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
@@ -1169,6 +1258,54 @@ class _QuickActionsGridView extends StatelessWidget {
   }
 
   void _handleQuickActionTap(BuildContext context, String title) {
+    if (title == 'MMR / MIS' || title == 'MMR/MIS') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const MmrMisPage(),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Training') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const PlaceholderPageView(
+            title: 'Training',
+            parentTitle: 'Training module is coming soon',
+            icon: Icons.school_outlined,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Role & Access' || title == 'Roles') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const PlaceholderPageView(
+            title: 'Role & Access',
+            parentTitle: 'Role & Access management is coming soon',
+            icon: Icons.badge_outlined,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'Approvals') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const PlaceholderPageView(
+            title: 'Approvals',
+            parentTitle: 'Approvals queue & site sign-offs are coming soon',
+            icon: Icons.assignment_turned_in_outlined,
+          ),
+        ),
+      );
+      return;
+    }
+
     if (title == 'Issues') {
       Navigator.of(
         context,
@@ -1183,7 +1320,7 @@ class _QuickActionsGridView extends StatelessWidget {
       return;
     }
 
-    if (title == 'Reports') {
+    if (title == 'Reports' || title == 'Reports & Export') {
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const ReportsPage()));
@@ -1849,14 +1986,20 @@ class _RenewalDetailsList extends StatelessWidget {
 // Sites By Zone — Teal Capsule Progress Bars + View All
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SitesByZoneCard extends StatelessWidget {
+class SitesByZoneCard extends StatelessWidget {
   final List<GeographyItemModel> geography;
   final List<ZoneModel> zones;
-  const _SitesByZoneCard({required this.geography, required this.zones});
+  const SitesByZoneCard({super.key, required this.geography, required this.zones});
 
   @override
   Widget build(BuildContext context) {
-    final maxSites = geography.fold<int>(1, (m, g) => g.sites > m ? g.sites : m);
+    // Prefer geography if available; otherwise fallback to zones
+    final displayItems = geography.isNotEmpty
+        ? geography.map((g) => (name: g.name, sites: g.sites)).toList()
+        : zones.map((z) => (name: z.name, sites: z.sites)).toList();
+
+    final hasSites = displayItems.any((g) => g.sites > 0);
+    final maxSites = displayItems.fold<int>(1, (m, g) => g.sites > m ? g.sites : m);
 
     return _WCard(
       child: Column(
@@ -1881,81 +2024,127 @@ class _SitesByZoneCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          ...geography.map((g) {
-            final frac = maxSites == 0 ? 0.0 : g.sites / maxSites;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
+          if (displayItems.isEmpty || !hasSites)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  SizedBox(
-                    width: 90,
-                    child: Text(
-                      g.name,
-                      style: GoogleFonts.outfit(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF0F172A),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF1F5F9),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.domain_disabled_rounded,
+                      color: Color(0xFF94A3B8),
+                      size: 22,
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        Container(
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        FractionallySizedBox(
-                          widthFactor: frac.clamp(0.06, 1.0),
-                          child: Container(
-                            height: 10,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF0D9488), Color(0xFF14B8A6)],
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                      ],
+                  const SizedBox(height: 10),
+                  Text(
+                    'No sites allocated yet',
+                    style: GoogleFonts.outfit(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF334155),
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  SizedBox(
-                    width: 20,
-                    child: Text(
-                      '${g.sites}',
-                      textAlign: TextAlign.end,
-                      style: GoogleFonts.outfit(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF0F172A),
-                      ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Sites allocated to your zones will appear here',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.outfit(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF94A3B8),
                     ),
                   ),
                 ],
               ),
-            );
-          }),
+            )
+          else
+            ...displayItems.map((g) {
+              final frac = maxSites == 0 ? 0.0 : g.sites / maxSites;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 90,
+                      child: Text(
+                        g.name,
+                        style: GoogleFonts.outfit(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF0F172A),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          Container(
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          FractionallySizedBox(
+                            widthFactor: frac.clamp(0.06, 1.0),
+                            child: Container(
+                              height: 10,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF0D9488), Color(0xFF14B8A6)],
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    SizedBox(
+                      width: 20,
+                      child: Text(
+                        '${g.sites}',
+                        textAlign: TextAlign.end,
+                        style: GoogleFonts.outfit(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );
   }
 }
 
+typedef _SitesByZoneCard = SitesByZoneCard;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Governance Overview (Donut Chart + Legend + Clipboard Illustration - Image 3)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _GovernanceCard extends StatelessWidget {
+class GovernanceCard extends StatelessWidget {
   final OverviewModel overview;
-  const _GovernanceCard({required this.overview});
+  const GovernanceCard({super.key, required this.overview});
 
   @override
   Widget build(BuildContext context) {
@@ -2036,8 +2225,52 @@ class _GovernanceCard extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          // ── Body: Donut Chart on Left, Divider, 3 Stat Cards on Right ──
-          LayoutBuilder(
+          // ── Body: Donut Chart on Left, Divider, 3 Stat Cards on Right (or fallback if 0) ──
+          if (total == 0)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF1F5F9),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.assignment_turned_in_outlined,
+                      color: Color(0xFF94A3B8),
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'No governance',
+                    style: GoogleFonts.outfit(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF334155),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'No governance activities or visits scheduled yet',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.outfit(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            LayoutBuilder(
             builder: (context, constraints) {
               final isVeryNarrow = constraints.maxWidth < 340;
 
@@ -2164,6 +2397,8 @@ class _GovernanceCard extends StatelessWidget {
     );
   }
 }
+
+typedef _GovernanceCard = GovernanceCard;
 
 class _GovStatCard extends StatelessWidget {
   final int count;
@@ -2388,15 +2623,17 @@ class _DonutPainter extends CustomPainter {
 // Zones table
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ZonesCard extends StatefulWidget {
+typedef _ZonesCard = ZonesCard;
+
+class ZonesCard extends StatefulWidget {
   final List<ZoneModel> zones;
-  const _ZonesCard({required this.zones});
+  const ZonesCard({super.key, required this.zones});
 
   @override
-  State<_ZonesCard> createState() => _ZonesCardState();
+  State<ZonesCard> createState() => _ZonesCardState();
 }
 
-class _ZonesCardState extends State<_ZonesCard> {
+class _ZonesCardState extends State<ZonesCard> {
   bool _expanded = false;
 
   @override
@@ -2447,21 +2684,37 @@ class _ZonesCardState extends State<_ZonesCard> {
               ],
             ),
           ),
-          // Column headers
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(child: _TH('Name')),
-                _TH('Sites', width: 48),
-                _TH('Live', width: 48),
-                _TH('Transition', width: 72),
-              ],
+          // Content
+          if (widget.zones.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              child: Center(
+                child: Text(
+                  'No zones allocated yet',
+                  style: GoogleFonts.outfit(
+                    fontSize: 13,
+                    color: _kSlate,
+                  ),
+                ),
+              ),
+            )
+          else ...[
+            // Column headers
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(child: _TH('Name')),
+                  _TH('Sites', width: 48),
+                  _TH('Live', width: 48),
+                  _TH('Transition', width: 72),
+                ],
+              ),
             ),
-          ),
-          const Divider(height: 1, color: _kBorder),
-          // Rows (first 5 by default)
-          ...displayedZones.map((z) => _ZoneRow(zone: z)),
+            const Divider(height: 1, color: _kBorder),
+            // Rows (first 5 by default)
+            ...displayedZones.map((z) => _ZoneRow(zone: z)),
+          ],
           // View all at bottom
           if (widget.zones.length > 5) ...[
             const Divider(height: 1, color: _kBorder),
@@ -2513,32 +2766,64 @@ class _ZoneRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  zone.name,
-                  style: GoogleFonts.outfit(
-                    fontSize: 13,
-                    color: AppColors.secondary,
-                    fontWeight: FontWeight.w500,
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              final meta = MetaService.instance.meta;
+              final resolvedZoneId = zone.id.isNotEmpty
+                  ? zone.id
+                  : (meta.zones
+                          .where((z) =>
+                              z.name.trim().toLowerCase() ==
+                              zone.name.trim().toLowerCase())
+                          .firstOrNull
+                          ?.id ??
+                      '');
+
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AllSitesPage(
+                    initialZoneId:
+                        resolvedZoneId.isNotEmpty ? resolvedZoneId : null,
                   ),
                 ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      zone.name,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        color: AppColors.secondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  _TC('${zone.sites}', width: 48),
+                  _TC(
+                    '${zone.live}',
+                    width: 48,
+                    color: zone.live > 0 ? _kBlue : _kSlate,
+                  ),
+                  _TC(
+                    '${zone.transition}',
+                    width: 72,
+                    color: zone.transition > 0 ? _kBlue : _kSlate,
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 16,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ],
               ),
-              _TC('${zone.sites}', width: 48),
-              _TC(
-                '${zone.live}',
-                width: 48,
-                color: zone.live > 0 ? _kBlue : _kSlate,
-              ),
-              _TC(
-                '${zone.transition}',
-                width: 72,
-                color: zone.transition > 0 ? _kBlue : _kSlate,
-              ),
-            ],
+            ),
           ),
         ),
         const Divider(
@@ -2556,15 +2841,17 @@ class _ZoneRow extends StatelessWidget {
 // Clusters table
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ClustersCard extends StatefulWidget {
+typedef _ClustersCard = ClustersCard;
+
+class ClustersCard extends StatefulWidget {
   final List<ClusterModel> clusters;
-  const _ClustersCard({required this.clusters});
+  const ClustersCard({super.key, required this.clusters});
 
   @override
-  State<_ClustersCard> createState() => _ClustersCardState();
+  State<ClustersCard> createState() => _ClustersCardState();
 }
 
-class _ClustersCardState extends State<_ClustersCard> {
+class _ClustersCardState extends State<ClustersCard> {
   bool _expanded = false;
 
   @override
@@ -2615,22 +2902,38 @@ class _ClustersCardState extends State<_ClustersCard> {
               ],
             ),
           ),
-          // Column headers
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(child: _TH('Name\nRegion')),
-                _TH('Sites', width: 44),
-                _TH('Live', width: 44),
-                _TH('Transition', width: 66),
-                const SizedBox(width: 24),
-              ],
+          // Content
+          if (widget.clusters.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              child: Center(
+                child: Text(
+                  'No clusters allocated yet',
+                  style: GoogleFonts.outfit(
+                    fontSize: 13,
+                    color: _kSlate,
+                  ),
+                ),
+              ),
+            )
+          else ...[
+            // Column headers
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(child: _TH('Name\nRegion')),
+                  _TH('Sites', width: 44),
+                  _TH('Live', width: 44),
+                  _TH('Transition', width: 66),
+                  const SizedBox(width: 24),
+                ],
+              ),
             ),
-          ),
-          const Divider(height: 1, color: _kBorder),
-          // Rows (first 5 by default)
-          ...displayedClusters.map((c) => _ClusterRow(cluster: c)),
+            const Divider(height: 1, color: _kBorder),
+            // Rows (first 5 by default)
+            ...displayedClusters.map((c) => _ClusterRow(cluster: c)),
+          ],
           // View all at bottom
           if (widget.clusters.length > 5) ...[
             const Divider(height: 1, color: _kBorder),
@@ -2682,48 +2985,77 @@ class _ClusterRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      cluster.name,
-                      style: GoogleFonts.outfit(
-                        fontSize: 13,
-                        color: AppColors.secondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      cluster.zoneName,
-                      style: GoogleFonts.outfit(fontSize: 11, color: _kSlate),
-                    ),
-                  ],
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              final meta = MetaService.instance.meta;
+              final resolvedClusterId = cluster.id.isNotEmpty
+                  ? cluster.id
+                  : (meta.clusters
+                          .where((c) =>
+                              c.name.trim().toLowerCase() ==
+                              cluster.name.trim().toLowerCase())
+                          .firstOrNull
+                          ?.id ??
+                      '');
+
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AllSitesPage(
+                    initialClusterId: resolvedClusterId.isNotEmpty
+                        ? resolvedClusterId
+                        : null,
+                  ),
                 ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          cluster.name,
+                          style: GoogleFonts.outfit(
+                            fontSize: 13,
+                            color: AppColors.secondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          cluster.zoneName,
+                          style:
+                              GoogleFonts.outfit(fontSize: 11, color: _kSlate),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _TC('${cluster.sites}', width: 44),
+                  _TC(
+                    '${cluster.live}',
+                    width: 44,
+                    color: cluster.live > 0 ? _kBlue : _kSlate,
+                  ),
+                  _TC(
+                    '${cluster.transition}',
+                    width: 66,
+                    color: cluster.transition > 0 ? _kBlue : _kSlate,
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFF94A3B8),
+                    size: 16,
+                  ),
+                ],
               ),
-              _TC('${cluster.sites}', width: 44),
-              _TC(
-                '${cluster.live}',
-                width: 44,
-                color: cluster.live > 0 ? _kBlue : _kSlate,
-              ),
-              _TC(
-                '${cluster.transition}',
-                width: 66,
-                color: cluster.transition > 0 ? _kBlue : _kSlate,
-              ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: _kBorder,
-                size: 18,
-              ),
-            ],
+            ),
           ),
         ),
         const Divider(
@@ -2738,7 +3070,7 @@ class _ClusterRow extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Recent Governance Activity
+// Recent Governance Activity / Upcoming L&D Work
 // ─────────────────────────────────────────────────────────────────────────────
 
 typedef _RecentGovernanceCard = RecentGovernanceCard;
@@ -2749,6 +3081,7 @@ class RecentGovernanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLd = HiveStorage.isLdRole;
     return _WCard(
       padding: const EdgeInsets.all(0),
       child: Column(
@@ -2758,16 +3091,49 @@ class RecentGovernanceCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
               children: [
-                const Icon(Icons.assignment_outlined, size: 16, color: _kBlue),
-                const SizedBox(width: 6),
-                Text(
-                  'Recent Governance Activity',
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                    color: AppColors.secondary,
+                Icon(
+                  isLd ? Icons.calendar_today_rounded : Icons.assignment_outlined,
+                  size: 16,
+                  color: _kBlue,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isLd ? 'Upcoming L&D Work' : 'Recent Governance Activity',
+                    style: GoogleFonts.outfit(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: AppColors.secondary,
+                    ),
                   ),
                 ),
+                if (isLd)
+                  InkWell(
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const TransitionSitesPage(),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFBFDBFE), width: 1),
+                      ),
+                      child: Text(
+                        'View All',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _kBlue,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -2776,60 +3142,240 @@ class RecentGovernanceCard extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               child: Center(
                 child: Text(
-                  'No recent activities',
+                  isLd ? 'No upcoming L&D work' : 'No recent activities',
                   style: GoogleFonts.outfit(fontSize: 13, color: _kSlate),
                 ),
               ),
             )
           else
-            ...items.map((i) => GovActivityRow(item: i)),
+            ...items.map((i) => GovActivityRow(item: i, isLd: isLd)),
         ],
       ),
     );
   }
 }
 
-typedef _GovActivityRow = GovActivityRow;
+class _ParsedDate {
+  final String month;
+  final String day;
+  final String weekday;
+  const _ParsedDate({
+    required this.month,
+    required this.day,
+    required this.weekday,
+  });
+}
 
 class GovActivityRow extends StatelessWidget {
   final GovernanceListItemModel item;
-  const GovActivityRow({super.key, required this.item});
+  final bool isLd;
+
+  const GovActivityRow({
+    super.key,
+    required this.item,
+    this.isLd = false,
+  });
+
+  _ParsedDate _parseDate(String dateStr) {
+    if (dateStr.trim().isEmpty) {
+      return const _ParsedDate(month: 'L&D', day: '•', weekday: '');
+    }
+    final dt = DateTime.tryParse(dateStr.trim());
+    if (dt != null) {
+      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      return _ParsedDate(
+        month: months[dt.month - 1],
+        day: '${dt.day}',
+        weekday: days[dt.weekday - 1],
+      );
+    }
+    final parts = dateStr.replaceAll(',', ' ').split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
+    String? weekday;
+    String? month;
+    String? day;
+
+    const weekDaysMap = {
+      'mon': 'Mon', 'tue': 'Tue', 'wed': 'Wed', 'thu': 'Thu', 'fri': 'Fri', 'sat': 'Sat', 'sun': 'Sun',
+    };
+    const monthsList = [
+      'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+    ];
+
+    for (final p in parts) {
+      final lower = p.toLowerCase();
+      final three = lower.length >= 3 ? lower.substring(0, 3) : lower;
+      if (int.tryParse(p) != null) {
+        day = p;
+      } else if (monthsList.contains(three)) {
+        month = three.toUpperCase();
+      } else if (weekDaysMap.containsKey(three)) {
+        weekday = weekDaysMap[three];
+      }
+    }
+
+    return _ParsedDate(
+      month: month ?? 'OCT',
+      day: day ?? '•',
+      weekday: weekday ?? '',
+    );
+  }
+
+  Widget _buildStateBadge(String state) {
+    final s = state.trim().toLowerCase();
+    Color bg;
+    Color text;
+    Color border;
+
+    if (s == 'verified' || s == 'completed' || s == 'done' || s == 'closed') {
+      bg = const Color(0xFFF0FDF4);
+      text = const Color(0xFF16A34A);
+      border = const Color(0xFFBBF7D0);
+    } else if (s == 'wip' || s == 'in progress' || s == 'pending') {
+      bg = const Color(0xFFFEF3C7);
+      text = const Color(0xFFD97706);
+      border = const Color(0xFFFDE68A);
+    } else if (s == 'overdue' || s == 'due') {
+      bg = const Color(0xFFFEF2F2);
+      text = const Color(0xFFEF4444);
+      border = const Color(0xFFFECACA);
+    } else {
+      bg = const Color(0xFFEFF6FF);
+      text = const Color(0xFF1A73E8);
+      border = const Color(0xFFBFDBFE);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: border, width: 1),
+      ),
+      child: Text(
+        state.isNotEmpty ? state : 'Verified',
+        style: GoogleFonts.outfit(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: text,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isPending = item.state.toLowerCase() == 'pending';
+    final isLdItem = isLd || HiveStorage.isLdRole;
+    final parsedDate = _parseDate(item.dueDate);
+
     return Column(
       children: [
         const Divider(height: 1, color: _kBorder),
         Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: item.id.isNotEmpty
-                ? () async {
-                    final result = await Navigator.of(context).push<bool>(
-                      MaterialPageRoute(
-                        builder: (_) => ActivityExecutionPage(
-                          activityId: item.id,
-                          siteName: item.siteName.isNotEmpty ? item.siteName : null,
-                        ),
-                      ),
-                    );
-                    if (result == true && context.mounted) {
-                      context.read<DashboardBloc>().add(const LoadDashboard());
-                    }
-                  }
-                : null,
+            onTap: () async {
+              // Check if item points to an L&D Transition page
+              final href = item.href ?? '';
+              String? siteId;
+              if (href.isNotEmpty && (href.contains('ld-transition') || href.contains('transition'))) {
+                siteId = href.split('/').where((s) => s.isNotEmpty).last;
+              } else if (isLdItem || item.id.startsWith('ld-rev-')) {
+                // Try extracting UUID from id: ld-rev-{siteId}-...
+                final match = RegExp(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}').firstMatch(item.id);
+                if (match != null) {
+                  siteId = match.group(0);
+                }
+              }
+
+              if (siteId != null && siteId.isNotEmpty) {
+                final result = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute(
+                    builder: (_) => TransitionSiteDetailPage(siteId: siteId!),
+                  ),
+                );
+                if (result == true && context.mounted) {
+                  context.read<DashboardBloc>().add(const LoadDashboard());
+                }
+                return;
+              }
+
+              if (item.id.isNotEmpty) {
+                final result = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute(
+                    builder: (_) => ActivityExecutionPage(
+                      activityId: item.id,
+                      siteName: item.siteName.isNotEmpty ? item.siteName : null,
+                    ),
+                  ),
+                );
+                if (result == true && context.mounted) {
+                  context.read<DashboardBloc>().add(const LoadDashboard());
+                }
+              }
+            },
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  if (isLdItem) ...[
+                    // Blue calendar date container (matching web image)
+                    Container(
+                      width: 46,
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E40AF),
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF1E40AF).withValues(alpha: 0.2),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            parsedDate.month,
+                            style: GoogleFonts.outfit(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          Text(
+                            parsedDate.day,
+                            style: GoogleFonts.outfit(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              height: 1.1,
+                            ),
+                          ),
+                          if (parsedDate.weekday.isNotEmpty)
+                            Text(
+                              parsedDate.weekday,
+                              style: GoogleFonts.outfit(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          item.title,
+                          item.title.isNotEmpty ? item.title : (item.activityLabel ?? ''),
                           style: GoogleFonts.outfit(
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
@@ -2840,42 +3386,45 @@ class GovActivityRow extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${item.siteName}  ·  ${item.roleLabel}',
-                          style: GoogleFonts.outfit(fontSize: 11, color: _kBlue),
+                          isLdItem
+                              ? (item.siteName.isNotEmpty ? item.siteName : 'DIGILOGY-DEV')
+                              : '${item.siteName}  ·  ${item.roleLabel}',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: isLdItem ? FontWeight.w500 : FontWeight.w400,
+                            color: _kBlue,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        Text(
-                          'Assignee: ${item.assigneeName}  ·  Due: ${item.dueDate}',
-                          style: GoogleFonts.outfit(fontSize: 11, color: _kSlate),
-                        ),
+                        if (isLdItem) ...[
+                          if (item.dueDate.isNotEmpty) ...[
+                            const SizedBox(height: 1),
+                            Text(
+                              item.dueDate,
+                              style: GoogleFonts.outfit(
+                                fontSize: 11,
+                                color: _kSlate,
+                              ),
+                            ),
+                          ],
+                        ] else ...[
+                          Text(
+                            'Assignee: ${item.assigneeName}  ·  Due: ${item.dueDate}',
+                            style: GoogleFonts.outfit(fontSize: 11, color: _kSlate),
+                          ),
+                        ],
                       ],
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isPending
-                          ? const Color(0xFFEFF6FF)
-                          : const Color(0xFFF0FDF4),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      item.state,
-                      style: GoogleFonts.outfit(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: isPending ? _kBlue : _kGreen,
-                      ),
-                    ),
+                  _buildStateBadge(item.state),
+                  const SizedBox(width: 6),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: Color(0xFF94A3B8),
                   ),
-                  if (item.id.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      size: 18,
-                      color: Color(0xFF94A3B8),
-                    ),
-                  ],
                 ],
               ),
             ),

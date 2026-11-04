@@ -68,6 +68,7 @@ dependencies:
 
   # Dropdown with search and fixed height
   dropdown_button2: ^2.3.9
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:

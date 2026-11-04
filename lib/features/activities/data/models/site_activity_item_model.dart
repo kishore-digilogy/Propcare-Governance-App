@@ -10,6 +10,7 @@ class SiteActivityCountsModel extends Equatable {
   final int assigned;
   final int completed;
   final int summaryOverdue;
+  final int summaryPending;
 
   const SiteActivityCountsModel({
     required this.today,
@@ -21,6 +22,7 @@ class SiteActivityCountsModel extends Equatable {
     required this.assigned,
     required this.completed,
     required this.summaryOverdue,
+    this.summaryPending = 0,
   });
 
   factory SiteActivityCountsModel.fromJson(Map<String, dynamic>? json) {
@@ -35,8 +37,12 @@ class SiteActivityCountsModel extends Equatable {
         assigned: 0,
         completed: 0,
         summaryOverdue: 0,
+        summaryPending: 0,
       );
     }
+
+    final scheduled = (json['scheduled'] as num?)?.toInt() ?? 0;
+    final assigned = (json['assigned'] as num?)?.toInt() ?? 0;
 
     return SiteActivityCountsModel(
       today: (json['today'] as num?)?.toInt() ?? 0,
@@ -44,10 +50,11 @@ class SiteActivityCountsModel extends Equatable {
       pending: (json['pending'] as num?)?.toInt() ?? 0,
       overdue: (json['overdue'] as num?)?.toInt() ?? 0,
       all: (json['all'] as num?)?.toInt() ?? 0,
-      scheduled: (json['scheduled'] as num?)?.toInt() ?? 0,
-      assigned: (json['assigned'] as num?)?.toInt() ?? 0,
+      scheduled: scheduled,
+      assigned: assigned,
       completed: (json['completed'] as num?)?.toInt() ?? 0,
       summaryOverdue: (json['summaryOverdue'] as num?)?.toInt() ?? 0,
+      summaryPending: (json['summaryPending'] as num?)?.toInt() ?? (scheduled + assigned),
     );
   }
 
@@ -62,6 +69,7 @@ class SiteActivityCountsModel extends Equatable {
         assigned,
         completed,
         summaryOverdue,
+        summaryPending,
       ];
 }
 
@@ -80,6 +88,7 @@ class SiteActivityItemModel extends Equatable {
   final String code;
   final String siteName;
   final String siteCity;
+  final String zoneName;
   final String clusterName;
   final String functionLabel;
   final String roleLabel;
@@ -102,6 +111,7 @@ class SiteActivityItemModel extends Equatable {
     required this.code,
     required this.siteName,
     required this.siteCity,
+    this.zoneName = '',
     required this.clusterName,
     required this.functionLabel,
     required this.roleLabel,
@@ -126,6 +136,7 @@ class SiteActivityItemModel extends Equatable {
       code: json['code']?.toString() ?? '',
       siteName: json['siteName']?.toString() ?? '',
       siteCity: json['siteCity']?.toString() ?? 'NA',
+      zoneName: json['zoneName']?.toString() ?? '',
       clusterName: json['clusterName']?.toString() ?? '',
       functionLabel: json['functionLabel']?.toString() ?? '',
       roleLabel: (json['roleLabel'] != null && json['roleLabel'].toString().isNotEmpty)
@@ -153,7 +164,33 @@ class SiteActivityItemModel extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, siteId, title, scheduledDate, status, role];
+  List<Object?> get props => [id, siteId, title, scheduledDate, status, role, zoneName];
+}
+
+class BelowRoleItemModel extends Equatable {
+  final String role;
+  final String label;
+
+  const BelowRoleItemModel({required this.role, required this.label});
+
+  factory BelowRoleItemModel.fromJson(Map<String, dynamic> json) =>
+      BelowRoleItemModel(
+        role: json['role']?.toString() ?? '',
+        label: json['label']?.toString() ?? '',
+      );
+
+  @override
+  List<Object?> get props => [role, label];
+}
+
+class ActivitySiteOptionModel extends Equatable {
+  final String siteId;
+  final String siteName;
+
+  const ActivitySiteOptionModel({required this.siteId, required this.siteName});
+
+  @override
+  List<Object?> get props => [siteId, siteName];
 }
 
 class SiteActivitiesResponseModel extends Equatable {
@@ -165,6 +202,9 @@ class SiteActivitiesResponseModel extends Equatable {
   final String view;
   final String myRole;
   final String myRoleLabel;
+  final List<BelowRoleItemModel> belowRoles;
+  final int mineTotal;
+  final int belowTotal;
 
   const SiteActivitiesResponseModel({
     required this.items,
@@ -175,6 +215,9 @@ class SiteActivitiesResponseModel extends Equatable {
     required this.view,
     required this.myRole,
     required this.myRoleLabel,
+    this.belowRoles = const [],
+    this.mineTotal = 0,
+    this.belowTotal = 0,
   });
 
   factory SiteActivitiesResponseModel.fromJson(Map<String, dynamic> json) {
@@ -183,6 +226,15 @@ class SiteActivitiesResponseModel extends Equatable {
       for (final it in json['items']) {
         if (it is Map<String, dynamic>) {
           list.add(SiteActivityItemModel.fromJson(it));
+        }
+      }
+    }
+
+    final belowRolesList = <BelowRoleItemModel>[];
+    if (json['belowRoles'] is List) {
+      for (final r in json['belowRoles']) {
+        if (r is Map<String, dynamic>) {
+          belowRolesList.add(BelowRoleItemModel.fromJson(r));
         }
       }
     }
@@ -196,10 +248,13 @@ class SiteActivitiesResponseModel extends Equatable {
       view: json['view']?.toString() ?? 'mine',
       myRole: json['myRole']?.toString() ?? '',
       myRoleLabel: json['myRoleLabel']?.toString() ?? '',
+      belowRoles: belowRolesList,
+      mineTotal: (json['mineTotal'] as num?)?.toInt() ?? 0,
+      belowTotal: (json['belowTotal'] as num?)?.toInt() ?? 0,
     );
   }
 
   @override
-  List<Object?> get props => [items, total, limit, offset, counts, view, myRole];
+  List<Object?> get props => [items, total, limit, offset, counts, view, myRole, belowRoles, mineTotal, belowTotal];
 }
 

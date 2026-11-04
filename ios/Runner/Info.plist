@@ -54,5 +54,7 @@
 		</dict>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>PropCare Governance requires location access to verify attendance check-in and check-out at sites.</string>
+		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+		<string>PropCare Governance requires location access to verify attendance check-in and check-out at sites.</string>
 	</dict>
 </plist>

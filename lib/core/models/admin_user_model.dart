@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../storage/hive_storage.dart';
+
 /// Scope definition for an admin user containing geography and site allocations.
 class AdminUserScopeModel extends Equatable {
   final List<String> siteIds;
@@ -126,11 +128,8 @@ class AdminUserModel extends Equatable {
   String get roleLabel {
     if (role.isEmpty) return '';
     final upper = role.trim().toUpperCase();
-    if (upper == 'CRRM' ||
-        upper == 'SUPER_ADMIN' ||
-        upper == 'SUPERADMIN' ||
-        upper == 'ADMIN') {
-      return 'CRRM / Super Admin';
+    if (HiveStorage.knownRoles.containsKey(upper)) {
+      return HiveStorage.knownRoles[upper]!;
     }
     return role
         .replaceAll('_', ' ')
@@ -139,6 +138,37 @@ class AdminUserModel extends Equatable {
             ? '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}'
             : '')
         .join(' ');
+  }
+
+  /// Department derived from role
+  String get department {
+    final upper = role.toUpperCase();
+    if (upper.contains('L&D') ||
+        upper.startsWith('LD_') ||
+        upper.startsWith('L_D_') ||
+        upper.endsWith('_LD') ||
+        upper == 'LD' ||
+        upper.contains('TRANSITION') ||
+        upper.contains('TRAIN')) {
+      return 'L&D';
+    }
+    if (upper == 'HR') return 'HR';
+    if (upper == 'EHS') return 'EHS';
+    if (upper == 'SALES') return 'Sales';
+    if (upper == 'CRRM' || upper.contains('ADMIN')) return 'CRRM';
+    if (upper == 'MACHINE_TECHNICIAN') return 'Machine';
+    return 'Operations';
+  }
+
+  bool get isLdDepartment {
+    final upper = role.toUpperCase();
+    return upper.contains('L&D') ||
+        upper.startsWith('LD_') ||
+        upper.startsWith('L_D_') ||
+        upper.endsWith('_LD') ||
+        upper == 'LD' ||
+        upper.contains('TRANSITION') ||
+        upper.contains('TRAIN');
   }
 
   /// Formatted display: "Abhimanyu · Cluster Lead"

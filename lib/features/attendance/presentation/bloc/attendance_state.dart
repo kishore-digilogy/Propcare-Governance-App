@@ -39,6 +39,10 @@ class AttendanceLoaded extends AttendanceState {
   final int activitiesCurrentPage;
   final int activitiesItemsPerPage;
 
+  final String? submittingActivityId;
+  final String? attendanceActionMessage;
+  final String? attendanceErrorMessage;
+
   const AttendanceLoaded({
     required this.data,
     this.siteSearchQuery = '',
@@ -50,6 +54,9 @@ class AttendanceLoaded extends AttendanceState {
     this.activitySearchQuery = '',
     this.activitiesCurrentPage = 1,
     this.activitiesItemsPerPage = 20,
+    this.submittingActivityId,
+    this.attendanceActionMessage,
+    this.attendanceErrorMessage,
   });
 
   // ── Filtered Sites ──────────────────────────────────────────────────────────
@@ -125,6 +132,9 @@ class AttendanceLoaded extends AttendanceState {
     String? activitySearchQuery,
     int? activitiesCurrentPage,
     int? activitiesItemsPerPage,
+    String? Function()? submittingActivityId,
+    String? Function()? attendanceActionMessage,
+    String? Function()? attendanceErrorMessage,
   }) {
     return AttendanceLoaded(
       data: data ?? this.data,
@@ -141,6 +151,15 @@ class AttendanceLoaded extends AttendanceState {
           activitiesCurrentPage ?? this.activitiesCurrentPage,
       activitiesItemsPerPage:
           activitiesItemsPerPage ?? this.activitiesItemsPerPage,
+      submittingActivityId: submittingActivityId != null
+          ? submittingActivityId()
+          : this.submittingActivityId,
+      attendanceActionMessage: attendanceActionMessage != null
+          ? attendanceActionMessage()
+          : this.attendanceActionMessage,
+      attendanceErrorMessage: attendanceErrorMessage != null
+          ? attendanceErrorMessage()
+          : this.attendanceErrorMessage,
     );
   }
 
@@ -156,6 +175,9 @@ class AttendanceLoaded extends AttendanceState {
         activitySearchQuery,
         activitiesCurrentPage,
         activitiesItemsPerPage,
+        submittingActivityId,
+        attendanceActionMessage,
+        attendanceErrorMessage,
       ];
 }
 

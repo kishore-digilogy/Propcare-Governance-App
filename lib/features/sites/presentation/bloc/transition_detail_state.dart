@@ -19,25 +19,43 @@ class TransitionDetailLoading extends TransitionDetailState {
 
 class TransitionDetailLoaded extends TransitionDetailState {
   final TransitionSiteDetailResponseModel response;
-  final int selectedStep; // 1 = Site Creation, 2 = Internal Checklist, 3 = L&D Checklist, 4 = Stability Verify
+  final int selectedStep; // 1 = Internal Checklist, 2 = L&D Checklist, 3 = Stability Verify
+  final bool isSaving;
+  final String? actionMessage;
+  final String? errorMessage;
 
   const TransitionDetailLoaded({
     required this.response,
-    this.selectedStep = 2,
+    this.selectedStep = 1,
+    this.isSaving = false,
+    this.actionMessage,
+    this.errorMessage,
   });
 
   TransitionDetailLoaded copyWith({
     TransitionSiteDetailResponseModel? response,
     int? selectedStep,
+    bool? isSaving,
+    String? actionMessage,
+    String? errorMessage,
   }) {
     return TransitionDetailLoaded(
       response: response ?? this.response,
       selectedStep: selectedStep ?? this.selectedStep,
+      isSaving: isSaving ?? this.isSaving,
+      actionMessage: actionMessage,
+      errorMessage: errorMessage,
     );
   }
 
   @override
-  List<Object?> get props => [response, selectedStep];
+  List<Object?> get props => [
+        response,
+        selectedStep,
+        isSaving,
+        actionMessage,
+        errorMessage,
+      ];
 }
 
 class TransitionDetailError extends TransitionDetailState {

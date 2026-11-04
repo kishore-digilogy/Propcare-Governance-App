@@ -88,8 +88,8 @@ class SitesBloc extends Bloc<SitesEvent, SitesState> {
         emit: emit,
         page: current.currentPage,
         tab: current.selectedTab,
-        zoneId: current.selectedZoneId,
-        clusterId: current.selectedClusterId,
+        zoneId: event.initialZoneId ?? current.selectedZoneId,
+        clusterId: event.initialClusterId ?? current.selectedClusterId,
         status: current.selectedStatus,
         clientType: current.selectedClientType,
         mode: current.selectedMode,
@@ -101,6 +101,8 @@ class SitesBloc extends Bloc<SitesEvent, SitesState> {
         emit: emit,
         page: 1,
         tab: 'All',
+        zoneId: event.initialZoneId,
+        clusterId: event.initialClusterId,
       );
     }
   }

@@ -32,6 +32,22 @@ abstract class SitesRemoteDataSource {
 
   Future<TransitionSiteDetailResponseModel> getTransitionDetail(String siteId);
 
+  Future<TransitionSiteDetailResponseModel> saveTransitionAction(
+    String siteId, {
+    required String action,
+    required List<Map<String, dynamic>> items,
+    required Map<String, dynamic> kickoff,
+  });
+
+  Future<void> raiseTransitionIssue(
+    String siteId, {
+    required String phase,
+    required String key,
+    required String issue,
+    required String ownerId,
+    required String remarks,
+  });
+
   Future<void> updateSpecialAttention(
     String siteId, {
     required bool enabled,
@@ -202,6 +218,21 @@ class SitesRemoteDataSourceImpl implements SitesRemoteDataSource {
 
   @override
   Future<TransitionSiteDetailResponseModel> getTransitionDetail(String siteId) async {
+    // Try dedicated L&D transition endpoint first
+    try {
+      final response = await _dio.get('/ld-transition/sites/$siteId');
+      if (response.statusCode == 200 || response.statusCode == 304) {
+        final data = response.data;
+        if (data is Map<String, dynamic>) {
+          return TransitionSiteDetailResponseModel.fromJson(data);
+        } else if (data is Map) {
+          return TransitionSiteDetailResponseModel.fromJson(Map<String, dynamic>.from(data));
+        }
+      }
+    } catch (_) {
+      // fallback below
+    }
+
     final path = '/sites/$siteId?view=transition';
     final response = await _dio.get(path);
 
@@ -215,6 +246,57 @@ class SitesRemoteDataSourceImpl implements SitesRemoteDataSource {
       throw Exception('Malformed transition response for site $siteId');
     } else {
       throw Exception('Failed to load transition site details (HTTP ${response.statusCode})');
+    }
+  }
+
+  @override
+  Future<TransitionSiteDetailResponseModel> saveTransitionAction(
+    String siteId, {
+    required String action,
+    required List<Map<String, dynamic>> items,
+    required Map<String, dynamic> kickoff,
+  }) async {
+    final payload = {
+      'action': action,
+      'items': items,
+      'kickoff': kickoff,
+    };
+    final response = await _dio.post('/ld-transition/sites/$siteId', data: payload);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return TransitionSiteDetailResponseModel.fromJson(data);
+      } else if (data is Map) {
+        return TransitionSiteDetailResponseModel.fromJson(Map<String, dynamic>.from(data));
+      }
+      return getTransitionDetail(siteId);
+    } else {
+      throw Exception('Failed to save transition ($action) (HTTP ${response.statusCode})');
+    }
+  }
+
+  @override
+  Future<void> raiseTransitionIssue(
+    String siteId, {
+    required String phase,
+    required String key,
+    required String issue,
+    required String ownerId,
+    required String remarks,
+  }) async {
+    final payload = {
+      'phase': phase,
+      'key': key,
+      'issue': issue,
+      'ownerId': ownerId,
+      'remarks': remarks,
+    };
+    final response = await _dio.post(
+      '/ld-transition/sites/$siteId/raise-issue',
+      data: payload,
+    );
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception('Failed to raise issue (HTTP ${response.statusCode})');
     }
   }
 

@@ -21,12 +21,17 @@ class ActivitiesLoading extends ActivitiesState {
 
 class ActivitiesLoaded extends ActivitiesState {
   final ActivitiesBySiteResponseModel response;
-  final String view; // 'mine' or 'below'
+  final SiteActivitiesResponseModel activitiesResponse;
+  final String? view; // 'mine' or 'below' or null
+  final String? kind; // e.g. 'MIS,MMR'
+  final String? selectedSiteId;
   final String? selectedZoneId;
   final String? selectedClusterId;
   final String? selectedStatus;
   final String? selectedRole;
   final String searchQuery;
+  final List<ActivitySiteOptionModel> knownSites;
+  final bool isLoadingActivities;
   final ActivitySiteItemModel? selectedSite;
   final SiteActivitiesResponseModel? selectedSiteActivities;
   final bool isLoadingDetail;
@@ -38,13 +43,45 @@ class ActivitiesLoaded extends ActivitiesState {
   final String? actionErrorMessage;
 
   const ActivitiesLoaded({
-    required this.response,
-    required this.view,
+    this.response = const ActivitiesBySiteResponseModel(
+      items: [],
+      pending: 0,
+      completed: 0,
+      total: 0,
+      view: 'mine',
+      myRoleLabel: 'CRRM / Super Admin',
+    ),
+    this.activitiesResponse = const SiteActivitiesResponseModel(
+      items: [],
+      total: 0,
+      limit: 10,
+      offset: 0,
+      counts: SiteActivityCountsModel(
+        today: 0,
+        upcoming: 0,
+        pending: 0,
+        overdue: 0,
+        all: 0,
+        scheduled: 0,
+        assigned: 0,
+        completed: 0,
+        summaryOverdue: 0,
+        summaryPending: 0,
+      ),
+      view: 'mine',
+      myRole: '',
+      myRoleLabel: 'CRRM / Super Admin',
+    ),
+    this.view,
+    this.kind,
+    this.selectedSiteId,
     this.selectedZoneId,
     this.selectedClusterId,
     this.selectedStatus,
     this.selectedRole,
     this.searchQuery = '',
+    this.knownSites = const [],
+    this.isLoadingActivities = false,
     this.selectedSite,
     this.selectedSiteActivities,
     this.isLoadingDetail = false,
@@ -58,12 +95,17 @@ class ActivitiesLoaded extends ActivitiesState {
 
   ActivitiesLoaded copyWith({
     ActivitiesBySiteResponseModel? response,
-    String? view,
+    SiteActivitiesResponseModel? activitiesResponse,
+    String? Function()? view,
+    String? Function()? kind,
+    String? Function()? selectedSiteId,
     String? Function()? selectedZoneId,
     String? Function()? selectedClusterId,
     String? Function()? selectedStatus,
     String? Function()? selectedRole,
     String? searchQuery,
+    List<ActivitySiteOptionModel>? knownSites,
+    bool? isLoadingActivities,
     ActivitySiteItemModel? Function()? selectedSite,
     SiteActivitiesResponseModel? Function()? selectedSiteActivities,
     bool? isLoadingDetail,
@@ -76,12 +118,17 @@ class ActivitiesLoaded extends ActivitiesState {
   }) {
     return ActivitiesLoaded(
       response: response ?? this.response,
-      view: view ?? this.view,
+      activitiesResponse: activitiesResponse ?? this.activitiesResponse,
+      view: view != null ? view() : this.view,
+      kind: kind != null ? kind() : this.kind,
+      selectedSiteId: selectedSiteId != null ? selectedSiteId() : this.selectedSiteId,
       selectedZoneId: selectedZoneId != null ? selectedZoneId() : this.selectedZoneId,
       selectedClusterId: selectedClusterId != null ? selectedClusterId() : this.selectedClusterId,
       selectedStatus: selectedStatus != null ? selectedStatus() : this.selectedStatus,
       selectedRole: selectedRole != null ? selectedRole() : this.selectedRole,
       searchQuery: searchQuery ?? this.searchQuery,
+      knownSites: knownSites ?? this.knownSites,
+      isLoadingActivities: isLoadingActivities ?? this.isLoadingActivities,
       selectedSite: selectedSite != null ? selectedSite() : this.selectedSite,
       selectedSiteActivities: selectedSiteActivities != null ? selectedSiteActivities() : this.selectedSiteActivities,
       isLoadingDetail: isLoadingDetail ?? this.isLoadingDetail,
@@ -92,6 +139,53 @@ class ActivitiesLoaded extends ActivitiesState {
       actionSuccessMessage: actionSuccessMessage != null ? actionSuccessMessage() : this.actionSuccessMessage,
       actionErrorMessage: actionErrorMessage != null ? actionErrorMessage() : this.actionErrorMessage,
     );
+  }
+
+  List<SiteActivityItemModel> get filteredActivities {
+    var list = activitiesResponse.items;
+
+    if (searchQuery.trim().isNotEmpty) {
+      final q = searchQuery.toLowerCase().trim();
+      list = list.where((a) {
+        return a.title.toLowerCase().contains(q) ||
+            a.siteName.toLowerCase().contains(q) ||
+            a.siteCity.toLowerCase().contains(q) ||
+            a.code.toLowerCase().contains(q) ||
+            a.roleLabel.toLowerCase().contains(q) ||
+            a.statusLabel.toLowerCase().contains(q) ||
+            a.priority.toLowerCase().contains(q);
+      }).toList();
+    }
+
+    if (selectedStatus != null && selectedStatus!.isNotEmpty && selectedStatus != 'ALL') {
+      final s = selectedStatus!.toLowerCase();
+      list = list.where((a) {
+        if (s == 'pending') {
+          return a.status.toLowerCase() == 'pending' ||
+              a.status.toLowerCase() == 'open' ||
+              a.statusLabel.toLowerCase() == 'pending' ||
+              a.statusLabel.toLowerCase() == 'assigned';
+        } else if (s == 'completed') {
+          return a.status.toLowerCase() == 'completed' ||
+              a.status.toLowerCase() == 'closed' ||
+              a.statusLabel.toLowerCase() == 'completed';
+        } else if (s == 'due') {
+          final isPastDue = a.dueDate != null &&
+              DateTime.tryParse(a.dueDate!)?.isBefore(DateTime.now()) == true &&
+              a.status.toUpperCase() != 'COMPLETED' &&
+              a.status.toUpperCase() != 'CLOSED';
+          return isPastDue || a.status.toLowerCase() == 'due' || a.statusLabel.toLowerCase() == 'due';
+        }
+        return a.status.toLowerCase() == s ||
+            a.statusLabel.toLowerCase() == s;
+      }).toList();
+    }
+
+    if (selectedSiteId != null && selectedSiteId!.isNotEmpty && selectedSiteId != 'ALL') {
+      list = list.where((a) => a.siteId == selectedSiteId).toList();
+    }
+
+    return list;
   }
 
   List<ActivitySiteItemModel> get filteredSites {
@@ -126,12 +220,17 @@ class ActivitiesLoaded extends ActivitiesState {
   @override
   List<Object?> get props => [
         response,
+        activitiesResponse,
         view,
+        kind,
+        selectedSiteId,
         selectedZoneId,
         selectedClusterId,
         selectedStatus,
         selectedRole,
         searchQuery,
+        knownSites,
+        isLoadingActivities,
         selectedSite,
         selectedSiteActivities,
         isLoadingDetail,

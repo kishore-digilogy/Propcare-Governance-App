@@ -9,6 +9,53 @@ abstract class ActivitiesEvent extends Equatable {
   List<Object?> get props => [];
 }
 
+class LoadActivities extends ActivitiesEvent {
+  final String? view; // 'mine' or 'below' or null
+  final String? kind; // e.g. 'MIS,MMR'
+  final String? siteId;
+  final String? status;
+  final String? role;
+  final int offset;
+  final int limit;
+  final bool isRefresh;
+
+  const LoadActivities({
+    this.view,
+    this.kind,
+    this.siteId,
+    this.status,
+    this.role,
+    this.offset = 0,
+    this.limit = 10,
+    this.isRefresh = false,
+  });
+
+  @override
+  List<Object?> get props => [view, kind, siteId, status, role, offset, limit, isRefresh];
+}
+
+class ChangeActivitiesSiteFilter extends ActivitiesEvent {
+  final String? siteId;
+
+  const ChangeActivitiesSiteFilter(this.siteId);
+
+  @override
+  List<Object?> get props => [siteId];
+}
+
+class LoadActivitiesPage extends ActivitiesEvent {
+  final int offset;
+  final int limit;
+
+  const LoadActivitiesPage({
+    this.offset = 0,
+    this.limit = 10,
+  });
+
+  @override
+  List<Object?> get props => [offset, limit];
+}
+
 class LoadActivitiesBySite extends ActivitiesEvent {
   final String view; // 'mine' or 'below'
   final bool isRefresh;
@@ -56,6 +103,13 @@ class ChangeActivitiesRoleFilter extends ActivitiesEvent {
 
   @override
   List<Object?> get props => [role];
+}
+
+class ResetActivitiesFilters extends ActivitiesEvent {
+  const ResetActivitiesFilters();
+
+  @override
+  List<Object?> get props => [];
 }
 
 class SearchActivitiesQueryChanged extends ActivitiesEvent {

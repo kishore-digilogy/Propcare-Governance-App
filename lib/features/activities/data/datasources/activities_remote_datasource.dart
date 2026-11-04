@@ -6,6 +6,19 @@ import '../models/activity_site_summary_model.dart';
 import '../models/site_activity_item_model.dart';
 
 abstract class ActivitiesRemoteDataSource {
+  Future<SiteActivitiesResponseModel> getActivities({
+    String? view, // 'mine' or 'below'
+    String? siteId,
+    int offset = 0,
+    int limit = 10,
+    String? status,
+    String? statusBucket,
+    String? role,
+    String? zoneId,
+    String? clusterId,
+    String? kind,
+  });
+
   Future<ActivitiesBySiteResponseModel> getActivitiesBySite({
     required String view, // 'mine' or 'below'
     String? zoneId,
@@ -93,27 +106,50 @@ class ActivitiesRemoteDataSourceImpl implements ActivitiesRemoteDataSource {
   }
 
   @override
-  Future<SiteActivitiesResponseModel> getSiteActivities({
-    required String view,
-    required String siteId,
+  Future<SiteActivitiesResponseModel> getActivities({
+    String? view,
+    String? siteId,
     int offset = 0,
     int limit = 10,
     String? status,
+    String? statusBucket,
     String? role,
+    String? zoneId,
+    String? clusterId,
+    String? kind,
   }) async {
     const path = '/activities';
     final queryParams = <String, dynamic>{
-      'view': view,
-      'siteId': siteId,
       'offset': offset,
       'limit': limit,
     };
+    if (view != null && view.isNotEmpty) {
+      queryParams['view'] = view;
+    }
+    if (kind != null && kind.isNotEmpty) {
+      queryParams['kind'] = kind;
+    }
 
-    if (status != null && status.isNotEmpty && status != 'ALL') {
-      queryParams['status'] = status;
+    if (siteId != null && siteId.isNotEmpty && siteId != 'ALL') {
+      queryParams['siteId'] = siteId;
+    }
+    if (statusBucket != null && statusBucket.isNotEmpty && statusBucket != 'ALL') {
+      queryParams['statusBucket'] = statusBucket.toLowerCase();
+    } else if (status != null && status.isNotEmpty && status != 'ALL') {
+      if (kind != null && (kind.contains('MIS') || kind.contains('MMR'))) {
+        queryParams['statusBucket'] = status.toLowerCase();
+      } else {
+        queryParams['status'] = status;
+      }
     }
     if (role != null && role.isNotEmpty && role != 'ALL') {
       queryParams['role'] = role;
+    }
+    if (zoneId != null && zoneId.isNotEmpty && zoneId != 'ALL') {
+      queryParams['zoneId'] = zoneId;
+    }
+    if (clusterId != null && clusterId.isNotEmpty && clusterId != 'ALL') {
+      queryParams['clusterId'] = clusterId;
     }
 
     final response = await _dio.get(
@@ -141,14 +177,34 @@ class ActivitiesRemoteDataSourceImpl implements ActivitiesRemoteDataSource {
           assigned: 0,
           completed: 0,
           summaryOverdue: 0,
+          summaryPending: 0,
         ),
         view: 'mine',
         myRole: '',
         myRoleLabel: '',
       );
     } else {
-      throw Exception('Failed to load site activities (HTTP ${response.statusCode})');
+      throw Exception('Failed to load activities (HTTP ${response.statusCode})');
     }
+  }
+
+  @override
+  Future<SiteActivitiesResponseModel> getSiteActivities({
+    required String view,
+    required String siteId,
+    int offset = 0,
+    int limit = 10,
+    String? status,
+    String? role,
+  }) {
+    return getActivities(
+      view: view,
+      siteId: siteId,
+      offset: offset,
+      limit: limit,
+      status: status,
+      role: role,
+    );
   }
 
   @override

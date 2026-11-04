@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:propcare_governance/core/storage/hive_storage.dart';
 import 'package:propcare_governance/features/sites/data/datasources/sites_remote_datasource.dart';
 import 'package:propcare_governance/features/sites/data/models/site_detail_model.dart';
 import 'package:propcare_governance/features/sites/data/models/site_model.dart';
@@ -51,6 +52,26 @@ class MockTransitionDetailRemoteDataSource implements SitesRemoteDataSource {
   Future<TransitionSiteDetailResponseModel> getTransitionDetail(String siteId) async {
     return detailResponse;
   }
+
+  @override
+  Future<TransitionSiteDetailResponseModel> saveTransitionAction(
+    String siteId, {
+    required String action,
+    required List<Map<String, dynamic>> items,
+    required Map<String, dynamic> kickoff,
+  }) async {
+    return detailResponse;
+  }
+
+  @override
+  Future<void> raiseTransitionIssue(
+    String siteId, {
+    required String phase,
+    required String key,
+    required String issue,
+    required String ownerId,
+    required String remarks,
+  }) async {}
 
   @override
   Future<void> updateSpecialAttention(
@@ -149,8 +170,9 @@ void main() {
           "status": "",
           "done": false,
           "remark": "",
-          "startDate": null,
-          "endDate": null
+          "startDate": "2026-11-16",
+          "endDate": "2026-11-30",
+          "targetDate": "2026-11-30"
         },
         {
           "phase": "LD_TRANSITION",
@@ -162,8 +184,9 @@ void main() {
           "status": "",
           "done": false,
           "remark": "",
-          "startDate": null,
-          "endDate": null
+          "startDate": "2026-11-16",
+          "endDate": "2026-11-30",
+          "targetDate": "2026-11-30"
         },
         {
           "phase": "LD_TRANSITION",
@@ -175,25 +198,41 @@ void main() {
           "status": "",
           "done": false,
           "remark": "",
-          "startDate": null,
-          "endDate": null
+          "startDate": "2026-11-16",
+          "endDate": "2026-11-30",
+          "targetDate": "2026-11-30"
         }
       ]
     },
-    "transitions": []
+    "zoneUsers": [
+      {
+        "id": "u1",
+        "name": "kumar",
+        "role": "LD_HEAD",
+        "email": "kumar@gmail.com"
+      }
+    ],
+    "canEdit": true,
+    "canVerify": false,
+    "canSubmit": true,
+    "canManageAccess": true
   };
 
-  group('TransitionSiteDetailResponseModel parsing tests', () {
-    test('parses site info, dates, and preview correctly', () {
+  group('TransitionDetailModel parser tests', () {
+    test('parses full transition detail JSON correctly', () {
       final model = TransitionSiteDetailResponseModel.fromJson(sampleJson);
+
       expect(model.site.name, 'Space Intel');
       expect(model.site.code, 'SPACEI_0001');
+      expect(model.site.clientName, 'Space Intel');
       expect(model.site.formattedAwardDate, '30 Oct 2026');
       expect(model.site.formattedStartDate, '31 Oct 2026');
       expect(model.site.formattedEndDate, '30 Nov 2026');
 
-      expect(model.ldPreview.kickoff.isWithClientYes, isTrue);
-      expect(model.ldPreview.kickoff.isPreTransitionMeetingYes, isTrue);
+      expect(model.ldPreview.kickoff.isWithClientYes, true);
+      expect(model.ldPreview.kickoff.isPreTransitionMeetingYes, true);
+      expect(model.ldPreview.kickoff.formattedDate, '30 Oct 2026');
+      expect(model.ldPreview.kickoff.participants.length, 3);
 
       expect(model.ldPreview.internal.length, 1);
       expect(model.ldPreview.internal.first.title, 'Closing of Agreement');
@@ -204,10 +243,30 @@ void main() {
       expect(model.ldPreview.ldTransition.length, 3);
       expect(model.ldPreview.ldTransition.first.title, 'L&D transition kick-off completed');
     });
+
+    test('resolves participant IDs to user name and department from zoneUsers and users api', () {
+      final user = ZoneUserModel(
+        id: '9247021a-b3c0-4f9c-b3f3-c86f52fdd8e6',
+        name: 'Aijth',
+        role: 'FIELD_EXECUTIVE',
+        email: 'aijth@example.com',
+      );
+      expect(user.department, 'Operations');
+      expect(user.roleDisplay, 'Field Executive');
+
+      final ldUser = ZoneUserModel(
+        id: '5e89d90f-6fef-41bf-9c98-3f1df2fbf2ec',
+        name: 'kumar',
+        role: 'LD_HEAD',
+        email: 'kumar@example.com',
+      );
+      expect(ldUser.department, 'L&D');
+      expect(ldUser.roleDisplay, 'L&D Head');
+    });
   });
 
   group('TransitionDetailBloc tests', () {
-    test('loads transition detail successfully and sets default step to 2', () async {
+    test('loads transition detail successfully and sets default step to 1', () async {
       final model = TransitionSiteDetailResponseModel.fromJson(sampleJson);
       final ds = MockTransitionDetailRemoteDataSource(model);
       final bloc = TransitionDetailBloc(dataSource: ds);
@@ -223,27 +282,30 @@ void main() {
           isA<TransitionDetailLoaded>().having(
             (s) => s.selectedStep,
             'selectedStep',
-            2,
+            1,
           ),
         ]),
       );
 
-      bloc.add(const SelectTransitionStep(3));
+      bloc.add(const SelectTransitionStep(2));
       await expectLater(
         bloc.stream,
         emits(
-          isA<TransitionDetailLoaded>().having((s) => s.selectedStep, 'selectedStep', 3),
+          isA<TransitionDetailLoaded>().having((s) => s.selectedStep, 'selectedStep', 2),
         ),
       );
     });
   });
 
   group('TransitionSiteDetailPage UI widget tests', () {
-    testWidgets('renders top nav, header card with dates, 4-step stepper, and step 2 cards',
+    testWidgets('renders top nav, header card with dates, 3-step stepper, and step 1 cards',
         (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
+
+      HiveStorage.mockUserRole = 'LD_HEAD';
+      addTearDown(() => HiveStorage.mockUserRole = null);
 
       final model = TransitionSiteDetailResponseModel.fromJson(sampleJson);
       final ds = MockTransitionDetailRemoteDataSource(model);
@@ -262,12 +324,11 @@ void main() {
       await tester.pumpAndSettle();
 
       // Top back nav
-      expect(find.text('Back to Sites List'), findsOneWidget);
+      expect(find.text('All LIVE Sites'), findsOneWidget);
 
       // Header site info
       expect(find.text('Space Intel'), findsOneWidget);
-      expect(find.text('Live'), findsOneWidget);
-      expect(find.text('SPACEI_0001'), findsOneWidget);
+      expect(find.text('L&D Transition'), findsOneWidget);
 
       // Contract date boxes
       expect(find.text('Contract Award Date'), findsOneWidget);
@@ -277,13 +338,12 @@ void main() {
       expect(find.text('Contract End Date'), findsOneWidget);
       expect(find.text('30 Nov 2026'), findsWidgets);
 
-      // 4 steps in stepper
-      expect(find.text('Site Creation'), findsOneWidget);
+      // 3 steps in stepper
       expect(find.text('Internal Checklist'), findsWidgets);
       expect(find.text('L&D Checklist'), findsOneWidget);
       expect(find.text('Stability Verify'), findsOneWidget);
 
-      // Step 2 contents: Client Kick-Off and Internal Checklist
+      // Step 1 contents: Client Kick-Off and Internal Checklist
       expect(find.text('Client Kick-Off'), findsOneWidget);
       expect(find.text('Sales + Ops + CRRM'), findsOneWidget);
       expect(find.text('Kick-Off With Client'), findsOneWidget);
@@ -291,34 +351,88 @@ void main() {
 
       // Internal checklist item card view
       expect(find.text('Closing of Agreement'), findsOneWidget);
-      expect(find.text('Start: '), findsWidgets);
-      expect(find.text('Target: '), findsWidgets);
       expect(find.text('16 Nov 2026'), findsOneWidget);
       expect(find.text('Pending'), findsWidgets);
-      expect(find.text('Continue To L&D Checklist →'), findsOneWidget);
+      expect(find.text('Continue →'), findsOneWidget);
 
-      // Scroll and Tap 'Continue To L&D Checklist →'
-      await tester.drag(find.byType(ListView), const Offset(0, -500));
+      // Scroll and Tap 'Continue →' to save and advance
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -600));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Continue To L&D Checklist →'));
+      await tester.tap(find.text('Continue →'));
       await tester.pumpAndSettle();
 
-      // Now Step 3 contents should be visible
+      // Now Step 2 contents should be visible
       expect(find.text('L&D Transition Checklist'), findsOneWidget);
       expect(find.text('L&D transition kick-off completed'), findsOneWidget);
-      expect(find.text('Continue To Stability Verify →'), findsOneWidget);
+      expect(find.text('Work in Progress'), findsOneWidget);
+      expect(find.text('Stability Check'), findsOneWidget);
 
-      // Scroll and Tap 'Continue To Stability Verify →'
-      await tester.drag(find.byType(ListView), const Offset(0, -500));
+      // Tap 'Stability Check' when not all items completed shows alert
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Continue To Stability Verify →'));
-      await tester.pumpAndSettle();
+      ScaffoldMessenger.of(tester.element(find.byType(Scaffold))).clearSnackBars();
+      await tester.tap(find.text('Stability Check'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('All Internal Checklist items must be Completed before Stability Check.'), findsOneWidget);
+    });
 
-      // Now Step 4 contents should be visible
-      expect(
-        find.text('Stability Verify is done by L&D Head in the L&D Transition module.'),
-        findsOneWidget,
+    testWidgets('resolves participant UUIDs to user name and department in kick-off participants',
+        (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      HiveStorage.mockUserRole = 'LD_HEAD';
+      addTearDown(() => HiveStorage.mockUserRole = null);
+
+      final customJson = Map<String, dynamic>.from(sampleJson);
+      customJson['ldPreview'] = {
+        ...sampleJson['ldPreview'] as Map<String, dynamic>,
+        'kickoff': {
+          ...(sampleJson['ldPreview'] as Map<String, dynamic>)['kickoff'] as Map<String, dynamic>,
+          'participants': [
+            '9247021a-b3c0-4f9c-b3f3-c86f52fdd8e6',
+            '821ac904-0846-4f95-b842-214dd96d5cfc',
+          ],
+        },
+      };
+      customJson['zoneUsers'] = [
+        {
+          'id': '9247021a-b3c0-4f9c-b3f3-c86f52fdd8e6',
+          'name': 'Aijth',
+          'role': 'FIELD_EXECUTIVE',
+          'email': 'aijth.ops@import.casagrandepropcare.com',
+        },
+        {
+          'id': '821ac904-0846-4f95-b842-214dd96d5cfc',
+          'name': 'Badri',
+          'role': 'ZONAL_HEAD',
+          'email': 'badri@casagrandepropcare.com',
+        },
+      ];
+
+      final model = TransitionSiteDetailResponseModel.fromJson(customJson);
+      final ds = MockTransitionDetailRemoteDataSource(model);
+      final bloc = TransitionDetailBloc(dataSource: ds);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TransitionSiteDetailPage(
+            siteId: '93130acb-01ba-4883-aef5-baf9e6d7f85e',
+            bloc: bloc,
+          ),
+        ),
       );
+
+      bloc.add(const LoadTransitionDetail(siteId: '93130acb-01ba-4883-aef5-baf9e6d7f85e'));
+      await tester.pumpAndSettle();
+
+      // Should display participant names and departments instead of raw UUIDs
+      expect(find.textContaining('Aijth'), findsOneWidget);
+      expect(find.textContaining('Badri'), findsOneWidget);
+      expect(find.textContaining('9247021a-b3c0-4f9c-b3f3-c86f52fdd8e6'), findsNothing);
+      expect(find.textContaining('821ac904-0846-4f95-b842-214dd96d5cfc'), findsNothing);
     });
   });
 }

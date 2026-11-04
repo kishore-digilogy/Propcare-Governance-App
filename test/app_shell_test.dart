@@ -19,10 +19,10 @@ void main() {
   });
 
   group('AppShell Role-Based Navigation Tests', () {
-    testWidgets('LD_HEAD role shows streamlined bottom nav without Activities and Attendance', (tester) async {
+    testWidgets('LD_HEAD role shows streamlined 4-item bottom nav and directly navigates to All Sites', (tester) async {
       HiveStorage.mockUserRole = 'LD_HEAD';
 
-      final testPages = List.generate(9, (i) => Scaffold(body: Text('Page $i')));
+      final testPages = List.generate(10, (i) => Scaffold(body: Text('Page $i')));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -37,9 +37,18 @@ void main() {
       expect(find.text('Transition'), findsOneWidget);
       expect(find.text('MOM & Mail'), findsOneWidget);
 
-      // Should NOT show Activities or Attendance in bottom nav
+      // Should NOT show Activities, Attendance, or Training in bottom nav
       expect(find.text('Activities'), findsNothing);
       expect(find.text('Attendance'), findsNothing);
+
+      // Tapping Sites directly switches to All Sites page (index 1) without opening sub-menu
+      await tester.tap(find.text('Sites'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Page 1'), findsOneWidget);
+      // Sub-menu items should not exist
+      expect(find.text('Back'), findsNothing);
+      expect(find.text('Renewals'), findsNothing);
 
       // Tapping Transition directly switches to Transition page (index 4)
       await tester.tap(find.text('Transition'));
@@ -47,20 +56,17 @@ void main() {
 
       expect(find.text('Page 4'), findsOneWidget);
 
-      // Tapping Sites opens sites submenu
-      await tester.tap(find.text('Sites'));
+      // Tapping Dashboard switches to Dashboard (index 0)
+      await tester.tap(find.text('Dashboard'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Back'), findsOneWidget);
-      expect(find.text('All Sites'), findsOneWidget);
-      expect(find.text('Renewals'), findsOneWidget);
-      expect(find.text('Transition'), findsOneWidget);
+      expect(find.text('Page 0'), findsOneWidget);
     });
 
-    testWidgets('Non-LD role (CRRM) shows full 5-item bottom nav including Activities and Attendance', (tester) async {
+    testWidgets('CRRM role shows full 5-item bottom nav and Sites submenu includes Transition', (tester) async {
       HiveStorage.mockUserRole = 'CRRM';
 
-      final testPages = List.generate(9, (i) => Scaffold(body: Text('Page $i')));
+      final testPages = List.generate(10, (i) => Scaffold(body: Text('Page $i')));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -75,6 +81,44 @@ void main() {
       expect(find.text('Activities'), findsOneWidget);
       expect(find.text('Attendance'), findsOneWidget);
       expect(find.text('MOM & Mail'), findsOneWidget);
+
+      // Tapping Sites opens sites submenu with Transition included
+      await tester.tap(find.text('Sites'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Back'), findsOneWidget);
+      expect(find.text('All Sites'), findsOneWidget);
+      expect(find.text('Renewals'), findsOneWidget);
+      expect(find.text('Transition'), findsOneWidget);
+    });
+
+    testWidgets('Other roles (HR) show 5-item bottom nav and Sites submenu hides Transition', (tester) async {
+      HiveStorage.mockUserRole = 'HR';
+
+      final testPages = List.generate(10, (i) => Scaffold(body: Text('Page $i')));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppShell(pages: testPages),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Should show all 5 standard items matching image
+      expect(find.text('Dashboard'), findsOneWidget);
+      expect(find.text('Sites'), findsOneWidget);
+      expect(find.text('Activities'), findsOneWidget);
+      expect(find.text('Attendance'), findsOneWidget);
+      expect(find.text('MOM & Mail'), findsOneWidget);
+
+      // Tapping Sites opens sites submenu where Transition is HIDDEN
+      await tester.tap(find.text('Sites'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Back'), findsOneWidget);
+      expect(find.text('All Sites'), findsOneWidget);
+      expect(find.text('Renewals'), findsOneWidget);
+      expect(find.text('Transition'), findsNothing);
     });
   });
 }

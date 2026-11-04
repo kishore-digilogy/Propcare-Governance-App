@@ -61,3 +61,32 @@ class ChangeActivitiesPage extends AttendanceEvent {
   List<Object?> get props => [page];
 }
 
+class MarkActivityAttendance extends AttendanceEvent {
+  final String activityId;
+  final String type; // 'checkin' | 'checkout'
+  final double latitude;
+  final double longitude;
+  final double accuracy;
+  final String capturedAt;
+
+  const MarkActivityAttendance({
+    required this.activityId,
+    required this.type,
+    required this.latitude,
+    required this.longitude,
+    required this.accuracy,
+    required this.capturedAt,
+  });
+
+  @override
+  List<Object?> get props => [
+        activityId,
+        type,
+        latitude,
+        longitude,
+        accuracy,
+        capturedAt,
+      ];
+}
+
+

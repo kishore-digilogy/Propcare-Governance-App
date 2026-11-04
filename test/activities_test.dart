@@ -82,6 +82,22 @@ class MockActivitiesRemoteDataSource implements ActivitiesRemoteDataSource {
   }
 
   @override
+  Future<SiteActivitiesResponseModel> getActivities({
+    String? view,
+    String? siteId,
+    int offset = 0,
+    int limit = 10,
+    String? status,
+    String? statusBucket,
+    String? role,
+    String? zoneId,
+    String? clusterId,
+    String? kind,
+  }) async {
+    return siteActivitiesResponse;
+  }
+
+  @override
   Future<SiteActivitiesResponseModel> getSiteActivities({
     required String view,
     required String siteId,
@@ -132,12 +148,12 @@ class MockActivitiesRemoteDataSource implements ActivitiesRemoteDataSource {
 class DelayActivitiesRemoteDataSource implements ActivitiesRemoteDataSource {
   final ActivitiesBySiteResponseModel bySiteResponse;
   final SiteActivitiesResponseModel siteActivitiesResponse;
-  final Future<ActivitiesBySiteResponseModel> Function() onGetActivities;
+  final Future<SiteActivitiesResponseModel> Function()? onGetActivities;
 
   DelayActivitiesRemoteDataSource({
     required this.bySiteResponse,
     required this.siteActivitiesResponse,
-    required this.onGetActivities,
+    this.onGetActivities,
   });
 
   @override
@@ -148,7 +164,26 @@ class DelayActivitiesRemoteDataSource implements ActivitiesRemoteDataSource {
     String? status,
     String? role,
   }) async {
-    return onGetActivities();
+    return bySiteResponse;
+  }
+
+  @override
+  Future<SiteActivitiesResponseModel> getActivities({
+    String? view,
+    String? siteId,
+    int offset = 0,
+    int limit = 10,
+    String? status,
+    String? statusBucket,
+    String? role,
+    String? zoneId,
+    String? clusterId,
+    String? kind,
+  }) async {
+    if (onGetActivities != null) {
+      return onGetActivities!();
+    }
+    return siteActivitiesResponse;
   }
 
   @override
@@ -351,6 +386,59 @@ void main() {
       );
       bloc.close();
     });
+
+    test('LoadActivities loads all activities directly and extracts knownSites', () async {
+      final mockSource = MockActivitiesRemoteDataSource(
+        bySiteResponse: sampleBySiteResponse,
+        siteActivitiesResponse: sampleSiteActivitiesResponse,
+      );
+
+      final bloc = ActivitiesBloc(remoteDataSource: mockSource);
+      bloc.add(const LoadActivities(view: 'mine'));
+
+      await expectLater(
+        bloc.stream,
+        emitsInOrder([
+          isA<ActivitiesLoading>(),
+          isA<ActivitiesLoaded>()
+              .having((s) => s.activitiesResponse.items.length, 'items.length', 1)
+              .having((s) => s.knownSites.length, 'knownSites.length', 1)
+              .having((s) => s.knownSites.first.siteName, 'siteName', 'BPT')
+              .having((s) => s.isLoadingActivities, 'isLoadingActivities', false),
+        ]),
+      );
+      bloc.close();
+    });
+
+    test('ChangeActivitiesSiteFilter filters activities by selected site', () async {
+      final mockSource = MockActivitiesRemoteDataSource(
+        bySiteResponse: sampleBySiteResponse,
+        siteActivitiesResponse: sampleSiteActivitiesResponse,
+      );
+
+      final bloc = ActivitiesBloc(remoteDataSource: mockSource);
+      bloc.emit(ActivitiesLoaded(
+        activitiesResponse: sampleSiteActivitiesResponse,
+        knownSites: const [ActivitySiteOptionModel(siteId: 'site_123', siteName: 'BPT')],
+        view: 'mine',
+      ));
+
+      bloc.add(const ChangeActivitiesSiteFilter('site_123'));
+
+      await expectLater(
+        bloc.stream,
+        emitsInOrder([
+          isA<ActivitiesLoaded>()
+              .having((s) => s.selectedSiteId, 'selectedSiteId', 'site_123')
+              .having((s) => s.isLoadingActivities, 'isLoadingActivities', true),
+          isA<ActivitiesLoaded>()
+              .having((s) => s.selectedSiteId, 'selectedSiteId', 'site_123')
+              .having((s) => s.activitiesResponse.items.length, 'items.length', 1)
+              .having((s) => s.isLoadingActivities, 'isLoadingActivities', false),
+        ]),
+      );
+      bloc.close();
+    });
   });
 
   group('ActivitiesPage Widget Tests', () {
@@ -378,11 +466,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('My Activities'), findsOneWidget);
-      expect(find.text('Total Governance Activity'), findsWidgets);
-      expect(find.text('Completed Governance Activity'), findsWidgets);
-      expect(find.text('Pending Governance Activity'), findsWidgets);
-      expect(find.text('BPT'), findsOneWidget);
-      expect(find.text('0%'), findsOneWidget);
+      expect(find.text('Filter'), findsOneWidget);
+      expect(find.text('BPT · NA'), findsOneWidget);
+      expect(find.text('CRRM Visit'), findsOneWidget);
 
       bloc.close();
     });
@@ -397,6 +483,7 @@ void main() {
       bloc.emit(const ActivitiesLoaded(
         response: sampleBySiteResponse,
         view: 'below',
+        activitiesResponse: sampleSiteActivitiesResponse,
       ));
 
       await tester.pumpWidget(
@@ -414,6 +501,72 @@ void main() {
       expect(find.text('All'), findsOneWidget);
       expect(find.text('COO'), findsOneWidget);
       expect(find.text('Zonal Head'), findsOneWidget);
+
+      bloc.close();
+    });
+
+    testWidgets('Flexible role chips show up to 2 lines and View more expands all on mobile', (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      const manyRolesResponse = ActivitiesBySiteResponseModel(
+        items: [],
+        view: 'below',
+        belowRoles: [
+          RoleOptionModel(role: 'CEO', label: 'CEO'),
+          RoleOptionModel(role: 'COO', label: 'COO'),
+          RoleOptionModel(role: 'OPS_HEAD', label: 'Operations Head'),
+          RoleOptionModel(role: 'ZONE_HEAD', label: 'Zonal Head'),
+          RoleOptionModel(role: 'CLUSTER_HEAD', label: 'Cluster Head'),
+          RoleOptionModel(role: 'FIELD_EXEC', label: 'Field Executive'),
+          RoleOptionModel(role: 'HR_LEAD', label: 'HR Lead'),
+          RoleOptionModel(role: 'QUALITY_LEAD', label: 'Quality Lead'),
+        ],
+        total: 0,
+        completed: 0,
+        pending: 0,
+        myRoleLabel: 'Admin',
+      );
+
+      final mockSource = MockActivitiesRemoteDataSource(
+        bySiteResponse: manyRolesResponse,
+        siteActivitiesResponse: sampleSiteActivitiesResponse,
+      );
+
+      final bloc = ActivitiesBloc(remoteDataSource: mockSource);
+      bloc.emit(const ActivitiesLoaded(
+        response: manyRolesResponse,
+        view: 'below',
+      ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ActivitiesPage(
+            isTeam: true,
+            bloc: bloc,
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // "View more" should be visible because 8+ chips exceed 2 lines on a 360px screen
+      expect(find.textContaining('View more'), findsOneWidget);
+
+      // Tap "View more"
+      await tester.tap(find.textContaining('View more'));
+      await tester.pumpAndSettle();
+
+      // All chips are now visible, including the ones previously hidden
+      expect(find.text('Quality Lead'), findsOneWidget);
+      expect(find.text('Show less'), findsOneWidget);
+
+      // Tap "Show less"
+      await tester.tap(find.text('Show less'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('View more'), findsOneWidget);
 
       bloc.close();
     });
@@ -441,8 +594,8 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Tap on site BPT card
-      await tester.tap(find.text('BPT'));
+      // Dispatch SelectSiteForActivities to open detail view
+      bloc.add(const SelectSiteForActivities(sampleSite));
       await tester.pumpAndSettle();
 
       // In detail view, should see 'All sites' and 4 count cards
@@ -467,18 +620,26 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
 
-      final completer = Completer<ActivitiesBySiteResponseModel>();
+      final completer = Completer<SiteActivitiesResponseModel>();
+      var callCount = 0;
 
       final mockSource = DelayActivitiesRemoteDataSource(
         bySiteResponse: sampleBySiteResponse,
         siteActivitiesResponse: sampleSiteActivitiesResponse,
-        onGetActivities: () => completer.future,
+        onGetActivities: () {
+          callCount++;
+          if (callCount > 1) {
+            return completer.future;
+          }
+          return Future.value(sampleSiteActivitiesResponse);
+        },
       );
 
       final bloc = ActivitiesBloc(remoteDataSource: mockSource);
       bloc.emit(const ActivitiesLoaded(
         response: sampleBySiteResponse,
         view: 'below',
+        activitiesResponse: sampleSiteActivitiesResponse,
       ));
 
       await tester.pumpWidget(
@@ -492,8 +653,8 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // State is initially loaded with BPT site
-      expect(find.text('BPT'), findsOneWidget);
+      // State is initially loaded with BPT activity
+      expect(find.text('BPT · NA'), findsOneWidget);
 
       // Now tap on 'COO' role chip with in-flight response
       await tester.tap(find.text('COO'));
@@ -501,15 +662,15 @@ void main() {
 
       // While request is in-flight, loader is visible!
       expect(find.text('Loading activities...'), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsWidgets);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
       // Now complete the response
-      completer.complete(sampleBySiteResponse);
+      completer.complete(sampleSiteActivitiesResponse);
       await tester.pumpAndSettle();
 
-      // Loader is gone and site cards are visible
+      // Loader is gone and activities are visible
       expect(find.text('Loading activities...'), findsNothing);
-      expect(find.text('BPT'), findsOneWidget);
+      expect(find.text('BPT · NA'), findsOneWidget);
 
       bloc.close();
     });
@@ -546,17 +707,7 @@ void main() {
       expect(find.text('Total'), findsWidgets);
       expect(find.text('Completed'), findsWidgets);
       expect(find.text('Pending'), findsWidgets);
-      expect(find.text('BPT'), findsOneWidget);
-
-      // Tap on site BPT to navigate into detail view
-      await tester.tap(find.text('BPT'));
-      await tester.pumpAndSettle();
-
-      // In detail view, should see 4 compact cards in 2x2 grid
-      expect(find.text('Scheduled'), findsWidgets);
-      expect(find.text('Assigned'), findsOneWidget);
-      expect(find.text('Completed'), findsWidgets);
-      expect(find.text('Overdue'), findsOneWidget);
+      expect(find.text('BPT · NA'), findsOneWidget);
 
       // Card View is active by default and displays rich activity card
       expect(find.text('Cards'), findsOneWidget);
@@ -572,7 +723,7 @@ void main() {
       // DataTable is rendered
       expect(find.byType(DataTable), findsOneWidget);
       expect(find.text('Status'), findsOneWidget);
-      expect(find.text('Date'), findsOneWidget);
+      expect(find.text('Frequency'), findsOneWidget);
       expect(find.text('Site'), findsOneWidget);
       expect(find.text('Activity'), findsOneWidget);
 
@@ -608,11 +759,7 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Tap on site BPT card to go to Site Activities view
-      await tester.tap(find.text('BPT'));
-      await tester.pumpAndSettle();
-
-      // In Site Activities view, tap on the activity card
+      // Tap directly on the activity card
       expect(find.text('CRRM Visit'), findsOneWidget);
       await tester.tap(find.text('CRRM Visit'));
       await tester.pumpAndSettle();
@@ -655,11 +802,11 @@ void main() {
       expect(find.text('Sent'), findsOneWidget);
       expect(find.text('Completed'), findsWidgets);
 
-      // Tap Back to return to site activities
+      // Tap Back to return to activities
       await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
 
-      expect(find.text('All sites'), findsOneWidget);
+      expect(find.text('My Activities'), findsOneWidget);
 
       bloc.close();
     });
@@ -693,11 +840,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Open site BPT
-      await tester.tap(find.text('BPT'));
-      await tester.pumpAndSettle();
-
-      // Open activity execution view
+      // Open activity execution view directly
       FlutterErrorDetails? caughtDetails;
       final oldOnError = FlutterError.onError;
       FlutterError.onError = (details) {

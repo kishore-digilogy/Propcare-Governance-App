@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/services/location_service.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../data/datasources/attendance_remote_datasource.dart';
 import '../../data/models/attendance_site_model.dart';
@@ -62,8 +63,35 @@ class _AttendanceViewState extends State<_AttendanceView> {
       body: SafeArea(
         child: BlocConsumer<AttendanceBloc, AttendanceState>(
           listener: (context, state) {
-            if (state is AttendanceLoaded && state.selectedSite == null) {
-              _activitySearchController.clear();
+            if (state is AttendanceLoaded) {
+              if (state.selectedSite == null) {
+                _activitySearchController.clear();
+              }
+              if (state.attendanceActionMessage != null) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      state.attendanceActionMessage!,
+                      style: GoogleFonts.outfit(),
+                    ),
+                    backgroundColor: const Color(0xFF16A34A),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              } else if (state.attendanceErrorMessage != null) {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      state.attendanceErrorMessage!,
+                      style: GoogleFonts.outfit(),
+                    ),
+                    backgroundColor: Colors.redAccent,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
             }
           },
           builder: (context, state) {
@@ -457,6 +485,7 @@ class _SiteActivitiesDetailView extends StatelessWidget {
             for (final activity in paginatedActivities)
               _ActivityVisitCard(
                 activity: activity,
+                isSubmitting: state.submittingActivityId == activity.id,
                 onTap: () => _showActivityDetailSheet(context, activity),
                 onCheckIn: () => _handleCheckIn(context, activity),
                 onCheckOut: () => _handleCheckOut(context, activity),
@@ -508,7 +537,7 @@ class _SiteActivitiesDetailView extends StatelessWidget {
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text(
-          'Check In to Site',
+          'Check In',
           style: GoogleFonts.outfit(
             fontWeight: FontWeight.w700,
             fontSize: 18,
@@ -516,7 +545,7 @@ class _SiteActivitiesDetailView extends StatelessWidget {
           ),
         ),
         content: Text(
-          'Record check-in time and verify GPS location for ${activity.title} (${activity.code})?',
+          'Record check-in time and verify GPS location for ${activity.title} (${activity.code.isNotEmpty ? activity.code : activity.roleLabel})?',
           style: GoogleFonts.outfit(fontSize: 13, color: _kSlate),
         ),
         actions: [
@@ -530,16 +559,7 @@ class _SiteActivitiesDetailView extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Checked in for ${activity.title}. Duration recording started.',
-                    style: GoogleFonts.outfit(),
-                  ),
-                  backgroundColor: _kBlue,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+              _performAttendanceAction(context, activity, 'checkin');
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: _kBlue,
@@ -567,7 +587,7 @@ class _SiteActivitiesDetailView extends StatelessWidget {
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text(
-          'Check Out from Site',
+          'Check Out',
           style: GoogleFonts.outfit(
             fontWeight: FontWeight.w700,
             fontSize: 18,
@@ -575,7 +595,7 @@ class _SiteActivitiesDetailView extends StatelessWidget {
           ),
         ),
         content: Text(
-          'Complete visit and record total duration for ${activity.title} (${activity.code})?',
+          'Complete visit and record total duration for ${activity.title} (${activity.code.isNotEmpty ? activity.code : activity.roleLabel})?',
           style: GoogleFonts.outfit(fontSize: 13, color: _kSlate),
         ),
         actions: [
@@ -589,16 +609,7 @@ class _SiteActivitiesDetailView extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Checked out successfully for ${activity.title}. Duration recorded.',
-                    style: GoogleFonts.outfit(),
-                  ),
-                  backgroundColor: const Color(0xFF16A34A),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
+              _performAttendanceAction(context, activity, 'checkout');
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: _kBlue,
@@ -617,6 +628,70 @@ class _SiteActivitiesDetailView extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _performAttendanceAction(
+    BuildContext context,
+    ActivityVisitModel activity,
+    String type,
+  ) async {
+    final actionLabel = type == 'checkin' ? 'Check In' : 'Check Out';
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Verifying GPS location for $actionLabel...',
+              style: GoogleFonts.outfit(),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 15),
+        backgroundColor: _kBlue,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    try {
+      final loc = await LocationService.getCurrentLocation();
+      if (!context.mounted) return;
+      messenger.hideCurrentSnackBar();
+
+      context.read<AttendanceBloc>().add(
+            MarkActivityAttendance(
+              activityId: activity.id,
+              type: type,
+              latitude: loc.latitude,
+              longitude: loc.longitude,
+              accuracy: loc.accuracy,
+              capturedAt: loc.capturedAt,
+            ),
+          );
+    } catch (e) {
+      if (!context.mounted) return;
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceAll('Exception: ', ''),
+            style: GoogleFonts.outfit(),
+          ),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 }
 
@@ -869,12 +944,14 @@ class _SiteAttendanceCard extends StatelessWidget {
 
 class _ActivityVisitCard extends StatelessWidget {
   final ActivityVisitModel activity;
+  final bool isSubmitting;
   final VoidCallback onTap;
   final VoidCallback onCheckIn;
   final VoidCallback onCheckOut;
 
   const _ActivityVisitCard({
     required this.activity,
+    this.isSubmitting = false,
     required this.onTap,
     required this.onCheckIn,
     required this.onCheckOut,
@@ -920,8 +997,11 @@ class _ActivityVisitCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Row 1: Due Date Tag & Status Pill
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 6,
               children: [
                 // Due Date Pill
                 Container(
@@ -1161,6 +1241,7 @@ class _ActivityVisitCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(
                               Icons.login_rounded,
@@ -1168,12 +1249,15 @@ class _ActivityVisitCard extends StatelessWidget {
                               color: Color(0xFF94A3B8),
                             ),
                             const SizedBox(width: 3),
-                            Text(
-                              'Check-in',
-                              style: GoogleFonts.outfit(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF94A3B8),
+                            Flexible(
+                              child: Text(
+                                'Check-in',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF94A3B8),
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -1204,6 +1288,7 @@ class _ActivityVisitCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(
                               Icons.logout_rounded,
@@ -1211,12 +1296,15 @@ class _ActivityVisitCard extends StatelessWidget {
                               color: Color(0xFF94A3B8),
                             ),
                             const SizedBox(width: 3),
-                            Text(
-                              'Check-out',
-                              style: GoogleFonts.outfit(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF94A3B8),
+                            Flexible(
+                              child: Text(
+                                'Check-out',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF94A3B8),
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -1335,7 +1423,7 @@ class _ActivityVisitCard extends StatelessWidget {
                 width: double.infinity,
                 height: 42,
                 child: ElevatedButton.icon(
-                  onPressed: onCheckOut,
+                  onPressed: isSubmitting ? null : onCheckOut,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _kBlue,
                     elevation: 0,
@@ -1343,13 +1431,22 @@ class _ActivityVisitCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  icon: const Icon(
-                    Icons.logout_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  ),
+                  icon: isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.logout_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        ),
                   label: Text(
-                    'Check Out from Site',
+                    isSubmitting ? 'Checking Out...' : 'Check Out',
                     style: GoogleFonts.outfit(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -1363,7 +1460,7 @@ class _ActivityVisitCard extends StatelessWidget {
                 width: double.infinity,
                 height: 42,
                 child: ElevatedButton.icon(
-                  onPressed: onCheckIn,
+                  onPressed: isSubmitting ? null : onCheckIn,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _kBlue,
                     elevation: 0,
@@ -1371,13 +1468,22 @@ class _ActivityVisitCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  icon: const Icon(
-                    Icons.login_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  ),
+                  icon: isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.login_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        ),
                   label: Text(
-                    'Check In to Site',
+                    isSubmitting ? 'Checking In...' : 'Check In',
                     style: GoogleFonts.outfit(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -1802,7 +1908,7 @@ class _ActivityDetailSheet extends StatelessWidget {
                         ),
                         icon: const Icon(Icons.logout_rounded, size: 18, color: Colors.white),
                         label: Text(
-                          'Check Out from Site',
+                          'Check Out',
                           style: GoogleFonts.outfit(fontWeight: FontWeight.w700, color: Colors.white),
                         ),
                       ),
@@ -1819,7 +1925,7 @@ class _ActivityDetailSheet extends StatelessWidget {
                         ),
                         icon: const Icon(Icons.login_rounded, size: 18, color: Colors.white),
                         label: Text(
-                          'Check In to Site',
+                          'Check In',
                           style: GoogleFonts.outfit(fontWeight: FontWeight.w700, color: Colors.white),
                         ),
                       ),

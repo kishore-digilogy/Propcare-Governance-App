@@ -151,7 +151,7 @@ void main() {
       // Test FIELD_EXECUTIVE (must NOT be treated as LD role despite containing 'ld')
       HiveStorage.mockUserRole = 'FIELD_EXECUTIVE';
       expect(HiveStorage.isLdRole, isFalse);
-      expect(HiveStorage.displayRole, 'FIELD_EXECUTIVE');
+      expect(HiveStorage.displayRole, 'Field Executive');
 
       // Test CRRM
       HiveStorage.mockUserRole = 'CRRM';

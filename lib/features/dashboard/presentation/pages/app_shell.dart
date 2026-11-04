@@ -64,11 +64,18 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
         _activePageIndex = 0;
       });
     } else if (itemIndex == 1) {
-      // Sites -> Expand Submenu & select All Sites (index 1)
-      setState(() {
-        _menuState = NavMenuState.sites;
-        _activePageIndex = 1;
-      });
+      if (HiveStorage.isLdRole) {
+        setState(() {
+          _menuState = NavMenuState.main;
+          _activePageIndex = 1;
+        });
+      } else {
+        // Sites -> Expand Submenu & select All Sites (index 1)
+        setState(() {
+          _menuState = NavMenuState.sites;
+          _activePageIndex = 1;
+        });
+      }
     } else if (itemIndex == 2) {
       // Activities -> Expand Submenu & select My Activities (index 5)
       setState(() {
@@ -101,7 +108,8 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
     switch (_menuState) {
       case NavMenuState.main:
         if (isLd) {
-          // L&D roles (e.g. LD_HEAD, LD_LEAD) only see Dashboard, Sites, Transition, and MOM & Mail
+          // L&D roles see:
+          // Dashboard, Sites, Transition, and MOM & Mail
           return [
             NavItemData(
               label: 'Dashboard',
@@ -109,6 +117,7 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
               isSelected: _activePageIndex == 0,
               onTap: () {
                 setState(() {
+                  _menuState = NavMenuState.main;
                   _activePageIndex = 0;
                 });
               },
@@ -116,10 +125,10 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
             NavItemData(
               label: 'Sites',
               icon: Icons.apartment_rounded,
-              isSelected: _activePageIndex == 1 || _activePageIndex == 2,
+              isSelected: _activePageIndex == 1,
               onTap: () {
                 setState(() {
-                  _menuState = NavMenuState.sites;
+                  _menuState = NavMenuState.main;
                   _activePageIndex = 1;
                 });
               },
@@ -130,6 +139,7 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
               isSelected: _activePageIndex == 4,
               onTap: () {
                 setState(() {
+                  _menuState = NavMenuState.main;
                   _activePageIndex = 4;
                 });
               },
@@ -140,6 +150,7 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
               isSelected: _activePageIndex == 8,
               onTap: () {
                 setState(() {
+                  _menuState = NavMenuState.main;
                   _activePageIndex = 8;
                 });
               },
@@ -181,6 +192,58 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
         ];
 
       case NavMenuState.sites:
+        if (isLd) {
+          // If L&D role, stay on the 4-item bottom bar
+          return [
+            NavItemData(
+              label: 'Dashboard',
+              icon: Icons.dashboard_rounded,
+              isSelected: _activePageIndex == 0,
+              onTap: () {
+                setState(() {
+                  _menuState = NavMenuState.main;
+                  _activePageIndex = 0;
+                });
+              },
+            ),
+            NavItemData(
+              label: 'Sites',
+              icon: Icons.apartment_rounded,
+              isSelected: _activePageIndex == 1,
+              onTap: () {
+                setState(() {
+                  _menuState = NavMenuState.main;
+                  _activePageIndex = 1;
+                });
+              },
+            ),
+            NavItemData(
+              label: 'Transition',
+              icon: Icons.swap_horiz_rounded,
+              isSelected: _activePageIndex == 4,
+              onTap: () {
+                setState(() {
+                  _menuState = NavMenuState.main;
+                  _activePageIndex = 4;
+                });
+              },
+            ),
+            NavItemData(
+              label: 'MOM & Mail',
+              icon: Icons.mail_outline_rounded,
+              isSelected: _activePageIndex == 8,
+              onTap: () {
+                setState(() {
+                  _menuState = NavMenuState.main;
+                  _activePageIndex = 8;
+                });
+              },
+            ),
+          ];
+        }
+
+        final isSuperAdmin = HiveStorage.isSuperAdmin;
+
         return [
           NavItemData(
             label: 'Back',
@@ -201,18 +264,13 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
             isSelected: _activePageIndex == 2,
             onTap: () => setState(() => _activePageIndex = 2),
           ),
-          // NavItemData(
-          //   label: 'Create',
-          //   icon: Icons.add_business_rounded,
-          //   isSelected: _activePageIndex == 3,
-          //   onTap: () => setState(() => _activePageIndex = 3),
-          // ),
-          NavItemData(
-            label: 'Transition',
-            icon: Icons.swap_horiz_rounded,
-            isSelected: _activePageIndex == 4,
-            onTap: () => setState(() => _activePageIndex = 4),
-          ),
+          if (isSuperAdmin)
+            NavItemData(
+              label: 'Transition',
+              icon: Icons.swap_horiz_rounded,
+              isSelected: _activePageIndex == 4,
+              onTap: () => setState(() => _activePageIndex = 4),
+            ),
         ];
 
       case NavMenuState.activities:
@@ -262,6 +320,11 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
               ActivitiesPage(isTeam: true),
               AttendancePage(),
               MomPage(),
+              PlaceholderPageView(
+                title: 'Training',
+                parentTitle: 'L&D',
+                icon: Icons.school_outlined,
+              ),
             ],
       ),
       bottomNavigationBar: Container(

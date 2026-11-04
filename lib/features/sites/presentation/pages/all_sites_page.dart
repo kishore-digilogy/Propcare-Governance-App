@@ -23,8 +23,15 @@ const _kRed = Color(0xFFEF4444);
 
 class AllSitesPage extends StatelessWidget {
   final SitesBloc? bloc;
+  final String? initialZoneId;
+  final String? initialClusterId;
 
-  const AllSitesPage({super.key, this.bloc});
+  const AllSitesPage({
+    super.key,
+    this.bloc,
+    this.initialZoneId,
+    this.initialClusterId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +44,10 @@ class AllSitesPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => SitesBloc(
         dataSource: SitesRemoteDataSourceImpl(),
-      )..add(const LoadSites()),
+      )..add(LoadSites(
+          initialZoneId: initialZoneId,
+          initialClusterId: initialClusterId,
+        )),
       child: const _AllSitesView(),
     );
   }
@@ -111,6 +121,8 @@ class _AllSitesViewState extends State<_AllSitesView> {
 
           // ── Search Bar ─────────────────────────────────────────────────────
           _buildSearchBar(context, state),
+          if (_activeSitesFiltersCount(state) > 0)
+            _buildActiveFilterChips(context, state, meta),
           const SizedBox(height: 14),
 
           // ── Table / List View ─────────────────────────────────────────────
@@ -154,10 +166,41 @@ class _AllSitesViewState extends State<_AllSitesView> {
   // ── Header (All Sites + Subtitle + Filter button with active count) ────────
   Widget _buildHeader(BuildContext context, SitesLoaded state, MetaDataModel meta) {
     final activeCount = _activeSitesFiltersCount(state);
+    final canPop = Navigator.of(context).canPop();
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
+        if (canPop) ...[
+          InkWell(
+            onTap: () => Navigator.of(context).pop(),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              margin: const EdgeInsets.only(right: 10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.arrow_back_rounded, size: 16, color: _kBlue),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Back',
+                    style: GoogleFonts.outfit(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: _kBlue,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,6 +436,121 @@ class _AllSitesViewState extends State<_AllSitesView> {
             ),
             const SizedBox(width: 4),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveFilterChips(BuildContext context, SitesLoaded state, MetaDataModel meta) {
+    final chips = <Widget>[];
+
+    if (state.selectedZoneId != null) {
+      final zoneName = meta.zones
+              .where((z) => z.id == state.selectedZoneId)
+              .firstOrNull
+              ?.name ??
+          'Zone';
+      chips.add(_buildFilterChip(
+        label: zoneName,
+        onClear: () {
+          context.read<SitesBloc>().add(const ChangeZoneFilter(null));
+        },
+      ));
+    }
+
+    if (state.selectedClusterId != null) {
+      final clusterName = meta.clusters
+              .where((c) => c.id == state.selectedClusterId)
+              .firstOrNull
+              ?.name ??
+          'Cluster';
+      chips.add(_buildFilterChip(
+        label: clusterName,
+        onClear: () {
+          context.read<SitesBloc>().add(const ChangeClusterFilter(null));
+        },
+      ));
+    }
+
+    if (state.selectedStatus != null) {
+      chips.add(_buildFilterChip(
+        label: 'Status: ${state.selectedStatus}',
+        onClear: () {
+          context.read<SitesBloc>().add(const ChangeStatusFilter(null));
+        },
+      ));
+    }
+
+    if (state.selectedClientType != null) {
+      chips.add(_buildFilterChip(
+        label: 'Type: ${state.selectedClientType}',
+        onClear: () {
+          context.read<SitesBloc>().add(const ChangeClientTypeFilter(null));
+        },
+      ));
+    }
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          ...chips,
+          InkWell(
+            onTap: () {
+              context.read<SitesBloc>().add(const ResetSitesFilters());
+            },
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Text(
+                'Reset all',
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.redAccent,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip({required String label, required VoidCallback onClear}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFBFDBFE)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.outfit(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: _kBlue,
+            ),
+          ),
+          const SizedBox(width: 6),
+          InkWell(
+            onTap: onClear,
+            borderRadius: BorderRadius.circular(10),
+            child: const Icon(
+              Icons.close_rounded,
+              size: 14,
+              color: _kBlue,
+            ),
+          ),
         ],
       ),
     );
