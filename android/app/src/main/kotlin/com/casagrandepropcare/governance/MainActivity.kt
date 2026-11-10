@@ -1,5 +1,6 @@
-package com.example.propcare_governance
+package com.casagrandepropcare.governance
 
 import io.flutter.embedding.android.FlutterActivity
 
 class MainActivity : FlutterActivity()
+

@@ -90,7 +90,7 @@ class SitesBloc extends Bloc<SitesEvent, SitesState> {
         tab: current.selectedTab,
         zoneId: event.initialZoneId ?? current.selectedZoneId,
         clusterId: event.initialClusterId ?? current.selectedClusterId,
-        status: current.selectedStatus,
+        status: event.initialStatus ?? current.selectedStatus,
         clientType: current.selectedClientType,
         mode: current.selectedMode,
         searchQuery: current.searchQuery,
@@ -103,6 +103,7 @@ class SitesBloc extends Bloc<SitesEvent, SitesState> {
         tab: 'All',
         zoneId: event.initialZoneId,
         clusterId: event.initialClusterId,
+        status: event.initialStatus,
       );
     }
   }

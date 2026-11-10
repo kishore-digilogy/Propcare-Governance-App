@@ -11,7 +11,9 @@ import '../../../../core/services/meta_service.dart';
 import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../activities/presentation/pages/activity_execution_page.dart';
+import '../../../activities/presentation/pages/checklist_report_page.dart';
 import '../../../activities/presentation/pages/mmr_mis_page.dart';
+import '../../../activities/presentation/pages/rr_page.dart';
 import '../../../governance_matrix/presentation/pages/governance_matrix_page.dart';
 import '../../../issues/presentation/pages/issues_page.dart';
 import '../../../reports/presentation/pages/reports_page.dart';
@@ -1129,6 +1131,13 @@ class _QuickActionsGridView extends StatelessWidget {
     if (isLd) {
       items = [
         (
+          title: 'Checklist Report',
+          subtitle: 'Update walkaround pending lines to completed',
+          icon: Icons.assignment_turned_in_outlined,
+          iconColor: const Color(0xFF2563EB),
+          bgColor: const Color(0xFFEFF6FF),
+        ),
+        (
           title: 'Training',
           subtitle: 'Training modules, sessions & certifications',
           icon: Icons.school_outlined,
@@ -1160,9 +1169,23 @@ class _QuickActionsGridView extends StatelessWidget {
     } else if (isClusterLead) {
       items = [
         (
+          title: 'Checklist Report',
+          subtitle: 'Update walkaround pending lines to completed',
+          icon: Icons.assignment_turned_in_outlined,
+          iconColor: const Color(0xFF2563EB),
+          bgColor: const Color(0xFFEFF6FF),
+        ),
+        (
           title: 'MMR / MIS',
           subtitle: 'Monthly review & MIS preparation governance',
           icon: Icons.fact_check_outlined,
+          iconColor: const Color(0xFF2563EB),
+          bgColor: const Color(0xFFEFF6FF),
+        ),
+        (
+          title: 'R&R',
+          subtitle: 'Recognition and reward governance visits',
+          icon: Icons.workspace_premium_outlined,
           iconColor: const Color(0xFF2563EB),
           bgColor: const Color(0xFFEFF6FF),
         ),
@@ -1184,9 +1207,23 @@ class _QuickActionsGridView extends StatelessWidget {
     } else if (isSuperAdmin) {
       items = [
         (
+          title: 'Checklist Report',
+          subtitle: 'Update walkaround pending lines to completed',
+          icon: Icons.assignment_turned_in_outlined,
+          iconColor: const Color(0xFF2563EB),
+          bgColor: const Color(0xFFEFF6FF),
+        ),
+        (
           title: 'MMR / MIS',
           subtitle: 'Monthly review & MIS preparation governance',
           icon: Icons.fact_check_outlined,
+          iconColor: const Color(0xFF2563EB),
+          bgColor: const Color(0xFFEFF6FF),
+        ),
+        (
+          title: 'R&R',
+          subtitle: 'Recognition and reward governance visits',
+          icon: Icons.workspace_premium_outlined,
           iconColor: const Color(0xFF2563EB),
           bgColor: const Color(0xFFEFF6FF),
         ),
@@ -1216,6 +1253,20 @@ class _QuickActionsGridView extends StatelessWidget {
       // Others (HR, Operations, EHS, etc. as shown in image)
       items = [
         (
+          title: 'Checklist Report',
+          subtitle: 'Update walkaround pending lines to completed',
+          icon: Icons.assignment_turned_in_outlined,
+          iconColor: const Color(0xFF2563EB),
+          bgColor: const Color(0xFFEFF6FF),
+        ),
+        (
+          title: 'R&R',
+          subtitle: 'Recognition and reward governance visits',
+          icon: Icons.workspace_premium_outlined,
+          iconColor: const Color(0xFF2563EB),
+          bgColor: const Color(0xFFEFF6FF),
+        ),
+        (
           title: 'Issues',
           subtitle: 'Site incidents, complaints & escalations',
           icon: Icons.warning_amber_rounded,
@@ -1232,36 +1283,65 @@ class _QuickActionsGridView extends StatelessWidget {
       ];
     }
 
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      shrinkWrap: true,
-      padding: EdgeInsets.zero,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.38,
-      ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return _QuickActionGridCard(
-          title: item.title,
-          subtitle: item.subtitle,
-          icon: item.icon,
-          iconColor: item.iconColor,
-          bgColor: item.bgColor,
-          onTap: () => _handleQuickActionTap(context, item.title),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth >= 900
+            ? 4
+            : (constraints.maxWidth >= 550 ? 3 : 2);
+        final aspectRatio = constraints.maxWidth >= 900
+            ? 1.5
+            : (constraints.maxWidth >= 550 ? 1.45 : 1.38);
+
+        return GridView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: aspectRatio,
+          ),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return _QuickActionGridCard(
+              title: item.title,
+              subtitle: item.subtitle,
+              icon: item.icon,
+              iconColor: item.iconColor,
+              bgColor: item.bgColor,
+              onTap: () => _handleQuickActionTap(context, item.title),
+            );
+          },
         );
       },
     );
   }
 
   void _handleQuickActionTap(BuildContext context, String title) {
+    if (title == 'Checklist Report') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const ChecklistReportPage(),
+        ),
+      );
+      return;
+    }
+
     if (title == 'MMR / MIS' || title == 'MMR/MIS') {
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => const MmrMisPage(),
+        ),
+      );
+      return;
+    }
+
+    if (title == 'R&R' || title == 'RR' || title == 'R & R') {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const RrPage(),
         ),
       );
       return;
@@ -1568,24 +1648,33 @@ class _StatGrid extends StatelessWidget {
       ),
     ];
 
-    return Column(
-      children: [
-        for (int i = 0; i < cards.length; i += 2)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                Expanded(child: _StatCard(sc: cards[i])),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: i + 1 < cards.length
-                      ? _StatCard(sc: cards[i + 1])
-                      : const SizedBox(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 900
+            ? 6
+            : (constraints.maxWidth >= 550 ? 3 : 2);
+
+        return Column(
+          children: [
+            for (int i = 0; i < cards.length; i += columns)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    for (int j = 0; j < columns; j++) ...[
+                      if (j > 0) const SizedBox(width: 8),
+                      Expanded(
+                        child: i + j < cards.length
+                            ? _StatCard(sc: cards[i + j])
+                            : const SizedBox(),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
-            ),
-          ),
-      ],
+              ),
+          ],
+        );
+      },
     );
   }
 }

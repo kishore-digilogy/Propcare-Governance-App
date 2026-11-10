@@ -420,7 +420,7 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
     );
   }
 
-  // ── 3-Stage Stepper Card (Matching Web Images 1, 2, 3) ──────────────────────
+  // ── 4-Stage Stepper Card (Matching Web Images 7, 8) ─────────────────────────
   Widget _buildStepperCard(
     BuildContext context,
     TransitionDetailLoaded state,
@@ -438,24 +438,31 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
     final steps = [
       _StepConfig(
         stepIndex: 1,
-        title: 'Internal Checklist',
-        subtitle: 'L&D Team',
-        isCompleted: isInternalDone,
+        title: 'Site Creation',
+        subtitle: 'Completed',
+        isCompleted: true,
         isSelected: selectedStep == 1,
       ),
       _StepConfig(
         stepIndex: 2,
-        title: 'L&D Checklist',
+        title: 'Internal Checklist',
         subtitle: 'L&D Team',
-        isCompleted: isLdDone,
+        isCompleted: isInternalDone,
         isSelected: selectedStep == 2,
       ),
       _StepConfig(
         stepIndex: 3,
+        title: 'L&D Transition Checklist',
+        subtitle: 'L&D Team',
+        isCompleted: isLdDone,
+        isSelected: selectedStep == 3,
+      ),
+      _StepConfig(
+        stepIndex: 4,
         title: 'Stability Verify',
         subtitle: 'L&D Head',
         isCompleted: isVerified,
-        isSelected: selectedStep == 3,
+        isSelected: selectedStep == 4,
         isRestrictedToHead: true,
       ),
     ];
@@ -475,6 +482,8 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                 Expanded(child: _buildStepItem(context, steps[1], true)),
                 _buildStepArrow(),
                 Expanded(child: _buildStepItem(context, steps[2], true)),
+                _buildStepArrow(),
+                Expanded(child: _buildStepItem(context, steps[3], true)),
               ],
             )
           : SingleChildScrollView(
@@ -486,6 +495,8 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                   _buildStepItem(context, steps[1], false),
                   _buildStepArrow(),
                   _buildStepItem(context, steps[2], false),
+                  _buildStepArrow(),
+                  _buildStepItem(context, steps[3], false),
                 ],
               ),
             ),
@@ -493,6 +504,22 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
   }
 
   Widget _buildStepItem(BuildContext context, _StepConfig cfg, bool isDesktop) {
+    Color pillBg;
+    Color pillFg;
+    String pillText = cfg.subtitle;
+
+    if (cfg.isCompleted) {
+      pillBg = const Color(0xFFE8F5E9);
+      pillFg = const Color(0xFF16A34A);
+      pillText = 'Completed';
+    } else if (cfg.stepIndex == 2 || cfg.stepIndex == 3) {
+      pillBg = const Color(0xFFEFF6FF);
+      pillFg = const Color(0xFF2563EB);
+    } else {
+      pillBg = const Color(0xFFF5F3FF);
+      pillFg = const Color(0xFF7C3AED);
+    }
+
     final titleColumn = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -507,14 +534,22 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
             color: _kDark,
           ),
         ),
-        Text(
-          cfg.subtitle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.outfit(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: cfg.isCompleted ? _kGreen : _kSlate,
+        const SizedBox(height: 2),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: pillBg,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            pillText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.outfit(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              color: pillFg,
+            ),
           ),
         ),
       ],
@@ -523,15 +558,6 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
     return InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: () {
-        if (cfg.isRestrictedToHead && !HiveStorage.isLdHead) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Stability Verify is restricted to L&D Head role.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-          return;
-        }
         context.read<TransitionDetailBloc>().add(SelectTransitionStep(cfg.stepIndex));
       },
       child: Container(
@@ -600,18 +626,163 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
   ) {
     switch (state.selectedStep) {
       case 1:
-        return _buildStep1InternalChecklist(context, state);
+        return _buildStep1SiteCreation(context, state);
       case 2:
-        return _buildStep2LdChecklist(context, state);
+        return _buildStep2InternalChecklist(context, state);
       case 3:
-        return _buildStep3StabilityVerify(context, state);
+        return _buildStep3LdTransitionChecklist(context, state);
+      case 4:
+        return _buildStep4StabilityVerify(context, state);
       default:
-        return _buildStep1InternalChecklist(context, state);
+        return _buildStep2InternalChecklist(context, state);
     }
   }
 
-  // ── Step 1: Internal Checklist (Client Kick-Off + Internal Items) ───────────
-  Widget _buildStep1InternalChecklist(
+  // ── Step 1: Site Creation (Completed) ──────────────────────────────────────
+  Widget _buildStep1SiteCreation(
+    BuildContext context,
+    TransitionDetailLoaded state,
+  ) {
+    final site = state.response.site;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _kBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      'Site Creation Overview',
+                      style: GoogleFonts.outfit(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _kDark,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFA5D6A7)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.check_circle_rounded, size: 14, color: _kGreen),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Completed',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: _kGreen,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _buildInfoTile('Contract Award Date', site.formattedAwardDate),
+                  _buildInfoTile('Contract Start Date', site.formattedStartDate),
+                  _buildInfoTile('Contract End Date', site.formattedEndDate),
+                  _buildInfoTile('Site Code', site.code),
+                  _buildInfoTile('Client Name', site.clientName),
+                  _buildInfoTile('Status', site.status),
+                  _buildInfoTile('Mode', site.mode),
+                  _buildInfoTile('Zone', site.zoneName),
+                  _buildInfoTile('Cluster', site.clusterName),
+                  _buildInfoTile('Manpower Required', '${site.manpowerRequired}'),
+                  _buildInfoTile('Manpower Deployed', '${site.manpowerDeployed}'),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        Align(
+          alignment: Alignment.centerRight,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kBlue,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              context.read<TransitionDetailBloc>().add(const SelectTransitionStep(2));
+            },
+            icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+            iconAlignment: IconAlignment.end,
+            label: Text(
+              'Continue To Internal Checklist',
+              style: GoogleFonts.outfit(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoTile(String label, String value) {
+    return Container(
+      width: 170,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAFAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: GoogleFonts.outfit(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: _kSlate,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value.isEmpty ? '—' : value,
+            style: GoogleFonts.outfit(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: _kDark,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Step 2: Internal Checklist (Client Kick-Off + Internal Items) ───────────
+  Widget _buildStep2InternalChecklist(
     BuildContext context,
     TransitionDetailLoaded state,
   ) {
@@ -772,12 +943,12 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
         ),
         const SizedBox(height: 20),
 
-        // ── Action Button: Continue → (Image 1) ──
+        // ── Action Button: Continue To L&D Transition Checklist → (Matching Web Image 7) ──
         Align(
-          alignment: Alignment.centerLeft,
+          alignment: Alignment.centerRight,
           child: SizedBox(
             height: 42,
-            child: ElevatedButton(
+            child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: _kBlue,
                 foregroundColor: Colors.white,
@@ -795,8 +966,10 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                       ),
                     );
               },
-              child: Text(
-                'Continue →',
+              icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+              iconAlignment: IconAlignment.end,
+              label: Text(
+                'Continue To L&D Transition Checklist',
                 style: GoogleFonts.outfit(
                   fontSize: 13.5,
                   fontWeight: FontWeight.w600,
@@ -809,8 +982,8 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
     );
   }
 
-  // ── Step 2: L&D Checklist (Matching Image 2) ───────────────────────────────
-  Widget _buildStep2LdChecklist(
+  // ── Step 3: L&D Transition Checklist (Matching Web Image 8) ────────────────
+  Widget _buildStep3LdTransitionChecklist(
     BuildContext context,
     TransitionDetailLoaded state,
   ) {
@@ -818,15 +991,6 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
     final items = preview.ldTransition;
     final openCount = items.where((i) => i.displayStatus != 'Completed').length;
     final zoneUsers = state.response.zoneUsers;
-
-    // Check conditions:
-    // "without internal checklist got completed also we can't enable stability check button..."
-    // "if checklist all status completed... then only need to enable submit stability..."
-    final allInternalDone = preview.internal.isNotEmpty &&
-        preview.internal.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
-    final allLdDone = preview.ldTransition.isNotEmpty &&
-        preview.ldTransition.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
-    final canSubmitStability = allInternalDone && allLdDone;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -880,14 +1044,9 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
         ),
         const SizedBox(height: 20),
 
-        // ── Action Buttons: [Work in Progress] & [Stability Check] (Image 2) ──
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _kBorder),
-          ),
+        // ── Action Buttons: [Work in Progress] & [Continue To Stability Verify →] ──
+        Align(
+          alignment: Alignment.centerRight,
           child: Wrap(
             alignment: WrapAlignment.end,
             crossAxisAlignment: WrapCrossAlignment.center,
@@ -898,7 +1057,7 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: _kBlue,
                   side: const BorderSide(color: Color(0xFFBFDBFE)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () {
@@ -917,50 +1076,28 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              ElevatedButton(
+              ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: canSubmitStability ? _kBlue : const Color(0xFF93C5FD),
+                  backgroundColor: _kBlue,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () {
-                  if (!allInternalDone) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'All Internal Checklist items must be Completed before Stability Check.',
-                        ),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
-                    return;
-                  }
-                  if (!allLdDone) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'All L&D Checklist items must be Completed before Stability Check.',
-                        ),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
-                    return;
-                  }
-
                   context.read<TransitionDetailBloc>().add(
                         SaveTransitionActionEvent(
                           siteId: widget.siteId,
-                          action: 'stability',
+                          action: 'save',
                         ),
                       );
                 },
-                child: Text(
-                  'Stability Check',
+                icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                iconAlignment: IconAlignment.end,
+                label: Text(
+                  'Continue To Stability Verify',
                   style: GoogleFonts.outfit(
-                    fontSize: 13,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -972,14 +1109,22 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
     );
   }
 
-  // ── Step 3: Stability Verify (Matching Image 3) ─────────────────────────────
-  Widget _buildStep3StabilityVerify(
+  // ── Step 4: Stability Verify (Matching Web Image 3 & Mobile Image 6) ────────
+  Widget _buildStep4StabilityVerify(
     BuildContext context,
     TransitionDetailLoaded state,
   ) {
-    final review = state.response.ldPreview.review;
+    final preview = state.response.ldPreview;
+    final review = preview.review;
     final isVerified = review.status.toUpperCase() == 'VERIFIED';
-    final isHead = HiveStorage.isLdHead;
+    final isSuperAdmin = HiveStorage.isSuperAdmin;
+    final isHead = HiveStorage.isLdHead && !isSuperAdmin;
+    final canVerify = isHead && !isSuperAdmin;
+
+    final allInternalDone = preview.internal.isNotEmpty &&
+        preview.internal.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
+    final allLdDone = preview.ldTransition.isNotEmpty &&
+        preview.ldTransition.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -1042,50 +1187,63 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                 ],
               ),
             ),
-          ] else if (!isHead) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFFBEB),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFFDE68A)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.lock_outline_rounded, color: Color(0xFFD97706), size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Stability Verify is restricted to L&D Head role. Awaiting L&D Head review.',
-                      style: GoogleFonts.outfit(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFFB45309),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ] else ...[
             Align(
               alignment: Alignment.centerRight,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _kBlue,
+                  backgroundColor: canVerify ? _kBlue : const Color(0xFF93C5FD),
+                  disabledBackgroundColor: const Color(0xFF93C5FD),
+                  disabledForegroundColor: Colors.white,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                onPressed: () {
-                  context.read<TransitionDetailBloc>().add(
-                        SaveTransitionActionEvent(
-                          siteId: widget.siteId,
-                          action: 'verify',
-                        ),
-                      );
-                },
+                onPressed: isSuperAdmin
+                    ? null
+                    : () {
+                        if (!allInternalDone) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'All Internal Checklist items must be Completed before Stability Check.',
+                              ),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          return;
+                        }
+                        if (!allLdDone) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'All L&D Checklist items must be Completed before Stability Check.',
+                              ),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          return;
+                        }
+                        if (!canVerify) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Stability Verify is restricted to L&D Head role.',
+                              ),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          return;
+                        }
+
+                        context.read<TransitionDetailBloc>().add(
+                              SaveTransitionActionEvent(
+                                siteId: widget.siteId,
+                                action: 'verify',
+                              ),
+                            );
+                      },
                 child: Text(
                   'Stability Check',
                   style: GoogleFonts.outfit(
@@ -1095,6 +1253,33 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                 ),
               ),
             ),
+            if (isSuperAdmin) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'Admin does not have access to Stability Check.',
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFFEF4444),
+                  ),
+                ),
+              ),
+            ] else if (!isHead) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'Stability Verify is restricted to L&D Head role.',
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFFD97706),
+                  ),
+                ),
+              ),
+            ],
           ],
         ],
       ),

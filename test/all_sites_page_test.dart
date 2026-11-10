@@ -5,11 +5,13 @@ import 'package:propcare_governance/features/sites/data/models/site_detail_model
 import 'package:propcare_governance/features/sites/data/models/site_model.dart';
 import 'package:propcare_governance/features/sites/data/models/transition_detail_model.dart';
 import 'package:propcare_governance/features/sites/presentation/bloc/sites_bloc.dart';
+import 'package:propcare_governance/features/sites/presentation/bloc/sites_event.dart';
 import 'package:propcare_governance/features/sites/presentation/bloc/sites_state.dart';
 import 'package:propcare_governance/features/sites/presentation/pages/all_sites_page.dart';
 
 class MockSitesRemoteDataSource implements SitesRemoteDataSource {
   final SitesResponseModel response;
+  String? lastStatusPassed;
   MockSitesRemoteDataSource(this.response);
 
   @override
@@ -24,6 +26,7 @@ class MockSitesRemoteDataSource implements SitesRemoteDataSource {
     String? search,
     String? tab,
   }) async {
+    lastStatusPassed = status;
     return response;
   }
 
@@ -176,5 +179,37 @@ void main() {
     // Verify Site Item row info
     expect(find.text('BPT'), findsOneWidget);
     expect(find.text('₹7.40L'), findsOneWidget);
+  });
+
+  testWidgets('AllSitesPage with initialStatus DRAFT queries with status=DRAFT', (tester) async {
+    const sampleResponse = SitesResponseModel(
+      items: [],
+      total: 0,
+      tabCounts: SiteTabCountsModel(
+        all: 0,
+        live: 0,
+        transition: 0,
+        special: 0,
+        draft: 0,
+        delayed: 0,
+      ),
+    );
+
+    final mockDataSource = MockSitesRemoteDataSource(sampleResponse);
+    final bloc = SitesBloc(dataSource: mockDataSource);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AllSitesPage(
+          bloc: bloc,
+          initialStatus: 'DRAFT',
+        ),
+      ),
+    );
+
+    bloc.add(const LoadSites(initialStatus: 'DRAFT'));
+    await tester.pumpAndSettle();
+
+    expect(mockDataSource.lastStatusPassed, 'DRAFT');
   });
 }

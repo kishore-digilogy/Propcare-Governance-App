@@ -28,21 +28,26 @@ class TransitionDetailBloc extends Bloc<TransitionDetailEvent, TransitionDetailS
     try {
       final response = await dataSource.getTransitionDetail(event.siteId);
 
-      // 3-step default step calculation:
-      // Step 1: Internal Checklist
-      // Step 2: L&D Checklist
-      // Step 3: Stability Verify
-      int defaultStep = 1;
+      // 4-stage stepper step calculation:
+      // Step 1: Site Creation (Completed)
+      // Step 2: Internal Checklist
+      // Step 3: L&D Transition Checklist
+      // Step 4: Stability Verify
+      int defaultStep = 2;
       final internalDone = response.ldPreview.internal.isNotEmpty &&
           response.ldPreview.internal.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
+      final ldDone = response.ldPreview.ldTransition.isNotEmpty &&
+          response.ldPreview.ldTransition.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
 
       final revStatus = response.ldPreview.review.status.toUpperCase();
       if (revStatus == 'VERIFIED' || revStatus == 'STABILITY_PENDING') {
-        defaultStep = 3;
+        defaultStep = 4;
+      } else if (internalDone && ldDone) {
+        defaultStep = 4;
       } else if (internalDone) {
-        defaultStep = 2;
+        defaultStep = 3;
       } else {
-        defaultStep = 1;
+        defaultStep = 2;
       }
 
       emit(TransitionDetailLoaded(
@@ -60,13 +65,6 @@ class TransitionDetailBloc extends Bloc<TransitionDetailEvent, TransitionDetailS
   ) {
     if (state is TransitionDetailLoaded) {
       final current = state as TransitionDetailLoaded;
-      // Step 3 is restricted to L&D Head role (or Super Admin)
-      if (event.step == 3 && !HiveStorage.isLdHead) {
-        emit(current.copyWith(
-          errorMessage: 'Stability Verify is restricted to L&D Head role.',
-        ));
-        return;
-      }
       emit(current.copyWith(selectedStep: event.step));
     }
   }
@@ -143,6 +141,16 @@ class TransitionDetailBloc extends Bloc<TransitionDetailEvent, TransitionDetailS
   ) async {
     if (state is TransitionDetailLoaded) {
       final current = state as TransitionDetailLoaded;
+
+      if ((event.action == 'stability' || event.action == 'verify') &&
+          HiveStorage.isSuperAdmin) {
+        emit(current.copyWith(
+          errorMessage: 'Admin does not have access to stability check.',
+          isSaving: false,
+        ));
+        return;
+      }
+
       emit(current.copyWith(isSaving: true));
 
       try {
@@ -161,10 +169,16 @@ class TransitionDetailBloc extends Bloc<TransitionDetailEvent, TransitionDetailS
         );
 
         int nextStep = current.selectedStep;
-        if (event.action == 'save' && current.selectedStep == 1) {
-          nextStep = 2;
+        if (event.action == 'save') {
+          if (current.selectedStep == 1) {
+            nextStep = 2;
+          } else if (current.selectedStep == 2) {
+            nextStep = 3;
+          } else if (current.selectedStep == 3) {
+            nextStep = 4;
+          }
         } else if (event.action == 'stability') {
-          nextStep = 3;
+          nextStep = 4;
         }
 
         String message = 'Progress saved successfully';

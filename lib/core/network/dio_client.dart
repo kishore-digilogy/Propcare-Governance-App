@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 
 import '../config/app_config.dart';
@@ -42,8 +43,74 @@ class DioClient {
     dio.interceptors.addAll([
       AuthInterceptor(tokenProvider: () => HiveStorage.authToken),
       LoggingInterceptor(),
+      FallbackHostInterceptor(),
     ]);
 
     return dio;
+  }
+}
+
+/// Automatically attempts the fallback API host if the primary host is unreachable due to network connection issues.
+class FallbackHostInterceptor extends Interceptor {
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
+    final isConnectionFailure = err.type == DioExceptionType.connectionError ||
+        err.type == DioExceptionType.connectionTimeout;
+
+    if (isConnectionFailure && err.requestOptions.extra['retried_fallback'] != true) {
+      final fallbackBase = AppConfig.fallbackBaseUrl;
+      final currentBase = err.requestOptions.baseUrl.isNotEmpty
+          ? err.requestOptions.baseUrl
+          : AppConfig.baseUrl;
+
+      if (fallbackBase != currentBase) {
+        developer.log(
+          '⚠️ Primary API host unreachable ($currentBase). Retrying with fallback host: $fallbackBase',
+          name: 'FallbackHost',
+        );
+
+        try {
+          final fallbackDio = Dio(
+            BaseOptions(
+              baseUrl: fallbackBase,
+              connectTimeout: const Duration(seconds: 15),
+              receiveTimeout: const Duration(seconds: 15),
+              validateStatus: (status) => status != null && status >= 200 && status < 400,
+              headers: err.requestOptions.headers,
+            ),
+          );
+
+          final retryOptions = Options(
+            method: err.requestOptions.method,
+            headers: err.requestOptions.headers,
+            extra: {
+              ...err.requestOptions.extra,
+              'retried_fallback': true,
+            },
+          );
+
+          final response = await fallbackDio.request(
+            err.requestOptions.path,
+            data: err.requestOptions.data,
+            queryParameters: err.requestOptions.queryParameters,
+            options: retryOptions,
+          );
+
+          developer.log(
+            '✅ Fallback request succeeded [${response.statusCode}] on $fallbackBase',
+            name: 'FallbackHost',
+          );
+
+          return handler.resolve(response);
+        } catch (fallbackError) {
+          developer.log(
+            '❌ Fallback host also failed: $fallbackError',
+            name: 'FallbackHost',
+          );
+        }
+      }
+    }
+
+    super.onError(err, handler);
   }
 }

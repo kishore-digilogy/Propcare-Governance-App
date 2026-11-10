@@ -32,6 +32,16 @@ class AppConfig {
     }
   }
 
+  /// Returns the fallback base API URL if the primary host is unreachable.
+  static String get fallbackBaseUrl {
+    switch (currentEnvironment) {
+      case AppEnvironment.live:
+        return '$stageUrl$apiPrefix';
+      case AppEnvironment.stage:
+        return '$liveUrl$apiPrefix';
+    }
+  }
+
   /// Returns the root domain for the active environment.
   static String get rootUrl {
     switch (currentEnvironment) {

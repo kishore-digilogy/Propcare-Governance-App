@@ -11,15 +11,17 @@ class LoadSites extends SitesEvent {
   final bool isRefresh;
   final String? initialZoneId;
   final String? initialClusterId;
+  final String? initialStatus;
 
   const LoadSites({
     this.isRefresh = false,
     this.initialZoneId,
     this.initialClusterId,
+    this.initialStatus,
   });
 
   @override
-  List<Object?> get props => [isRefresh, initialZoneId, initialClusterId];
+  List<Object?> get props => [isRefresh, initialZoneId, initialClusterId, initialStatus];
 }
 
 class ChangeSitesTab extends SitesEvent {

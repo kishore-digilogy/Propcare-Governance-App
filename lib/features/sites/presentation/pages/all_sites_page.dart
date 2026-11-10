@@ -25,12 +25,14 @@ class AllSitesPage extends StatelessWidget {
   final SitesBloc? bloc;
   final String? initialZoneId;
   final String? initialClusterId;
+  final String? initialStatus;
 
   const AllSitesPage({
     super.key,
     this.bloc,
     this.initialZoneId,
     this.initialClusterId,
+    this.initialStatus,
   });
 
   @override
@@ -47,6 +49,7 @@ class AllSitesPage extends StatelessWidget {
       )..add(LoadSites(
           initialZoneId: initialZoneId,
           initialClusterId: initialClusterId,
+          initialStatus: initialStatus,
         )),
       child: const _AllSitesView(),
     );

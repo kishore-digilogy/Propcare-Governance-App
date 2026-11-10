@@ -7,6 +7,7 @@ import 'package:propcare_governance/core/storage/hive_storage.dart';
 import 'package:propcare_governance/features/activities/data/datasources/activities_remote_datasource.dart';
 import 'package:propcare_governance/features/activities/data/models/activity_detail_model.dart';
 import 'package:propcare_governance/features/activities/data/models/activity_site_summary_model.dart';
+import 'package:propcare_governance/features/activities/data/models/checklist_report_model.dart';
 import 'package:propcare_governance/features/activities/data/models/site_activity_item_model.dart';
 import 'package:propcare_governance/features/activities/presentation/bloc/activities_bloc.dart';
 import 'package:propcare_governance/features/activities/presentation/bloc/activities_event.dart';
@@ -122,6 +123,21 @@ class MockMmrMisRemoteDataSource implements ActivitiesRemoteDataSource {
     required Map<String, dynamic> payload,
   }) async {
     throw UnimplementedError();
+  }
+
+  @override
+  Future<ChecklistReportResponseModel> getChecklistBySite() async {
+    return const ChecklistReportResponseModel(items: []);
+  }
+
+  @override
+  Future<SiteChecklistDetailResponseModel> getChecklistDetailBySite(String siteId) async {
+    return SiteChecklistDetailResponseModel(siteId: siteId, siteName: 'Test', items: const []);
+  }
+
+  @override
+  Future<bool> saveChecklistAnswers({required String activityId, required List<Map<String, dynamic>> answers}) async {
+    return true;
   }
 }
 

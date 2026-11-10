@@ -254,7 +254,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   }
 
   Widget _buildHeader(ActivitiesLoaded state) {
-    final title = widget.isTeam ? 'Team Activities' : 'My Activities';
+    final title = widget.isTeam ? 'Team Governance' : 'My Governance';
     final roleLabel = state.activitiesResponse.myRoleLabel.isNotEmpty
         ? state.activitiesResponse.myRoleLabel
         : (state.response.myRoleLabel.isNotEmpty

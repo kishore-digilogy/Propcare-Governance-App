@@ -171,12 +171,12 @@ class HiveStorage {
         upper.contains(RegExp(r'(^|[_\s\W])(LD|L_D|L&D)([_\s\W]|$)'));
   }
 
-  /// Whether the logged-in user specifically has an L&D Head role (or Super Admin).
+  /// Whether the logged-in user specifically has an L&D Head role.
   static bool get isLdHead {
     final raw = userRole;
     if (raw == null || raw.trim().isEmpty) return false;
     final upper = raw.trim().toUpperCase();
-    if (isSuperAdmin) return true;
+    if (isSuperAdmin) return false;
     return upper == 'LD_HEAD' ||
         upper == 'L&D_HEAD' ||
         upper == 'L&D HEAD' ||

@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../../core/network/dio_client.dart';
 import '../models/activity_detail_model.dart';
 import '../models/activity_site_summary_model.dart';
+import '../models/checklist_report_model.dart';
 import '../models/site_activity_item_model.dart';
 
 abstract class ActivitiesRemoteDataSource {
@@ -48,6 +49,15 @@ abstract class ActivitiesRemoteDataSource {
   Future<ActivityItemDetailModel> sendMomEmail({
     required String activityId,
     required Map<String, dynamic> payload,
+  });
+
+  Future<ChecklistReportResponseModel> getChecklistBySite();
+
+  Future<SiteChecklistDetailResponseModel> getChecklistDetailBySite(String siteId);
+
+  Future<bool> saveChecklistAnswers({
+    required String activityId,
+    required List<Map<String, dynamic>> answers,
   });
 }
 
@@ -136,7 +146,7 @@ class ActivitiesRemoteDataSourceImpl implements ActivitiesRemoteDataSource {
     if (statusBucket != null && statusBucket.isNotEmpty && statusBucket != 'ALL') {
       queryParams['statusBucket'] = statusBucket.toLowerCase();
     } else if (status != null && status.isNotEmpty && status != 'ALL') {
-      if (kind != null && (kind.contains('MIS') || kind.contains('MMR'))) {
+      if (kind != null && (kind.contains('MIS') || kind.contains('MMR') || kind.contains('RR'))) {
         queryParams['statusBucket'] = status.toLowerCase();
       } else {
         queryParams['status'] = status;
@@ -278,6 +288,62 @@ class ActivitiesRemoteDataSourceImpl implements ActivitiesRemoteDataSource {
       throw Exception('Invalid response format for sendMomEmail');
     } else {
       throw Exception('Failed to send MOM email (HTTP ${response.statusCode})');
+    }
+  }
+
+  @override
+  Future<ChecklistReportResponseModel> getChecklistBySite() async {
+    const path = '/activities/checklist-by-site';
+    final response = await _dio.get(path);
+
+    if (response.statusCode == 200) {
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return ChecklistReportResponseModel.fromJson(data);
+      } else if (data is Map) {
+        return ChecklistReportResponseModel.fromJson(Map<String, dynamic>.from(data));
+      }
+      throw Exception('Invalid response format for checklist-by-site');
+    } else {
+      throw Exception('Failed to load checklist-by-site (HTTP ${response.statusCode})');
+    }
+  }
+
+  @override
+  Future<SiteChecklistDetailResponseModel> getChecklistDetailBySite(String siteId) async {
+    final path = '/activities/checklist-by-site/$siteId';
+    final response = await _dio.get(path);
+
+    if (response.statusCode == 200 || response.statusCode == 304) {
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return SiteChecklistDetailResponseModel.fromJson(data);
+      } else if (data is Map) {
+        return SiteChecklistDetailResponseModel.fromJson(Map<String, dynamic>.from(data));
+      }
+      throw Exception('Invalid response format for site checklist detail');
+    } else {
+      throw Exception('Failed to load site checklist detail (HTTP ${response.statusCode})');
+    }
+  }
+
+  @override
+  Future<bool> saveChecklistAnswers({
+    required String activityId,
+    required List<Map<String, dynamic>> answers,
+  }) async {
+    final path = '/activities/$activityId/checklist-answers';
+    final response = await _dio.patch(
+      path,
+      data: {
+        'answers': answers,
+      },
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      return true;
+    } else {
+      throw Exception('Failed to save checklist answers (HTTP ${response.statusCode})');
     }
   }
 }

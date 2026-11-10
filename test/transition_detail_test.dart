@@ -266,7 +266,7 @@ void main() {
   });
 
   group('TransitionDetailBloc tests', () {
-    test('loads transition detail successfully and sets default step to 1', () async {
+    test('loads transition detail successfully and sets default step to 2', () async {
       final model = TransitionSiteDetailResponseModel.fromJson(sampleJson);
       final ds = MockTransitionDetailRemoteDataSource(model);
       final bloc = TransitionDetailBloc(dataSource: ds);
@@ -282,23 +282,23 @@ void main() {
           isA<TransitionDetailLoaded>().having(
             (s) => s.selectedStep,
             'selectedStep',
-            1,
+            2,
           ),
         ]),
       );
 
-      bloc.add(const SelectTransitionStep(2));
+      bloc.add(const SelectTransitionStep(3));
       await expectLater(
         bloc.stream,
         emits(
-          isA<TransitionDetailLoaded>().having((s) => s.selectedStep, 'selectedStep', 2),
+          isA<TransitionDetailLoaded>().having((s) => s.selectedStep, 'selectedStep', 3),
         ),
       );
     });
   });
 
   group('TransitionSiteDetailPage UI widget tests', () {
-    testWidgets('renders top nav, header card with dates, 3-step stepper, and step 1 cards',
+    testWidgets('renders top nav, header card with dates, 4-step stepper, and step navigation',
         (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
@@ -338,12 +338,13 @@ void main() {
       expect(find.text('Contract End Date'), findsOneWidget);
       expect(find.text('30 Nov 2026'), findsWidgets);
 
-      // 3 steps in stepper
+      // 4 steps in stepper
+      expect(find.text('Site Creation'), findsOneWidget);
       expect(find.text('Internal Checklist'), findsWidgets);
-      expect(find.text('L&D Checklist'), findsOneWidget);
+      expect(find.text('L&D Transition Checklist'), findsWidgets);
       expect(find.text('Stability Verify'), findsOneWidget);
 
-      // Step 1 contents: Client Kick-Off and Internal Checklist
+      // Step 2 contents: Client Kick-Off and Internal Checklist
       expect(find.text('Client Kick-Off'), findsOneWidget);
       expect(find.text('Sales + Ops + CRRM'), findsOneWidget);
       expect(find.text('Kick-Off With Client'), findsOneWidget);
@@ -353,28 +354,61 @@ void main() {
       expect(find.text('Closing of Agreement'), findsOneWidget);
       expect(find.text('16 Nov 2026'), findsOneWidget);
       expect(find.text('Pending'), findsWidgets);
-      expect(find.text('Continue →'), findsOneWidget);
+      expect(find.text('Continue To L&D Transition Checklist'), findsOneWidget);
 
-      // Scroll and Tap 'Continue →' to save and advance
-      await tester.drag(find.byType(Scrollable).first, const Offset(0, -600));
+      // Scroll and Tap 'Continue To L&D Transition Checklist' to save and advance to Step 3
+      ScaffoldMessenger.of(tester.element(find.byType(Scaffold))).clearSnackBars();
+      await tester.ensureVisible(find.text('Continue To L&D Transition Checklist'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Continue →'));
+      await tester.tap(find.text('Continue To L&D Transition Checklist'));
       await tester.pumpAndSettle();
 
-      // Now Step 2 contents should be visible
-      expect(find.text('L&D Transition Checklist'), findsOneWidget);
+      // Clear any floating SnackBar from step 2 save
+      ScaffoldMessenger.of(tester.element(find.byType(Scaffold))).clearSnackBars();
+      await tester.pumpAndSettle();
+
+      // Now Step 3 contents should be visible
+      expect(find.text('L&D Transition Checklist'), findsWidgets);
       expect(find.text('L&D transition kick-off completed'), findsOneWidget);
       expect(find.text('Work in Progress'), findsOneWidget);
-      expect(find.text('Stability Check'), findsOneWidget);
+      expect(find.text('Continue To Stability Verify'), findsOneWidget);
+
+      // Advance to Step 4 by tapping Continue To Stability Verify
+      await tester.ensureVisible(find.text('Continue To Stability Verify'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Continue To Stability Verify'));
+      await tester.pumpAndSettle();
+
+      // Clear any floating SnackBar from step 3 save
+      ScaffoldMessenger.of(tester.element(find.byType(Scaffold))).clearSnackBars();
+      await tester.pumpAndSettle();
+
+      // Now Step 4 contents should be visible
+      expect(find.text('Stability Check'), findsWidgets);
+      expect(find.text('Finish Internal + L&D checklist, then use Stability Check to send this for L&D Head verify.'), findsOneWidget);
 
       // Tap 'Stability Check' when not all items completed shows alert
-      await tester.drag(find.byType(Scrollable).first, const Offset(0, -400));
+      final stabBtnFinder = find.widgetWithText(ElevatedButton, 'Stability Check');
+      await tester.ensureVisible(stabBtnFinder);
       await tester.pumpAndSettle();
       ScaffoldMessenger.of(tester.element(find.byType(Scaffold))).clearSnackBars();
-      await tester.tap(find.text('Stability Check'));
+      await tester.tap(stabBtnFinder);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('All Internal Checklist items must be Completed before Stability Check.'), findsOneWidget);
+      ScaffoldMessenger.of(tester.element(find.byType(Scaffold))).clearSnackBars();
+      await tester.pumpAndSettle();
+
+      // Test Step 1 navigation
+      bloc.add(const SelectTransitionStep(1));
+      await tester.pumpAndSettle();
+      expect(find.text('Site Creation Overview'), findsOneWidget);
+      expect(find.text('Continue To Internal Checklist'), findsOneWidget);
+      await tester.ensureVisible(find.text('Continue To Internal Checklist'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Continue To Internal Checklist'));
+      await tester.pumpAndSettle();
+      expect(find.text('Client Kick-Off'), findsOneWidget);
     });
 
     testWidgets('resolves participant UUIDs to user name and department in kick-off participants',
@@ -433,6 +467,42 @@ void main() {
       expect(find.textContaining('Badri'), findsOneWidget);
       expect(find.textContaining('9247021a-b3c0-4f9c-b3f3-c86f52fdd8e6'), findsNothing);
       expect(find.textContaining('821ac904-0846-4f95-b842-214dd96d5cfc'), findsNothing);
+    });
+
+    testWidgets('Step 4 Stability Check button is disabled for CRRM / Super Admin', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      HiveStorage.mockUserRole = 'CRRM';
+      addTearDown(() => HiveStorage.mockUserRole = null);
+
+      final model = TransitionSiteDetailResponseModel.fromJson(sampleJson);
+      final ds = MockTransitionDetailRemoteDataSource(model);
+      final bloc = TransitionDetailBloc(dataSource: ds);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: TransitionSiteDetailPage(
+            siteId: '93130acb-01ba-4883-aef5-baf9e6d7f85e',
+            bloc: bloc,
+          ),
+        ),
+      );
+
+      bloc.add(const LoadTransitionDetail(siteId: '93130acb-01ba-4883-aef5-baf9e6d7f85e'));
+      await tester.pumpAndSettle();
+
+      // Navigate to Step 4
+      bloc.add(const SelectTransitionStep(4));
+      await tester.pumpAndSettle();
+
+      // Verify Stability Check button is present but disabled
+      final btnFinder = find.widgetWithText(ElevatedButton, 'Stability Check');
+      expect(btnFinder, findsOneWidget);
+      final btn = tester.widget<ElevatedButton>(btnFinder);
+      expect(btn.onPressed, isNull);
+      expect(find.text('Admin does not have access to Stability Check.'), findsOneWidget);
     });
   });
 }
