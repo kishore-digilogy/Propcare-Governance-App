@@ -26,6 +26,9 @@ class ReportsLoaded extends ReportsState {
   final String? selectedFunction;
   final String? selectedStatus;
 
+  // Filter application loading state
+  final bool isFiltering;
+
   // CSV download execution state
   final bool isRunningReport;
   final String? runningExportKind;
@@ -41,6 +44,7 @@ class ReportsLoaded extends ReportsState {
     this.selectedClientType,
     this.selectedFunction,
     this.selectedStatus,
+    this.isFiltering = false,
     this.isRunningReport = false,
     this.runningExportKind,
     this.downloadedCsvContent,
@@ -56,6 +60,7 @@ class ReportsLoaded extends ReportsState {
     String? Function()? selectedClientType,
     String? Function()? selectedFunction,
     String? Function()? selectedStatus,
+    bool? isFiltering,
     bool? isRunningReport,
     String? Function()? runningExportKind,
     String? Function()? downloadedCsvContent,
@@ -70,6 +75,7 @@ class ReportsLoaded extends ReportsState {
       selectedClientType: selectedClientType != null ? selectedClientType() : this.selectedClientType,
       selectedFunction: selectedFunction != null ? selectedFunction() : this.selectedFunction,
       selectedStatus: selectedStatus != null ? selectedStatus() : this.selectedStatus,
+      isFiltering: isFiltering ?? this.isFiltering,
       isRunningReport: isRunningReport ?? this.isRunningReport,
       runningExportKind: runningExportKind != null ? runningExportKind() : this.runningExportKind,
       downloadedCsvContent: downloadedCsvContent != null ? downloadedCsvContent() : this.downloadedCsvContent,
@@ -87,6 +93,7 @@ class ReportsLoaded extends ReportsState {
         selectedClientType,
         selectedFunction,
         selectedStatus,
+        isFiltering,
         isRunningReport,
         runningExportKind,
         downloadedCsvContent,

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
@@ -119,71 +121,84 @@ class _OnboardingPageState extends State<OnboardingPage>
           ),
 
           // ── Top bar: skip + progress ──────────────────────────────────
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              child: Row(
-                children: [
-                  // Story progress bars
-                  Expanded(
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     child: Row(
-                      children: List.generate(
-                        _stories.length,
-                        (i) => Expanded(
-                          child: Container(
-                            margin:
-                                const EdgeInsets.symmetric(horizontal: 3),
-                            height: 3.5,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(2),
-                              color: i < _currentPage
-                                  ? story.accentColor
-                                  : const Color(0xFFE2E8F0),
+                      children: [
+                        // Story progress bars
+                        Expanded(
+                          child: Row(
+                            children: List.generate(
+                              _stories.length,
+                              (i) => Expanded(
+                                child: Container(
+                                  margin:
+                                      const EdgeInsets.symmetric(horizontal: 3),
+                                  height: 3.5,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(2),
+                                    color: i < _currentPage
+                                        ? story.accentColor
+                                        : const Color(0xFFE2E8F0),
+                                  ),
+                                  child: i == _currentPage
+                                      ? AnimatedBuilder(
+                                          animation: _progressController,
+                                          builder: (_, __) => FractionallySizedBox(
+                                            alignment: Alignment.centerLeft,
+                                            widthFactor:
+                                                _progressController.value,
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(2),
+                                                color: story.accentColor,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                              ),
                             ),
-                            child: i == _currentPage
-                                ? AnimatedBuilder(
-                                    animation: _progressController,
-                                    builder: (_, __) => FractionallySizedBox(
-                                      alignment: Alignment.centerLeft,
-                                      widthFactor: _progressController.value,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(2),
-                                          color: story.accentColor,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                : null,
                           ),
                         ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Skip button
-                  GestureDetector(
-                    onTap: _finish,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Text(
-                        'Skip',
-                        style: GoogleFonts.outfit(
-                          color: AppColors.secondary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                        const SizedBox(width: 16),
+                        // Skip button
+                        GestureDetector(
+                          onTap: _finish,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Text(
+                              'Skip',
+                              style: GoogleFonts.outfit(
+                                color: AppColors.secondary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -224,6 +239,33 @@ class _StoryPageContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final topPadding = mediaQuery.padding.top;
+    final bottomPadding = mediaQuery.padding.bottom;
+
+    // Top bar is in SafeArea with 12px vertical padding + 32px button = ~56px.
+    // Generous top clearance ensures illustration never collides with Dynamic Island or progress bars.
+    final topClearance = topPadding + 68.0;
+
+    // Estimated height of _BottomCard including content and bottom safe padding
+    final bottomClearance = 300.0 + bottomPadding;
+
+    // Available height strictly in the middle viewport
+    final availableMiddle =
+        (mediaQuery.size.height - topClearance - bottomClearance)
+            .clamp(180.0, 600.0);
+
+    // Compute responsive diameter fitting comfortably in available viewport
+    final isTablet = mediaQuery.size.shortestSide >= 600;
+    final double maxDiameter = isTablet ? 380.0 : mediaQuery.size.width * 0.72;
+    final double capDiameter = isTablet ? 350.0 : 290.0;
+    final double diameter =
+        (availableMiddle * 0.85).clamp(160.0, math.min(maxDiameter, capDiameter));
+
+    // Vertically center the illustration in the middle area
+    final double illustrationTop =
+        topClearance + (availableMiddle - diameter) / 2;
+
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -243,15 +285,15 @@ class _StoryPageContent extends StatelessWidget {
           ),
         ),
 
-        // Decorative background circle
+        // Decorative background circle (halo around illustration)
         Positioned(
-          top: size.height * 0.08,
+          top: illustrationTop - 12,
           left: 0,
           right: 0,
           child: Center(
             child: Container(
-              width: size.width * 0.85,
-              height: size.width * 0.85,
+              width: diameter + 24,
+              height: diameter + 24,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: story.accentColor.withValues(alpha: 0.06),
@@ -260,17 +302,17 @@ class _StoryPageContent extends StatelessWidget {
           ),
         ),
 
-        // Illustration image
+        // Illustration image (safely centered, never overlapping top bar / Dynamic Island)
         Positioned(
-          top: size.height * 0.07,
+          top: illustrationTop,
           left: 0,
           right: 0,
           child: Center(
             child: Hero(
               tag: story.imagePath,
               child: Container(
-                width: size.width * 0.78,
-                height: size.width * 0.78,
+                width: diameter,
+                height: diameter,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   boxShadow: [
@@ -304,7 +346,7 @@ class _StoryPageContent extends StatelessWidget {
           bottom: 0,
           left: 0,
           right: 0,
-          height: size.height * 0.5,
+          height: size.height * 0.45,
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -347,12 +389,17 @@ class _BottomCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(28, 20, 28, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
+    return SafeArea(
+      top: false,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 580),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(28, 16, 28, 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
           // Page indicator dots
           Row(
             children: List.generate(
@@ -464,6 +511,9 @@ class _BottomCard extends StatelessWidget {
               .slideY(begin: 0.3, end: 0, duration: 400.ms),
         ],
       ),
-    );
-  }
+    ),
+  ),
+),
+  );
+}
 }

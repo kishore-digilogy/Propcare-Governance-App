@@ -29,12 +29,16 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
     Emitter<ReportsState> emit,
   ) async {
     final current = state;
-    if (!event.isRefresh || current is! ReportsLoaded) {
+    if (event.isRefresh && current is ReportsLoaded) {
+      emit(current.copyWith(isFiltering: true));
+    } else if (current is! ReportsLoaded) {
       emit(const ReportsLoading());
     }
 
-    // Prefetch metadata if needed
-    MetaService.instance.fetchMetadata().catchError((_) => MetaService.instance.meta);
+    // Ensure metadata is loaded so zones, clusters, and filter options are available
+    if (!MetaService.instance.isLoaded || MetaService.instance.meta.zones.isEmpty) {
+      await MetaService.instance.fetchMetadata().catchError((_) => MetaService.instance.meta);
+    }
 
     final dateRange = current is ReportsLoaded ? current.selectedDateRange : 'last_30';
     final zoneId = current is ReportsLoaded ? current.selectedZoneId : null;
@@ -55,7 +59,7 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
 
       if (state is ReportsLoaded) {
         final latest = state as ReportsLoaded;
-        emit(latest.copyWith(catalog: res));
+        emit(latest.copyWith(catalog: res, isFiltering: false));
       } else {
         emit(
           ReportsLoaded(
@@ -66,6 +70,7 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
             selectedClientType: clientType,
             selectedFunction: function,
             selectedStatus: status,
+            isFiltering: false,
           ),
         );
       }
@@ -74,17 +79,25 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
       final msg = e.response?.data is Map
           ? (e.response?.data['message'] ?? e.response?.data['error'] ?? e.message)
           : e.message;
-      emit(ReportsError(msg?.toString() ?? 'Failed to load reports catalog.'));
+      if (state is ReportsLoaded) {
+        emit((state as ReportsLoaded).copyWith(isFiltering: false));
+      } else {
+        emit(ReportsError(msg?.toString() ?? 'Failed to load reports catalog.'));
+      }
     } catch (e) {
       developer.log('Failed to load reports catalog: $e', name: 'Reports');
-      emit(ReportsError(e.toString()));
+      if (state is ReportsLoaded) {
+        emit((state as ReportsLoaded).copyWith(isFiltering: false));
+      } else {
+        emit(ReportsError(e.toString()));
+      }
     }
   }
 
   void _onChangeDateRange(ChangeDateRange event, Emitter<ReportsState> emit) {
     if (state is! ReportsLoaded) return;
     final current = state as ReportsLoaded;
-    emit(current.copyWith(selectedDateRange: event.dateRange));
+    emit(current.copyWith(selectedDateRange: event.dateRange, isFiltering: true));
     add(const LoadReportCatalog(isRefresh: true));
   }
 
@@ -94,6 +107,7 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
     emit(current.copyWith(
       selectedZoneId: () => event.zoneId,
       selectedClusterId: () => null, // reset dependent cluster
+      isFiltering: true,
     ));
     add(const LoadReportCatalog(isRefresh: true));
   }
@@ -101,28 +115,28 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
   void _onChangeClusterFilter(ChangeClusterFilter event, Emitter<ReportsState> emit) {
     if (state is! ReportsLoaded) return;
     final current = state as ReportsLoaded;
-    emit(current.copyWith(selectedClusterId: () => event.clusterId));
+    emit(current.copyWith(selectedClusterId: () => event.clusterId, isFiltering: true));
     add(const LoadReportCatalog(isRefresh: true));
   }
 
   void _onChangeClientTypeFilter(ChangeClientTypeFilter event, Emitter<ReportsState> emit) {
     if (state is! ReportsLoaded) return;
     final current = state as ReportsLoaded;
-    emit(current.copyWith(selectedClientType: () => event.clientType));
+    emit(current.copyWith(selectedClientType: () => event.clientType, isFiltering: true));
     add(const LoadReportCatalog(isRefresh: true));
   }
 
   void _onChangeFunctionFilter(ChangeFunctionFilter event, Emitter<ReportsState> emit) {
     if (state is! ReportsLoaded) return;
     final current = state as ReportsLoaded;
-    emit(current.copyWith(selectedFunction: () => event.function));
+    emit(current.copyWith(selectedFunction: () => event.function, isFiltering: true));
     add(const LoadReportCatalog(isRefresh: true));
   }
 
   void _onChangeStatusFilter(ChangeStatusFilter event, Emitter<ReportsState> emit) {
     if (state is! ReportsLoaded) return;
     final current = state as ReportsLoaded;
-    emit(current.copyWith(selectedStatus: () => event.status));
+    emit(current.copyWith(selectedStatus: () => event.status, isFiltering: true));
     add(const LoadReportCatalog(isRefresh: true));
   }
 
@@ -189,6 +203,7 @@ class ReportsBloc extends Bloc<ReportsEvent, ReportsState> {
       selectedClientType: () => null,
       selectedFunction: () => null,
       selectedStatus: () => null,
+      isFiltering: true,
     ));
     add(const LoadReportCatalog(isRefresh: true));
   }

@@ -248,10 +248,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Quick Actions grid must contain MMR / MIS, Issues, and Reports
+      // Quick Actions grid must contain Reports, MMR / MIS, Issues, and R&R
+      expect(find.text('Reports'), findsOneWidget);
       expect(find.text('MMR / MIS'), findsOneWidget);
       expect(find.text('Issues'), findsOneWidget);
-      expect(find.text('Reports'), findsOneWidget);
       // Governance Matrix and Training must NOT be in Cluster Lead quick actions
       expect(find.text('Governance Matrix'), findsNothing);
       expect(find.text('Training'), findsNothing);
@@ -271,11 +271,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Quick Actions grid must contain MMR / MIS, Issues, Governance Matrix, and Reports
+      // Quick Actions grid must contain Reports, MMR / MIS, Issues, Governance Matrix
+      expect(find.text('Reports'), findsOneWidget);
       expect(find.text('MMR / MIS'), findsOneWidget);
       expect(find.text('Issues'), findsOneWidget);
       expect(find.text('Governance Matrix'), findsOneWidget);
-      expect(find.text('Reports'), findsOneWidget);
 
       HiveStorage.mockUserRole = null;
     });

@@ -121,7 +121,7 @@ void main() {
     HiveStorage.mockUserRole = null;
   });
 
-  testWidgets('QuickActionsGridView renders Training, Role & Access, Approvals, and Reports for L&D role', (tester) async {
+  testWidgets('QuickActionsGridView renders Training, Role & Access, and Approvals for L&D role', (tester) async {
     HiveStorage.mockUserRole = 'LD_HEAD';
 
     await tester.pumpWidget(
@@ -134,11 +134,11 @@ void main() {
       ),
     );
 
-    // Should show Training, Role & Access, Approvals, and Reports
+    // Should show Reports, Training, Role & Access, Approvals
+    expect(find.text('Reports'), findsOneWidget);
     expect(find.text('Training'), findsOneWidget);
     expect(find.text('Role & Access'), findsOneWidget);
     expect(find.text('Approvals'), findsOneWidget);
-    expect(find.text('Reports'), findsOneWidget);
 
     // Should NOT show Issues or Governance Matrix
     expect(find.text('Issues'), findsNothing);
@@ -148,7 +148,7 @@ void main() {
     HiveStorage.mockUserRole = null;
   });
 
-  testWidgets('QuickActionsGridView renders Issues, Governance Matrix, and Reports for CRRM role', (tester) async {
+  testWidgets('QuickActionsGridView renders Issues and Governance Matrix for CRRM role', (tester) async {
     HiveStorage.mockUserRole = 'CRRM';
 
     await tester.pumpWidget(
@@ -161,10 +161,10 @@ void main() {
       ),
     );
 
-    // Should show Issues, Governance Matrix, and Reports
+    // Should show Reports, Issues, Governance Matrix
+    expect(find.text('Reports'), findsOneWidget);
     expect(find.text('Issues'), findsOneWidget);
     expect(find.text('Governance Matrix'), findsOneWidget);
-    expect(find.text('Reports'), findsOneWidget);
 
     // Should NOT show Role & Access or Training
     expect(find.text('Role & Access'), findsNothing);
@@ -174,7 +174,7 @@ void main() {
     HiveStorage.mockUserRole = null;
   });
 
-  testWidgets('QuickActionsGridView renders Issues and Reports only for Other roles (HR)', (tester) async {
+  testWidgets('QuickActionsGridView renders Issues only for Other roles (HR)', (tester) async {
     HiveStorage.mockUserRole = 'HR';
 
     await tester.pumpWidget(
@@ -187,9 +187,9 @@ void main() {
       ),
     );
 
-    // Should show Issues and Reports
-    expect(find.text('Issues'), findsOneWidget);
+    // Should show Reports, Issues
     expect(find.text('Reports'), findsOneWidget);
+    expect(find.text('Issues'), findsOneWidget);
 
     // Should NOT show Governance Matrix, Training, Role & Access, or Approvals
     expect(find.text('Governance Matrix'), findsNothing);

@@ -259,15 +259,19 @@ class HiveStorage {
   // ── Recent Emails (Max 5, Unique) ──────────────────────────────────────────
 
   static List<String> get recentEmails {
-    final raw = _box.get(StorageKeys.recentEmails);
-    if (raw == null) return [];
-    if (raw is List) {
-      return raw
-          .map((e) => e.toString().trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
+    try {
+      final raw = _box.get(StorageKeys.recentEmails);
+      if (raw == null) return [];
+      if (raw is List) {
+        return raw
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
+      return [];
+    } catch (_) {
+      return [];
     }
-    return [];
   }
 
   static Future<void> saveRecentEmail(String email) async {

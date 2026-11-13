@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
@@ -82,10 +84,15 @@ class _SplashPageState extends State<SplashPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset(
-                    'assets/icons/gov_icon.png',
-                    width: size.width * 0.72,
-                    fit: BoxFit.contain,
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: math.min(size.width * 0.72, 380.0),
+                      maxHeight: size.height * 0.28,
+                    ),
+                    child: Image.asset(
+                      'assets/icons/gov_icon.png',
+                      fit: BoxFit.contain,
+                    ),
                   )
                       .animate()
                       .fadeIn(duration: 700.ms)

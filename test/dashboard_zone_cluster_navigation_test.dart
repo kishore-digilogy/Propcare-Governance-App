@@ -95,4 +95,60 @@ void main() {
 
     expect(find.byType(AllSitesPage), findsOneWidget);
   });
+
+  testWidgets('DueSitesBar renders new design with 3D map illustration and 30/60/90 cards', (tester) async {
+    const renewals = RenewalCountsModel(
+      d30: 3,
+      d60: 2,
+      d90: 0,
+      items30: [
+        RenewalItemModel(
+          id: 'site-1',
+          code: 'SITE_01',
+          name: 'Site Alpha',
+          clientName: 'Client Alpha',
+          contractEndDate: '2026-12-01',
+          clusterName: 'ORR',
+          zoneName: 'Karnataka',
+          daysRemaining: 15,
+        ),
+      ],
+      items60: [],
+      items90: [],
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: DueSitesBar(renewals: renewals),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify Title & Subtitle
+    expect(find.text('Due Sites'), findsOneWidget);
+    expect(find.text('Across Zones'), findsOneWidget);
+
+    // Verify 3 Interval Cards with days & counts
+    expect(find.text('30 Days'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+    expect(find.text('60 Days'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+    expect(find.text('90 Days'), findsOneWidget);
+    expect(find.text('0'), findsOneWidget);
+
+    // Tapping 30 Days expands details list with site name
+    await tester.tap(find.text('30 Days'));
+    await tester.pumpAndSettle();
+    expect(find.text('Due in 30 Days (1)'), findsOneWidget);
+    expect(find.text('Site Alpha'), findsOneWidget);
+
+    // Tapping again collapses
+    await tester.tap(find.text('30 Days'));
+    await tester.pumpAndSettle();
+    expect(find.text('Site Alpha'), findsNothing);
+  });
 }

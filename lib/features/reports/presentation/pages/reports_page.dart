@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../../core/models/meta_model.dart';
 import '../../../../core/services/meta_service.dart';
 import '../../../../core/widgets/custom_dropdown_button2.dart';
 import '../../data/datasources/reports_remote_datasource.dart';
@@ -100,45 +99,44 @@ class _ReportsView extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context, ReportsState state) {
+    final canPop = Navigator.of(context).canPop();
+
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Back Button
-              InkWell(
-                onTap: () => Navigator.of(context).pop(),
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.arrow_back_rounded, size: 18, color: _kBlue),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Back',
-                        style: GoogleFonts.outfit(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: _kBlue,
-                        ),
+          // Back Button (only shown if pushed onto stack, avoids popping root tab off stack)
+          if (canPop) ...[
+            InkWell(
+              onTap: () {
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).pop();
+                }
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.arrow_back_rounded, size: 18, color: _kBlue),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Back',
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _kBlue,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-
-              // Filter button in header (replaces Excel/CSV/PDF buttons)
-              if (state is ReportsLoaded)
-                _buildHeaderFilterButton(context, state, MetaService.instance.meta),
-            ],
-          ),
-          const SizedBox(height: 8),
+            ),
+            const SizedBox(height: 8),
+          ],
           Text(
             'Reports & Export',
             style: GoogleFonts.outfit(
@@ -173,69 +171,8 @@ class _ReportsView extends StatelessWidget {
     return count;
   }
 
-  Widget _buildHeaderFilterButton(
-    BuildContext context,
-    ReportsLoaded state,
-    MetaDataModel meta,
-  ) {
-    final activeCount = _activeFiltersCount(state);
-
-    return InkWell(
-      onTap: () => _openFilterBottomSheet(context, state, meta),
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: activeCount > 0 ? const Color(0xFFEFF6FF) : Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: activeCount > 0 ? _kBlue : const Color(0xFFCBD5E1),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.tune_rounded,
-              size: 15,
-              color: activeCount > 0 ? _kBlue : const Color(0xFF334155),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              'Filter',
-              style: GoogleFonts.outfit(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: activeCount > 0 ? _kBlue : const Color(0xFF334155),
-              ),
-            ),
-            if (activeCount > 0) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                decoration: BoxDecoration(
-                  color: _kBlue,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '$activeCount',
-                  style: GoogleFonts.outfit(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildLoadedContent(BuildContext context, ReportsLoaded state) {
     final catalog = state.catalog;
-    final meta = MetaService.instance.meta;
     final activeCount = _activeFiltersCount(state);
 
     String dateRangeLabel;
@@ -256,12 +193,12 @@ class _ReportsView extends StatelessWidget {
         dateRangeLabel = 'Last 30 Days';
     }
 
-    return ListView(
+    final content = ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       children: [
         // ── Active Scope & Filter summary bar ─────────────────────────────
         InkWell(
-          onTap: () => _openFilterBottomSheet(context, state, meta),
+          onTap: () => _openFilterBottomSheet(context, state),
           borderRadius: BorderRadius.circular(12),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -387,272 +324,391 @@ class _ReportsView extends StatelessWidget {
         ),
       ],
     );
+
+    return Stack(
+      children: [
+        content,
+        if (state.isFiltering)
+          Positioned.fill(
+            child: Container(
+              color: Colors.white.withValues(alpha: 0.70),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          color: _kBlue,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Applying filters...',
+                        style: GoogleFonts.outfit(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   void _openFilterBottomSheet(
     BuildContext context,
     ReportsLoaded state,
-    MetaDataModel meta,
   ) {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return BlocProvider.value(
-          value: context.read<ReportsBloc>(),
-          child: BlocBuilder<ReportsBloc, ReportsState>(
-            builder: (bottomSheetContext, bottomSheetState) {
-              if (bottomSheetState is! ReportsLoaded) return const SizedBox.shrink();
-              final currentActiveCount = _activeFiltersCount(bottomSheetState);
+        var currentMeta = MetaService.instance.meta;
+        bool isMetaLoading = !MetaService.instance.isLoaded || currentMeta.zones.isEmpty;
 
-              final dateRangeOptions = const <DropdownItemOption<String?>>[
-                DropdownItemOption(value: 'last_7', label: 'Last 7 Days'),
-                DropdownItemOption(value: 'last_30', label: 'Last 30 Days'),
-                DropdownItemOption(value: 'last_90', label: 'Last 90 Days'),
-                DropdownItemOption(value: 'this_month', label: 'This Month'),
-                DropdownItemOption(value: 'all', label: 'All Time'),
-              ];
+        return StatefulBuilder(
+          builder: (bottomSheetContext, setModalState) {
+            if (isMetaLoading) {
+              MetaService.instance.fetchMetadata().then((fresh) {
+                if (ctx.mounted) {
+                  setModalState(() {
+                    currentMeta = fresh;
+                    isMetaLoading = false;
+                  });
+                }
+              });
+            }
 
-              final zoneOptions = <DropdownItemOption<String?>>[
-                const DropdownItemOption(value: null, label: 'All Zones'),
-                ...meta.zones.map((z) => DropdownItemOption(value: z.id, label: z.name)),
-              ];
+            return BlocProvider.value(
+              value: context.read<ReportsBloc>(),
+              child: BlocBuilder<ReportsBloc, ReportsState>(
+                builder: (blocContext, bottomSheetState) {
+                  if (bottomSheetState is! ReportsLoaded) return const SizedBox.shrink();
+                  final currentActiveCount = _activeFiltersCount(bottomSheetState);
 
-              final groupClusterOptions = <DropdownItemOption<String?>>[
-                const DropdownItemOption(value: null, label: 'All Groups'),
-                ...meta.clusters
-                    .where((c) => bottomSheetState.selectedZoneId == null || c.zoneId == bottomSheetState.selectedZoneId)
-                    .map((c) => DropdownItemOption(value: c.parentId ?? c.id, label: c.name)),
-              ];
+                  final dateRangeOptions = const <DropdownItemOption<String?>>[
+                    DropdownItemOption(value: 'last_7', label: 'Last 7 Days'),
+                    DropdownItemOption(value: 'last_30', label: 'Last 30 Days'),
+                    DropdownItemOption(value: 'last_90', label: 'Last 90 Days'),
+                    DropdownItemOption(value: 'this_month', label: 'This Month'),
+                    DropdownItemOption(value: 'all', label: 'All Time'),
+                  ];
 
-              final clusterOptions = <DropdownItemOption<String?>>[
-                const DropdownItemOption(value: null, label: 'All Clusters'),
-                ...meta
-                    .clustersForZone(bottomSheetState.selectedZoneId)
-                    .map((c) => DropdownItemOption(value: c.id, label: c.name)),
-              ];
+                  final zoneOptions = <DropdownItemOption<String?>>[
+                    const DropdownItemOption(value: null, label: 'All Zones'),
+                    ...currentMeta.zones.map((z) => DropdownItemOption(value: z.id, label: z.name)),
+                  ];
 
-              final clientTypeOptions = const <DropdownItemOption<String?>>[
-                DropdownItemOption(value: null, label: 'All Types'),
-                DropdownItemOption(value: 'A+', label: 'A+'),
-                DropdownItemOption(value: 'A', label: 'A'),
-                DropdownItemOption(value: 'B', label: 'B'),
-                DropdownItemOption(value: 'C', label: 'C'),
-              ];
+                  final groupClusterOptions = <DropdownItemOption<String?>>[
+                    const DropdownItemOption(value: null, label: 'All Groups'),
+                    ...currentMeta.clusters
+                        .where((c) => bottomSheetState.selectedZoneId == null || c.zoneId == bottomSheetState.selectedZoneId)
+                        .map((c) => DropdownItemOption(value: c.parentId ?? c.id, label: c.name)),
+                  ];
 
-              final functionOptions = const <DropdownItemOption<String?>>[
-                DropdownItemOption(value: null, label: 'All Functions'),
-                DropdownItemOption(value: 'OPERATIONS', label: 'Operations'),
-                DropdownItemOption(value: 'TRANSITION', label: 'Transition / L&D'),
-                DropdownItemOption(value: 'EHS', label: 'EHS'),
-                DropdownItemOption(value: 'HR', label: 'HR'),
-                DropdownItemOption(value: 'MACHINE_TECHNICIAN', label: 'Machine Technician'),
-              ];
+                  final clusterOptions = <DropdownItemOption<String?>>[
+                    const DropdownItemOption(value: null, label: 'All Clusters'),
+                    ...currentMeta
+                        .clustersForZone(bottomSheetState.selectedZoneId)
+                        .map((c) => DropdownItemOption(value: c.id, label: c.name)),
+                  ];
 
-              final statusOptions = const <DropdownItemOption<String?>>[
-                DropdownItemOption(value: null, label: 'All Statuses'),
-                DropdownItemOption(value: 'LIVE', label: 'Live'),
-                DropdownItemOption(value: 'PRE_TRANSITION', label: 'Pre-Transition'),
-                DropdownItemOption(value: 'POST_TRANSITION', label: 'Post-Transition'),
-                DropdownItemOption(value: 'READY', label: 'Ready'),
-                DropdownItemOption(value: 'INACTIVE', label: 'Inactive'),
-                DropdownItemOption(value: 'DRAFT', label: 'Draft'),
-              ];
+                  final clientTypeOptions = const <DropdownItemOption<String?>>[
+                    DropdownItemOption(value: null, label: 'All Types'),
+                    DropdownItemOption(value: 'A+', label: 'A+'),
+                    DropdownItemOption(value: 'A', label: 'A'),
+                    DropdownItemOption(value: 'B', label: 'B'),
+                    DropdownItemOption(value: 'C', label: 'C'),
+                  ];
 
-              return Container(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(ctx).height * 0.85,
-                ),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                padding: EdgeInsets.fromLTRB(
-                  20,
-                  12,
-                  20,
-                  MediaQuery.viewInsetsOf(ctx).bottom + 20,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Handle
-                    Center(
-                      child: Container(
-                        width: 38,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFCBD5E1),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
+                  final functionOptions = const <DropdownItemOption<String?>>[
+                    DropdownItemOption(value: null, label: 'All Functions'),
+                    DropdownItemOption(value: 'OPERATIONS', label: 'Operations'),
+                    DropdownItemOption(value: 'TRANSITION', label: 'Transition / L&D'),
+                    DropdownItemOption(value: 'EHS', label: 'EHS'),
+                    DropdownItemOption(value: 'HR', label: 'HR'),
+                    DropdownItemOption(value: 'MACHINE_TECHNICIAN', label: 'Machine Technician'),
+                  ];
+
+                  final statusOptions = const <DropdownItemOption<String?>>[
+                    DropdownItemOption(value: null, label: 'All Statuses'),
+                    DropdownItemOption(value: 'LIVE', label: 'Live'),
+                    DropdownItemOption(value: 'PRE_TRANSITION', label: 'Pre-Transition'),
+                    DropdownItemOption(value: 'POST_TRANSITION', label: 'Post-Transition'),
+                    DropdownItemOption(value: 'READY', label: 'Ready'),
+                    DropdownItemOption(value: 'INACTIVE', label: 'Inactive'),
+                    DropdownItemOption(value: 'DRAFT', label: 'Draft'),
+                  ];
+
+                  return Container(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.sizeOf(ctx).height * 0.85,
                     ),
-                    const SizedBox(height: 14),
-
-                    // Header Row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    padding: EdgeInsets.fromLTRB(
+                      20,
+                      12,
+                      20,
+                      MediaQuery.viewInsetsOf(ctx).bottom + 20,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.tune_rounded, size: 20, color: _kBlue),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Report Filters',
-                              style: GoogleFonts.outfit(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF0F172A),
-                              ),
+                        // Handle
+                        Center(
+                          child: Container(
+                            width: 38,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFCBD5E1),
+                              borderRadius: BorderRadius.circular(2),
                             ),
-                            if (currentActiveCount > 0) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEFF6FF),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: const Color(0xFFBFDBFE)),
-                                ),
-                                child: Text(
-                                  '$currentActiveCount active',
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Header Row
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.tune_rounded, size: 20, color: _kBlue),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Report Filters',
                                   style: GoogleFonts.outfit(
-                                    fontSize: 11,
+                                    fontSize: 18,
                                     fontWeight: FontWeight.w700,
-                                    color: _kBlue,
+                                    color: const Color(0xFF0F172A),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            if (currentActiveCount > 0)
-                              TextButton(
-                                onPressed: () {
-                                  bottomSheetContext.read<ReportsBloc>().add(const ResetAllReportFilters());
-                                },
-                                style: TextButton.styleFrom(
-                                  foregroundColor: const Color(0xFFEF4444),
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                if (currentActiveCount > 0) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEFF6FF),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                                    ),
+                                    child: Text(
+                                      '$currentActiveCount active',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: _kBlue,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                if (currentActiveCount > 0)
+                                  TextButton(
+                                    onPressed: () {
+                                      blocContext.read<ReportsBloc>().add(const ResetAllReportFilters());
+                                    },
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: const Color(0xFFEF4444),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    ),
+                                    child: Text(
+                                      'Reset',
+                                      style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                IconButton(
+                                  icon: const Icon(Icons.close_rounded, size: 20),
+                                  color: const Color(0xFF64748B),
+                                  onPressed: () => Navigator.of(ctx).pop(),
                                 ),
-                                child: Text(
-                                  'Reset',
-                                  style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            IconButton(
-                              icon: const Icon(Icons.close_rounded, size: 20),
-                              color: const Color(0xFF64748B),
-                              onPressed: () => Navigator.of(ctx).pop(),
+                              ],
                             ),
                           ],
+                        ),
+                        const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                        const SizedBox(height: 14),
+
+                        // Filter Fields (Scrollable or Loader if fetching)
+                        Flexible(
+                          child: isMetaLoading
+                              ? Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 36),
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const SizedBox(
+                                          width: 28,
+                                          height: 28,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.6,
+                                            color: _kBlue,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 14),
+                                        Text(
+                                          'Loading filter options...',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: const Color(0xFF0F172A),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Fetching zones and clusters from server...',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 11.5,
+                                            color: _kSlate,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              : SingleChildScrollView(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      _buildDropdownField<String?>(
+                                        label: 'Date Range',
+                                        selectedValue: bottomSheetState.selectedDateRange,
+                                        options: dateRangeOptions,
+                                        onSelect: (val) {
+                                          if (val != null) {
+                                            blocContext.read<ReportsBloc>().add(ChangeDateRange(val));
+                                          }
+                                        },
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _buildDropdownField<String?>(
+                                        label: 'Zone',
+                                        selectedValue: bottomSheetState.selectedZoneId,
+                                        options: zoneOptions,
+                                        onSelect: (id) {
+                                          blocContext.read<ReportsBloc>().add(ChangeZoneFilter(id));
+                                        },
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _buildDropdownField<String?>(
+                                        label: 'Group Cluster',
+                                        selectedValue: null,
+                                        options: groupClusterOptions,
+                                        onSelect: (_) {},
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _buildDropdownField<String?>(
+                                        label: 'Cluster',
+                                        selectedValue: bottomSheetState.selectedClusterId,
+                                        options: clusterOptions,
+                                        onSelect: (id) {
+                                          blocContext.read<ReportsBloc>().add(ChangeClusterFilter(id));
+                                        },
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _buildDropdownField<String?>(
+                                        label: 'Client Type',
+                                        selectedValue: bottomSheetState.selectedClientType,
+                                        options: clientTypeOptions,
+                                        onSelect: (val) {
+                                          blocContext.read<ReportsBloc>().add(ChangeClientTypeFilter(val));
+                                        },
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _buildDropdownField<String?>(
+                                        label: 'Function',
+                                        selectedValue: bottomSheetState.selectedFunction,
+                                        options: functionOptions,
+                                        onSelect: (val) {
+                                          blocContext.read<ReportsBloc>().add(ChangeFunctionFilter(val));
+                                        },
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _buildDropdownField<String?>(
+                                        label: 'Status',
+                                        selectedValue: bottomSheetState.selectedStatus,
+                                        options: statusOptions,
+                                        onSelect: (val) {
+                                          blocContext.read<ReportsBloc>().add(ChangeStatusFilter(val));
+                                        },
+                                      ),
+                                      const SizedBox(height: 20),
+                                    ],
+                                  ),
+                                ),
+                        ),
+
+                        // Apply Button (with loader indicator while filtering)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 46,
+                          child: ElevatedButton(
+                            onPressed: isMetaLoading
+                                ? null
+                                : () {
+                                    blocContext.read<ReportsBloc>().add(const LoadReportCatalog(isRefresh: true));
+                                    Navigator.of(ctx).pop();
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _kBlue,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: const Color(0xFF94A3B8),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: bottomSheetState.isFiltering
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(
+                                    'Apply Filters',
+                                    style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w700),
+                                  ),
+                          ),
                         ),
                       ],
                     ),
-                    const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                    const SizedBox(height: 14),
-
-                    // Filter Fields (Scrollable)
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildDropdownField<String?>(
-                              label: 'Date Range',
-                              selectedValue: bottomSheetState.selectedDateRange,
-                              options: dateRangeOptions,
-                              onSelect: (val) {
-                                if (val != null) {
-                                  bottomSheetContext.read<ReportsBloc>().add(ChangeDateRange(val));
-                                }
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            _buildDropdownField<String?>(
-                              label: 'Zone',
-                              selectedValue: bottomSheetState.selectedZoneId,
-                              options: zoneOptions,
-                              onSelect: (id) {
-                                bottomSheetContext.read<ReportsBloc>().add(ChangeZoneFilter(id));
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            _buildDropdownField<String?>(
-                              label: 'Group Cluster',
-                              selectedValue: null,
-                              options: groupClusterOptions,
-                              onSelect: (_) {},
-                            ),
-                            const SizedBox(height: 12),
-                            _buildDropdownField<String?>(
-                              label: 'Cluster',
-                              selectedValue: bottomSheetState.selectedClusterId,
-                              options: clusterOptions,
-                              onSelect: (id) {
-                                bottomSheetContext.read<ReportsBloc>().add(ChangeClusterFilter(id));
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            _buildDropdownField<String?>(
-                              label: 'Client Type',
-                              selectedValue: bottomSheetState.selectedClientType,
-                              options: clientTypeOptions,
-                              onSelect: (val) {
-                                bottomSheetContext.read<ReportsBloc>().add(ChangeClientTypeFilter(val));
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            _buildDropdownField<String?>(
-                              label: 'Function',
-                              selectedValue: bottomSheetState.selectedFunction,
-                              options: functionOptions,
-                              onSelect: (val) {
-                                bottomSheetContext.read<ReportsBloc>().add(ChangeFunctionFilter(val));
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            _buildDropdownField<String?>(
-                              label: 'Status',
-                              selectedValue: bottomSheetState.selectedStatus,
-                              options: statusOptions,
-                              onSelect: (val) {
-                                bottomSheetContext.read<ReportsBloc>().add(ChangeStatusFilter(val));
-                              },
-                            ),
-                            const SizedBox(height: 20),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Apply Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 46,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _kBlue,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: Text(
-                          'Apply Filters',
-                          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+                  );
+                },
+              ),
+            );
+          },
         );
       },
     );

@@ -51,73 +51,94 @@ class _MomViewState extends State<_MomView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Standard Left-aligned PropCare App Header
-            const AppTopHeader(),
+    return BlocBuilder<MomBloc, MomState>(
+      buildWhen: (prev, curr) {
+        final prevSite = prev is MomLoaded ? prev.selectedSite : null;
+        final currSite = curr is MomLoaded ? curr.selectedSite : null;
+        return prevSite != currSite;
+      },
+      builder: (context, momState) {
+        final canGoBackToSites =
+            momState is MomLoaded && momState.selectedSite != null;
 
-            // Main Body with BlocConsumer
-            Expanded(
-              child: BlocConsumer<MomBloc, MomState>(
-                listener: (context, state) {
-                  if (state is MomLoaded) {
-                    if (state.momSendSuccess && state.actionMessage != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            state.actionMessage!,
-                            style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
-                          ),
-                          backgroundColor: const Color(0xFF16A34A),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      );
-                    } else if (state.actionError != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            state.actionError!,
-                            style: GoogleFonts.outfit(),
-                          ),
-                          backgroundColor: Colors.redAccent,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      );
-                    }
-                  }
-                },
-                builder: (context, state) {
-                  if (state is MomLoading || state is MomInitial) {
-                    return _buildLoading();
-                  }
+        return PopScope(
+          canPop: !canGoBackToSites,
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) return;
+            if (canGoBackToSites) {
+              context.read<MomBloc>().add(const BackToMomSitesList());
+            }
+          },
+          child: Scaffold(
+            backgroundColor: Colors.white,
+            body: SafeArea(
+              child: Column(
+                children: [
+                  // Standard Left-aligned PropCare App Header
+                  const AppTopHeader(),
 
-                  if (state is MomError) {
-                    return _buildError(context, state.message);
-                  }
+                  // Main Body with BlocConsumer
+                  Expanded(
+                    child: BlocConsumer<MomBloc, MomState>(
+                      listener: (context, state) {
+                        if (state is MomLoaded) {
+                          if (state.momSendSuccess && state.actionMessage != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  state.actionMessage!,
+                                  style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+                                ),
+                                backgroundColor: const Color(0xFF16A34A),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                          } else if (state.actionError != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  state.actionError!,
+                                  style: GoogleFonts.outfit(),
+                                ),
+                                backgroundColor: Colors.redAccent,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      builder: (context, state) {
+                        if (state is MomLoading || state is MomInitial) {
+                          return _buildLoading();
+                        }
 
-                  if (state is MomLoaded) {
-                    if (state.selectedSite != null) {
-                      return _buildSiteActivitiesView(context, state);
-                    }
-                    return _buildSitesListView(context, state);
-                  }
+                        if (state is MomError) {
+                          return _buildError(context, state.message);
+                        }
 
-                  return const SizedBox();
-                },
+                        if (state is MomLoaded) {
+                          if (state.selectedSite != null) {
+                            return _buildSiteActivitiesView(context, state);
+                          }
+                          return _buildSitesListView(context, state);
+                        }
+
+                        return const SizedBox();
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

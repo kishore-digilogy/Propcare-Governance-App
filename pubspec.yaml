@@ -94,6 +94,7 @@ flutter_native_splash:
   image: assets/icons/gov_icon.png
   android: true
   ios: true
+  ios_content_mode: scaleAspectFit
 
 # ─── flutter_launcher_icons config ───────────────────────────────────────────
 flutter_launcher_icons:
@@ -116,6 +117,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/icons/states/
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

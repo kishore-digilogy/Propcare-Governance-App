@@ -10,6 +10,7 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/services/meta_service.dart';
 import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/state_avatar.dart';
 import '../../../activities/presentation/pages/activity_execution_page.dart';
 import '../../../activities/presentation/pages/checklist_report_page.dart';
 import '../../../activities/presentation/pages/mmr_mis_page.dart';
@@ -40,6 +41,10 @@ const _kBg = Colors.white;
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
+
+  @visibleForTesting
+  static Widget testableStatGrid({required DashboardModel data}) =>
+      _StatGrid(data: data);
 
   @override
   Widget build(BuildContext context) {
@@ -783,46 +788,85 @@ class _BodyState extends State<_Body> {
   }
 
   Widget _buildGovernanceOverviewPage(DashboardModel data) {
-    return RefreshIndicator(
-      color: _kBlue,
-      onRefresh: () async =>
-          context.read<DashboardBloc>().add(const LoadDashboard()),
-      child: ListView(
-        key: const PageStorageKey('governance_overview_page'),
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-        children: [
-          // ── 6 stat cards (2-col grid)
-          _StatGrid(data: data),
-          const SizedBox(height: 12),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 720;
 
-          // ── Due sites bar (Calendar icon + 30d/60d/90d dot stats)
-          _DueSitesBar(renewals: data.renewals),
-          const SizedBox(height: 14),
+        return RefreshIndicator(
+          color: _kBlue,
+          onRefresh: () async =>
+              context.read<DashboardBloc>().add(const LoadDashboard()),
+          child: ListView(
+            key: const PageStorageKey('governance_overview_page'),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+            children: [
+              // ── 6 stat cards (2-col grid)
+              _StatGrid(data: data),
+              const SizedBox(height: 14),
 
-          // ── Sites By Zone (Teal Progress Bars & View All)
-          _SitesByZoneCard(
-            geography: data.geography,
-            zones: data.workspace.zones,
+              // ── Unique & attractive divider
+              const _DueSitesDivider(),
+              const SizedBox(height: 14),
+
+              // ── Due sites bar (Calendar icon + 30d/60d/90d dot stats)
+              _DueSitesBar(renewals: data.renewals),
+              const SizedBox(height: 14),
+
+              // ── Adaptive Analytics Section (2-Col on Tablet / 1-Col on Mobile)
+              if (isWide) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _SitesByZoneCard(
+                        geography: data.geography,
+                        zones: data.workspace.zones,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(child: _GovernanceCard(overview: data.overview)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _ZonesCard(zones: data.workspace.zones)),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _ClustersCard(clusters: data.workspace.clusters),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+              ] else ...[
+                // ── Sites By Zone (Teal Progress Bars & View All)
+                _SitesByZoneCard(
+                  geography: data.geography,
+                  zones: data.workspace.zones,
+                ),
+                const SizedBox(height: 14),
+
+                // ── Governance Overview (Donut + Legend + Clipboard Illustration)
+                _GovernanceCard(overview: data.overview),
+                const SizedBox(height: 14),
+
+                // ── Zones table
+                _ZonesCard(zones: data.workspace.zones),
+                const SizedBox(height: 14),
+
+                // ── Clusters table
+                _ClustersCard(clusters: data.workspace.clusters),
+                const SizedBox(height: 14),
+              ],
+
+              // ── Recent Governance
+              _RecentGovernanceCard(items: data.overview.governanceList),
+              const SizedBox(height: 24),
+            ],
           ),
-          const SizedBox(height: 14),
-
-          // ── Governance Overview (Donut + Legend + Clipboard Illustration)
-          _GovernanceCard(overview: data.overview),
-          const SizedBox(height: 14),
-
-          // ── Zones table
-          _ZonesCard(zones: data.workspace.zones),
-          const SizedBox(height: 14),
-
-          // ── Clusters table
-          _ClustersCard(clusters: data.workspace.clusters),
-          const SizedBox(height: 14),
-
-          // ── Recent Governance
-          _RecentGovernanceCard(items: data.overview.governanceList),
-          const SizedBox(height: 24),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1122,14 +1166,31 @@ class _QuickActionsGridView extends StatelessWidget {
     final isSuperAdmin = HiveStorage.isSuperAdmin;
 
     // Role-based Quick Actions:
-    // 1. L&D Team: Training (Coming Soon), Role & Access (Coming Soon), Approvals, Reports.
-    // 2. Cluster Lead: MMR / MIS, Issues, Reports.
-    // 3. CRRM / Super Admin: Issues, Governance Matrix, Reports.
-    // 4. Others (HR, Operations, EHS, etc.): Issues, Reports (Transition & Governance Matrix hidden).
-    final List<({String title, String subtitle, IconData icon, Color iconColor, Color bgColor})> items;
+    // 1. L&D Team: Training, Role & Access, Approvals, Checklist Report.
+    // 2. Cluster Lead: MMR / MIS, R&R, Issues, Checklist Report.
+    // 3. CRRM / Super Admin: MMR / MIS, R&R, Issues, Governance Matrix, Checklist Report.
+    // 4. Others (HR, Operations, EHS, etc.): Issues, R&R, Checklist Report.
+    // (Note: Reports is provided by default in the bottom nav & sidebar).
+    final List<
+      ({
+        String title,
+        String subtitle,
+        IconData icon,
+        Color iconColor,
+        Color bgColor,
+      })
+    >
+    items;
 
     if (isLd) {
       items = [
+        (
+          title: 'Reports',
+          subtitle: 'Governance visits, metrics & performance exports',
+          icon: Icons.bar_chart_rounded,
+          iconColor: const Color(0xFF059669),
+          bgColor: const Color(0xFFECFDF5),
+        ),
         (
           title: 'Checklist Report',
           subtitle: 'Update walkaround pending lines to completed',
@@ -1158,6 +1219,9 @@ class _QuickActionsGridView extends StatelessWidget {
           iconColor: const Color(0xFFD97706),
           bgColor: const Color(0xFFFFFBEB),
         ),
+      ];
+    } else if (isClusterLead) {
+      items = [
         (
           title: 'Reports',
           subtitle: 'Governance visits, metrics & performance exports',
@@ -1165,9 +1229,6 @@ class _QuickActionsGridView extends StatelessWidget {
           iconColor: const Color(0xFF059669),
           bgColor: const Color(0xFFECFDF5),
         ),
-      ];
-    } else if (isClusterLead) {
-      items = [
         (
           title: 'Checklist Report',
           subtitle: 'Update walkaround pending lines to completed',
@@ -1196,6 +1257,9 @@ class _QuickActionsGridView extends StatelessWidget {
           iconColor: const Color(0xFFEF4444),
           bgColor: const Color(0xFFFEF2F2),
         ),
+      ];
+    } else if (isSuperAdmin) {
+      items = [
         (
           title: 'Reports',
           subtitle: 'Governance visits, metrics & performance exports',
@@ -1203,9 +1267,6 @@ class _QuickActionsGridView extends StatelessWidget {
           iconColor: const Color(0xFF059669),
           bgColor: const Color(0xFFECFDF5),
         ),
-      ];
-    } else if (isSuperAdmin) {
-      items = [
         (
           title: 'Checklist Report',
           subtitle: 'Update walkaround pending lines to completed',
@@ -1241,6 +1302,10 @@ class _QuickActionsGridView extends StatelessWidget {
           iconColor: const Color(0xFF7C3AED),
           bgColor: const Color(0xFFF5F3FF),
         ),
+      ];
+    } else {
+      // Others (HR, Operations, EHS, etc. as shown in image)
+      items = [
         (
           title: 'Reports',
           subtitle: 'Governance visits, metrics & performance exports',
@@ -1248,10 +1313,6 @@ class _QuickActionsGridView extends StatelessWidget {
           iconColor: const Color(0xFF059669),
           bgColor: const Color(0xFFECFDF5),
         ),
-      ];
-    } else {
-      // Others (HR, Operations, EHS, etc. as shown in image)
-      items = [
         (
           title: 'Checklist Report',
           subtitle: 'Update walkaround pending lines to completed',
@@ -1272,13 +1333,6 @@ class _QuickActionsGridView extends StatelessWidget {
           icon: Icons.warning_amber_rounded,
           iconColor: const Color(0xFFEF4444),
           bgColor: const Color(0xFFFEF2F2),
-        ),
-        (
-          title: 'Reports',
-          subtitle: 'Governance visits, metrics & performance exports',
-          icon: Icons.bar_chart_rounded,
-          iconColor: const Color(0xFF059669),
-          bgColor: const Color(0xFFECFDF5),
         ),
       ];
     }
@@ -1321,29 +1375,23 @@ class _QuickActionsGridView extends StatelessWidget {
 
   void _handleQuickActionTap(BuildContext context, String title) {
     if (title == 'Checklist Report') {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const ChecklistReportPage(),
-        ),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ChecklistReportPage()));
       return;
     }
 
     if (title == 'MMR / MIS' || title == 'MMR/MIS') {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const MmrMisPage(),
-        ),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const MmrMisPage()));
       return;
     }
 
     if (title == 'R&R' || title == 'RR' || title == 'R & R') {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const RrPage(),
-        ),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const RrPage()));
       return;
     }
 
@@ -1593,7 +1641,7 @@ class _WCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6-stat grid (2 Columns x 3 Rows)
+// Staggered Stat Grid (Professional Lightweight Pastel Design)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _StatGrid extends StatelessWidget {
@@ -1603,168 +1651,1119 @@ class _StatGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ov = data.overview;
-    final cards = [
-      _SC(
-        icon: Icons.domain_rounded,
-        label: 'Overall Sites',
-        value: '${ov.sites}',
-        color: const Color(0xFF2563EB),
-        bgColor: const Color(0xFFEFF6FF),
-      ),
-      _SC(
-        icon: Icons.check_circle_rounded,
-        label: 'Live Sites',
-        value: '${ov.live}',
-        color: const Color(0xFF16A34A),
-        bgColor: const Color(0xFFDCFCE7),
-      ),
-      _SC(
-        icon: Icons.sync_alt_rounded,
-        label: 'Transition Sites',
-        value: '${ov.transition}',
-        color: const Color(0xFF9333EA),
-        bgColor: const Color(0xFFF3E8FF),
-      ),
-      _SC(
-        icon: Icons.groups_rounded,
-        label: 'Users',
-        value: '${ov.users}',
-        color: const Color(0xFF0284C7),
-        bgColor: const Color(0xFFE0F2FE),
-      ),
-      _SC(
-        icon: Icons.hourglass_bottom_rounded,
-        label: 'R&R Pending',
-        value: '0',
-        color: const Color(0xFFD97706),
-        bgColor: const Color(0xFFFEF3C7),
-      ),
-      _SC(
-        icon: Icons.bar_chart_rounded,
-        label: 'Survey Count',
-        value: '0',
-        color: const Color(0xFF0D9488),
-        bgColor: const Color(0xFFCCFBF1),
-      ),
-    ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 900
-            ? 6
-            : (constraints.maxWidth >= 550 ? 3 : 2);
-
-        return Column(
+    return Column(
+      children: [
+        // ── TOP ROW: Overall Sites (Pill) + Live Sites (Compact Card) ──
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            for (int i = 0; i < cards.length; i += columns)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    for (int j = 0; j < columns; j++) ...[
-                      if (j > 0) const SizedBox(width: 8),
-                      Expanded(
-                        child: i + j < cards.length
-                            ? _StatCard(sc: cards[i + j])
-                            : const SizedBox(),
+            Expanded(
+              flex: 12,
+              child: _OverallSitesCard(
+                sitesCount: ov.sites,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AllSitesPage()),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 8,
+              child: _LiveSitesCard(
+                liveCount: ov.live,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AllSitesPage(initialStatus: 'Live'),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // ── BOTTOM SECTION: Staggered Layout ──
+        // Left Column: Transition Sites (Tall Vertical Card with Dashed Border)
+        // Right Column: Users (Top Pill) + [R&R Pending + Survey Count] (Bottom Row)
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Transition Sites (Vertical Card)
+              Expanded(
+                flex: 6,
+                child: _TransitionSitesCard(
+                  transitionCount: ov.transition,
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const AllSitesPage(initialStatus: 'Transition'),
                       ),
-                    ],
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+
+              // Right Group: Users Pill + 2 Mini Cards
+              Expanded(
+                flex: 14,
+                child: Column(
+                  children: [
+                    // Users Card (Pill)
+                    _UsersCard(
+                      usersCount: ov.users,
+                      onTap: () {
+                        // Action/Feedback
+                      },
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Bottom Row: R&R Pending + Survey Count
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _PendingCard(
+                            pendingCount: 0,
+                            onTap: () {
+                              // Optional action
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _SurveyCard(
+                            surveyCount: 0,
+                            onTap: () {
+                              // Optional action
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-          ],
-        );
-      },
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _SC {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-  final Color bgColor;
-  const _SC({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.bgColor,
-  });
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. Overall Sites Card (Pill Shape with Colorful Dynamic Sparkline)
+// ─────────────────────────────────────────────────────────────────────────────
 
-class _StatCard extends StatelessWidget {
-  final _SC sc;
-  const _StatCard({required this.sc});
+class _OverallSitesCard extends StatelessWidget {
+  final int sitesCount;
+  final VoidCallback onTap;
+
+  const _OverallSitesCard({required this.sitesCount, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.025),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(26),
+      child: Container(
+        height: 80,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFE4EBFC), Color(0xFFD6E3FC)],
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: sc.bgColor,
-              shape: BoxShape.circle,
+          border: Border.all(color: const Color(0xFFC7D8FA), width: 1.0),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF2D5BFF).withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-            child: Icon(sc.icon, color: sc.color, size: 21),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(26),
+          child: Stack(
+            children: [
+              // Vibrant multi-color flowing sparkline chart on right
+              const Positioned(
+                right: 6,
+                bottom: 4,
+                width: 78,
+                height: 38,
+                child: CustomPaint(painter: _SparklinePainter()),
+              ),
+
+              // Left circular badge & text
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    // Concentric circle icon
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF2D5BFF).withValues(alpha: 0.12),
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: 30,
+                          height: 30,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF2D5BFF),
+                          ),
+                          child: const Icon(
+                            Icons.domain_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Label & Count
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Overall Sites',
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF1E293B),
+                          ),
+                        ),
+                        Text(
+                          '$sitesCount',
+                          style: GoogleFonts.outfit(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0F172A),
+                            height: 1.05,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. Live Sites Card (Compact Pastel Mint with Verified Badge & No Empty Gaps)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LiveSitesCard extends StatelessWidget {
+  final int liveCount;
+  final VoidCallback onTap;
+
+  const _LiveSitesCard({required this.liveCount, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        height: 80,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8F6EE),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFCEEFDB), width: 1.0),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF16A34A).withValues(alpha: 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: Stack(
+            children: [
+              // Dot matrix background pattern on right
+              Positioned(
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: 36,
+                child: const CustomPaint(
+                  painter: _DotMatrixPainter(
+                    color: Color(0x1F16A34A),
+                    rows: 4,
+                    cols: 3,
+                    spacing: 7.5,
+                  ),
+                ),
+              ),
+
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF15803D),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.verified_rounded,
+                            color: Colors.white,
+                            size: 13,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Live Sites',
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF1E293B),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          '$liveCount',
+                          style: GoogleFonts.outfit(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0F172A),
+                            height: 1.0,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFC8F0D6),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 5,
+                                height: 5,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF16A34A),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 3.5),
+                              Text(
+                                'Active',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF15803D),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. Transition Sites Card (Clean Vertical, No Unnecessary Arrow)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TransitionSitesCard extends StatelessWidget {
+  final int transitionCount;
+  final VoidCallback onTap;
+
+  const _TransitionSitesCard({
+    required this.transitionCount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: CustomPaint(
+        painter: const _DashedBorderPainter(
+          color: Color(0xFFD8B4FE),
+          strokeWidth: 1.2,
+          radius: 20,
+          dashWidth: 4.5,
+          dashSpace: 3.5,
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF7F4FD),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                children: [
+                  Text(
+                    'Transition\nSites',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.outfit(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1E293B),
+                      height: 1.15,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '$transitionCount',
+                    style: GoogleFonts.outfit(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ),
+                ],
+              ),
+              // Swap icon badge (no arrow button)
+              Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEDE9FE),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.swap_horiz_rounded,
+                  color: Color(0xFF7C3AED),
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. Users Card (Clean Background Without Circle Containers, No Arrow)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _UsersCard extends StatelessWidget {
+  final int usersCount;
+  final VoidCallback onTap;
+
+  const _UsersCard({required this.usersCount, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(26),
+      child: Container(
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF2E6),
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: const Color(0xFFFFDEC2), width: 1.0),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFEA580C).withValues(alpha: 0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Donut chart ring around users icon
+            CustomPaint(
+              painter: const _DonutRingPainter(),
+              child: Container(
+                width: 38,
+                height: 38,
+                padding: const EdgeInsets.all(4),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.groups_rounded,
+                    color: Color(0xFF334155),
+                    size: 17,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Label & Value
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  sc.label,
+                  'Users',
                   style: GoogleFonts.outfit(
                     fontSize: 11,
-                    color: const Color(0xFF64748B),
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF1E293B),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 1),
                 Text(
-                  sc.value,
+                  '$usersCount',
                   style: GoogleFonts.outfit(
-                    fontSize: 21,
+                    fontSize: 20,
                     fontWeight: FontWeight.w800,
                     color: const Color(0xFF0F172A),
+                    height: 1.05,
                   ),
                 ),
               ],
             ),
-          ),
-          Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+            const Spacer(),
+
+            // Active Now badge (clean, without arrow)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE6D1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 5,
+                    height: 5,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF16A34A),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Active Now',
+                    style: GoogleFonts.outfit(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF7C2D12),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: const Icon(
-              Icons.chevron_right_rounded,
-              color: Color(0xFF94A3B8),
-              size: 15,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. R&R Pending Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PendingCard extends StatelessWidget {
+  final int pendingCount;
+  final VoidCallback onTap;
+
+  const _PendingCard({required this.pendingCount, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 74,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF9C3),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFFDE68A), width: 1.0),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFD97706).withValues(alpha: 0.03),
+              blurRadius: 5,
+              offset: const Offset(0, 1.5),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Top row: Label + Sync icon
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    'R&R Pending',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 17,
+                  height: 17,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFDE68A),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.sync_rounded,
+                    color: Color(0xFFB45309),
+                    size: 11,
+                  ),
+                ),
+              ],
+            ),
+
+            // Bottom row: Hourglass badge + count
+            Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFDE68A),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.hourglass_top_rounded,
+                    color: Color(0xFFB45309),
+                    size: 15,
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  '$pendingCount',
+                  style: GoogleFonts.outfit(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF78350F),
+                    height: 1.1,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. Survey Count Card (Fixed clipping issue, No right arrow)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SurveyCard extends StatelessWidget {
+  final int surveyCount;
+  final VoidCallback onTap;
+
+  const _SurveyCard({required this.surveyCount, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        height: 74,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFCBD5E1), width: 1.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.025),
+              blurRadius: 5,
+              offset: const Offset(0, 1.5),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            // Dot matrix background on right
+            Positioned(
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: 32,
+              child: const CustomPaint(
+                painter: _DotMatrixPainter(
+                  color: Color(0x1F475569),
+                  rows: 4,
+                  cols: 3,
+                  spacing: 6.5,
+                ),
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Survey Count',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF1E293B),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFCBD5E1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.bar_chart_rounded,
+                          color: Color(0xFF334155),
+                          size: 16,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                      Text(
+                        '$surveyCount',
+                        style: GoogleFonts.outfit(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0F172A),
+                          height: 1.1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Custom Painters for Staggered Stat Cards
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double radius;
+  final double dashWidth;
+  final double dashSpace;
+
+  const _DashedBorderPainter({
+    required this.color,
+    this.strokeWidth = 1.2,
+    this.radius = 22,
+    this.dashWidth = 5.0,
+    this.dashSpace = 3.5,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            strokeWidth / 2,
+            strokeWidth / 2,
+            size.width - strokeWidth,
+            size.height - strokeWidth,
+          ),
+          Radius.circular(radius),
+        ),
+      );
+
+    final dashedPath = Path();
+    for (final metric in path.computeMetrics()) {
+      double distance = 0.0;
+      while (distance < metric.length) {
+        final length = (distance + dashWidth < metric.length)
+            ? dashWidth
+            : metric.length - distance;
+        dashedPath.addPath(
+          metric.extractPath(distance, distance + length),
+          Offset.zero,
+        );
+        distance += dashWidth + dashSpace;
+      }
+    }
+    canvas.drawPath(dashedPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.strokeWidth != strokeWidth ||
+      oldDelegate.radius != radius;
+}
+
+class _SparklinePainter extends CustomPainter {
+  const _SparklinePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+
+    final w = size.width;
+    final h = size.height;
+
+    // Smooth flowing dynamic trend curve
+    final path = Path();
+    path.moveTo(0, h * 0.75);
+    path.cubicTo(w * 0.22, h * 0.85, w * 0.35, h * 0.32, w * 0.55, h * 0.55);
+    path.cubicTo(w * 0.70, h * 0.70, w * 0.82, h * 0.15, w * 0.95, h * 0.20);
+
+    // Multi-color Area Fill underneath (Pink/Purple/Blue glow)
+    final fillPath = Path.from(path)
+      ..lineTo(w * 0.95, h)
+      ..lineTo(0, h)
+      ..close();
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          const Color(0xFFF43F5E).withValues(alpha: 0.28),
+          const Color(0xFF8B5CF6).withValues(alpha: 0.14),
+          const Color(0xFF06B6D4).withValues(alpha: 0.0),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, w, h))
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(fillPath, fillPaint);
+
+    // Secondary subtle turquoise-purple shadow line for depth
+    final shadowPath = Path();
+    shadowPath.moveTo(0, h * 0.85);
+    shadowPath.cubicTo(
+      w * 0.25,
+      h * 0.92,
+      w * 0.40,
+      h * 0.55,
+      w * 0.60,
+      h * 0.72,
+    );
+    shadowPath.cubicTo(
+      w * 0.75,
+      h * 0.85,
+      w * 0.85,
+      h * 0.40,
+      w * 0.95,
+      h * 0.38,
+    );
+
+    final shadowPaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFF38BDF8), Color(0xFFA855F7)],
+      ).createShader(Rect.fromLTWH(0, 0, w, h))
+      ..strokeWidth = 1.4
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(shadowPath, shadowPaint);
+
+    // Main Vibrant Gradient Curve (Cyan -> Royal Blue -> Purple -> Coral)
+    final strokePaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [
+          Color(0xFF06B6D4), // Cyan
+          Color(0xFF3B82F6), // Royal Blue
+          Color(0xFF8B5CF6), // Purple
+          Color(0xFFF43F5E), // Coral / Hot Pink
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, w, h))
+      ..strokeWidth = 2.6
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(path, strokePaint);
+
+    // Glowing endpoint node
+    final endPoint = Offset(w * 0.95, h * 0.20);
+
+    // Outer glow
+    final glowPaint = Paint()
+      ..color = const Color(0xFFF43F5E).withValues(alpha: 0.35);
+    canvas.drawCircle(endPoint, 6.0, glowPaint);
+
+    // Middle solid coral circle
+    final dotPaint = Paint()..color = const Color(0xFFF43F5E);
+    canvas.drawCircle(endPoint, 3.5, dotPaint);
+
+    // Inner bright white center
+    final innerDotPaint = Paint()..color = Colors.white;
+    canvas.drawCircle(endPoint, 1.8, innerDotPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SparklinePainter oldDelegate) => false;
+}
+
+class _DonutRingPainter extends CustomPainter {
+  const _DonutRingPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 2;
+    const strokeWidth = 2.6;
+
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    // 4 segments: Blue, Amber, Emerald, Rose
+    final segments = [
+      (const Color(0xFF3B82F6), -1.5, 1.3),
+      (const Color(0xFFF59E0B), -0.1, 1.2),
+      (const Color(0xFF10B981), 1.2, 1.4),
+      (const Color(0xFFF43F5E), 2.7, 1.0),
+    ];
+
+    for (final seg in segments) {
+      final paint = Paint()
+        ..color = seg.$1
+        ..strokeWidth = strokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+      canvas.drawArc(rect, seg.$2, seg.$3, false, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DonutRingPainter oldDelegate) => false;
+}
+
+class _DotMatrixPainter extends CustomPainter {
+  final Color color;
+  final int rows;
+  final int cols;
+  final double spacing;
+
+  const _DotMatrixPainter({
+    required this.color,
+    this.rows = 4,
+    this.cols = 4,
+    this.spacing = 8.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    for (int r = 0; r < rows; r++) {
+      for (int c = 0; c < cols; c++) {
+        canvas.drawCircle(
+          Offset(size.width - (c * spacing) - 8, (r * spacing) + 8),
+          1.2,
+          paint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DotMatrixPainter oldDelegate) =>
+      oldDelegate.color != color;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Unique & Attractive Divider between Stat Cards and Due Sites
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DueSitesDivider extends StatelessWidget {
+  const _DueSitesDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          // Left gradient line fading from transparent to sky blue
+          Expanded(
+            child: Container(
+              height: 1.5,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.transparent,
+                    Color(0xFFE2E8F0),
+                    Color(0xFF93C5FD),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Left diamond accent
+          Container(
+            width: 4,
+            height: 4,
+            transform: Matrix4.rotationZ(0.785398),
+            decoration: const BoxDecoration(color: Color(0xFF60A5FA)),
+          ),
+          const SizedBox(width: 8),
+
+          // Center unique decorative capsule
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4.5),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Glowing pulsating status beacon
+                Container(
+                  width: 6.5,
+                  height: 6.5,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFF97316), Color(0xFFEF4444)],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFEF4444).withValues(alpha: 0.55),
+                        blurRadius: 4,
+                        spreadRadius: 0.5,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6.5),
+                Text(
+                  'RENEWAL WATCH',
+                  style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: const Color(0xFF334155),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                const Icon(
+                  Icons.auto_awesome,
+                  size: 11,
+                  color: Color(0xFFF59E0B),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Right diamond accent
+          Container(
+            width: 4,
+            height: 4,
+            transform: Matrix4.rotationZ(0.785398),
+            decoration: const BoxDecoration(color: Color(0xFF60A5FA)),
+          ),
+          const SizedBox(width: 8),
+
+          // Right gradient line fading from sky blue to transparent
+          Expanded(
+            child: Container(
+              height: 1.5,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Color(0xFF93C5FD),
+                    Color(0xFFE2E8F0),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -1774,8 +2773,10 @@ class _StatCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Due sites bar (Calendar Icon + 30 Days, 60 Days, 90 Days Dots)
+// Due sites bar (3D Map Illustration + Due Sites Across Zones + 30/60/90 Cards)
 // ─────────────────────────────────────────────────────────────────────────────
+
+typedef DueSitesBar = _DueSitesBar;
 
 class _DueSitesBar extends StatefulWidget {
   final RenewalCountsModel renewals;
@@ -1794,85 +2795,132 @@ class _DueSitesBarState extends State<_DueSitesBar> {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF7ED), // Soft warm peach-cream background
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFFFEDD5), width: 1.0),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFDCE7F6), width: 0),
+        gradient: const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            Colors.white, // Soft sky blue on the left
+            Colors.white, // Smooth transition
+            Colors.white, // Pure clean white on the right
+          ],
+        ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFEA580C).withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: const Color(0xFFC7DBFA).withValues(alpha: 0.4),
+            blurRadius: 18,
+            offset: const Offset(0, 5),
+            spreadRadius: 0,
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Orange Calendar Icon
-              const Icon(
-                Icons.calendar_month_rounded,
-                color: Color(0xFFF97316),
-                size: 26,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Due Sites',
-                style: GoogleFonts.outfit(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF0F172A),
+              // Left: Map Illustration (top) + Due Sites Across Zones (bottom) in same Column
+              SizedBox(
+                width: 76,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Image.asset(
+                      'assets/images/due_sites_map.png',
+                      width: 58,
+                      height: 44,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.location_on_rounded,
+                        color: Color(0xFFF97316),
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Due Sites',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0C2340),
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                    Text(
+                      'Across Zones',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF627D98),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
-              Container(height: 28, width: 1, color: const Color(0xFFFFE0B2)),
-              const Spacer(),
 
-              // 30 Days Column
-              _DueSiteIntervalColumn(
-                dotColor: const Color(0xFFEF4444),
-                label: '30 Days',
-                count: r.d30,
-                isSelected: _selectedBucket == 30,
-                onTap: () {
-                  setState(() {
-                    _selectedBucket = _selectedBucket == 30 ? null : 30;
-                  });
-                },
-              ),
-              const Spacer(),
-              Container(height: 28, width: 1, color: const Color(0xFFFFE0B2)),
-              const Spacer(),
+              const SizedBox(width: 8),
 
-              // 60 Days Column
-              _DueSiteIntervalColumn(
-                dotColor: const Color(0xFFF59E0B),
-                label: '60 Days',
-                count: r.d60,
-                isSelected: _selectedBucket == 60,
-                onTap: () {
-                  setState(() {
-                    _selectedBucket = _selectedBucket == 60 ? null : 60;
-                  });
-                },
-              ),
-              const Spacer(),
-              Container(height: 28, width: 1, color: const Color(0xFFFFE0B2)),
-              const Spacer(),
+              // Vertical subtle divider line
+              Container(height: 62, width: 1.2, color: const Color(0xFFE2E8F0)),
 
-              // 90 Days Column
-              _DueSiteIntervalColumn(
-                dotColor: const Color(0xFF2563EB),
-                label: '90 Days',
-                count: r.d90,
-                isSelected: _selectedBucket == 90,
-                onTap: () {
-                  setState(() {
-                    _selectedBucket = _selectedBucket == 90 ? null : 90;
-                  });
-                },
+              const SizedBox(width: 8),
+
+              // Right: 3 Interval Cards: 30 Days (Pink/Red), 60 Days (Yellow/Orange), 90 Days (Ice Blue/Navy)
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _DueSiteIntervalCard(
+                        days: 30,
+                        count: r.d30,
+                        bgColor: const Color(0xFFFFECEF),
+                        badgeColor: const Color(0xFFEF384F),
+                        isSelected: _selectedBucket == 30,
+                        onTap: () {
+                          setState(() {
+                            _selectedBucket = _selectedBucket == 30 ? null : 30;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: _DueSiteIntervalCard(
+                        days: 60,
+                        count: r.d60,
+                        bgColor: const Color(0xFFFFF2DC),
+                        badgeColor: const Color(0xFFFA8C16),
+                        isSelected: _selectedBucket == 60,
+                        onTap: () {
+                          setState(() {
+                            _selectedBucket = _selectedBucket == 60 ? null : 60;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: _DueSiteIntervalCard(
+                        days: 90,
+                        count: r.d90,
+                        bgColor: const Color(0xFFE4F0FF),
+                        badgeColor: const Color(0xFF1E88E5),
+                        isSelected: _selectedBucket == 90,
+                        onTap: () {
+                          setState(() {
+                            _selectedBucket = _selectedBucket == 90 ? null : 90;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -1892,64 +2940,159 @@ class _DueSitesBarState extends State<_DueSitesBar> {
   }
 }
 
-class _DueSiteIntervalColumn extends StatelessWidget {
-  final Color dotColor;
-  final String label;
+class _DueSiteIntervalCard extends StatelessWidget {
+  final int days;
   final int count;
+  final Color bgColor;
+  final Color badgeColor;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _DueSiteIntervalColumn({
-    required this.dotColor,
-    required this.label,
+  const _DueSiteIntervalCard({
+    required this.days,
     required this.count,
+    required this.bgColor,
+    required this.badgeColor,
     required this.isSelected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 7.5,
-                  height: 7.5,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: SizedBox(
+          height: 86,
+          child: Stack(
+            alignment: Alignment.topCenter,
+            children: [
+              // 1. Base card body with rounded corners - clean crisp WHITE
+              Positioned.fill(
+                top: 8,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.fromLTRB(2, 18, 2, 4),
                   decoration: BoxDecoration(
-                    color: dotColor,
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: isSelected ? badgeColor : const Color(0xFFE2E8F0),
+                      width: isSelected ? 1.5 : 0.3,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: isSelected
+                            ? badgeColor.withValues(alpha: 0.25)
+                            : Colors.black.withValues(alpha: 0.04),
+                        blurRadius: isSelected ? 8 : 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$days Days',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.outfit(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF486581),
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        '$count',
+                        style: GoogleFonts.outfit(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0A2540),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 2. Top dome arch extending upwards with white background
+              Positioned(
+                top: 0,
+                child: Container(
+                  width: 36,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(18),
+                    ),
+                    border: Border(
+                      top: BorderSide(
+                        color: isSelected
+                            ? badgeColor
+                            : const Color(0xFFE2E8F0),
+                        width: isSelected ? 1.5 : 0.3,
+                      ),
+                      // left: BorderSide(
+                      //   color: isSelected
+                      //       ? badgeColor
+                      //       : const Color(0xFFE2E8F0),
+                      //   width: isSelected ? 2.0 : 1.0,
+                      // ),
+                      // right: BorderSide(
+                      //   color: isSelected
+                      //       ? badgeColor
+                      //       : const Color(0xFFE2E8F0),
+                      //   width: isSelected ? 2.0 : 1.0,
+                      // ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // 3. Circular icon avatar with soft matching halo and same avatar color
+              Positioned(
+                top: 3,
+                child: Container(
+                  width: 27,
+                  height: 27,
+                  decoration: BoxDecoration(
+                    color: badgeColor.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  label,
-                  style: GoogleFonts.outfit(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: const Color(0xFF0F172A),
+                  child: Center(
+                    child: Container(
+                      width: 21,
+                      height: 21,
+                      decoration: BoxDecoration(
+                        color: badgeColor,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: badgeColor.withValues(alpha: 0.35),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1.5),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.calendar_month_rounded,
+                          size: 11.5,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 3),
-            Text(
-              '$count',
-              style: GoogleFonts.outfit(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: const Color(0xFF0F172A),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -2078,7 +3221,11 @@ class _RenewalDetailsList extends StatelessWidget {
 class SitesByZoneCard extends StatelessWidget {
   final List<GeographyItemModel> geography;
   final List<ZoneModel> zones;
-  const SitesByZoneCard({super.key, required this.geography, required this.zones});
+  const SitesByZoneCard({
+    super.key,
+    required this.geography,
+    required this.zones,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2088,7 +3235,10 @@ class SitesByZoneCard extends StatelessWidget {
         : zones.map((z) => (name: z.name, sites: z.sites)).toList();
 
     final hasSites = displayItems.any((g) => g.sites > 0);
-    final maxSites = displayItems.fold<int>(1, (m, g) => g.sites > m ? g.sites : m);
+    final maxSites = displayItems.fold<int>(
+      1,
+      (m, g) => g.sites > m ? g.sites : m,
+    );
 
     return _WCard(
       child: Column(
@@ -2163,8 +3313,10 @@ class SitesByZoneCard extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Row(
                   children: [
+                    StateAvatar(name: g.name, size: 22),
+                    const SizedBox(width: 8),
                     SizedBox(
-                      width: 90,
+                      width: 85,
                       child: Text(
                         g.name,
                         style: GoogleFonts.outfit(
@@ -2193,7 +3345,10 @@ class SitesByZoneCard extends StatelessWidget {
                               height: 10,
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
-                                  colors: [Color(0xFF0D9488), Color(0xFF14B8A6)],
+                                  colors: [
+                                    Color(0xFF0D9488),
+                                    Color(0xFF14B8A6),
+                                  ],
                                 ),
                                 borderRadius: BorderRadius.circular(10),
                               ),
@@ -2279,11 +3434,7 @@ class GovernanceCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Container(
-                width: 1,
-                height: 28,
-                color: const Color(0xFFE2E8F0),
-              ),
+              Container(width: 1, height: 28, color: const Color(0xFFE2E8F0)),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -2360,127 +3511,127 @@ class GovernanceCard extends StatelessWidget {
             )
           else
             LayoutBuilder(
-            builder: (context, constraints) {
-              final isVeryNarrow = constraints.maxWidth < 340;
+              builder: (context, constraints) {
+                final isVeryNarrow = constraints.maxWidth < 340;
 
-              final donutWidget = SizedBox(
-                width: 116,
-                height: 116,
-                child: CustomPaint(
-                  painter: _DonutPainter(
-                    pending: overview.governancePending,
-                    completed: overview.governanceCompleted,
-                    due: overview.governanceDue,
-                    total: total,
+                final donutWidget = SizedBox(
+                  width: 116,
+                  height: 116,
+                  child: CustomPaint(
+                    painter: _DonutPainter(
+                      pending: overview.governancePending,
+                      completed: overview.governanceCompleted,
+                      due: overview.governanceDue,
+                      total: total,
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$total',
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 28,
+                              color: const Color(0xFF0F172A),
+                              height: 1.1,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Total Items',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                );
+
+                final cardsWidget = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Text(
-                          '$total',
-                          style: GoogleFonts.outfit(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 28,
-                            color: const Color(0xFF0F172A),
-                            height: 1.1,
+                        Expanded(
+                          child: _GovStatCard(
+                            count: overview.governancePending,
+                            label: 'Pending',
+                            icon: Icons.access_time_rounded,
+                            iconColor: const Color(0xFF1E60EB),
+                            iconBg: const Color(0xFFDBEAFE),
+                            cardBg: const Color(0xFFF0F7FF),
+                            borderColor: const Color(0xFFE0EDFD),
+                            waveColor: const Color(0xFFBFDBFE),
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Total Items',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF64748B),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _GovStatCard(
+                            count: overview.governanceCompleted,
+                            label: 'Completed',
+                            icon: Icons.check_rounded,
+                            iconColor: const Color(0xFF16A34A),
+                            iconBg: const Color(0xFFDCFCE7),
+                            cardBg: const Color(0xFFF0FDF4),
+                            borderColor: const Color(0xFFDCFCE7),
+                            waveColor: const Color(0xFFBBF7D0),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ),
-              );
-
-              final cardsWidget = Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _GovStatCard(
-                          count: overview.governancePending,
-                          label: 'Pending',
-                          icon: Icons.access_time_rounded,
-                          iconColor: const Color(0xFF1E60EB),
-                          iconBg: const Color(0xFFDBEAFE),
-                          cardBg: const Color(0xFFF0F7FF),
-                          borderColor: const Color(0xFFE0EDFD),
-                          waveColor: const Color(0xFFBFDBFE),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _GovStatCard(
+                            count: overview.governanceDue,
+                            label: 'Due',
+                            icon: Icons.priority_high_rounded,
+                            iconColor: const Color(0xFFEF4444),
+                            iconBg: const Color(0xFFFEE2E2),
+                            cardBg: const Color(0xFFFEF2F2),
+                            borderColor: const Color(0xFFFEE2E2),
+                            waveColor: const Color(0xFFFECACA),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _GovStatCard(
-                          count: overview.governanceCompleted,
-                          label: 'Completed',
-                          icon: Icons.check_rounded,
-                          iconColor: const Color(0xFF16A34A),
-                          iconBg: const Color(0xFFDCFCE7),
-                          cardBg: const Color(0xFFF0FDF4),
-                          borderColor: const Color(0xFFDCFCE7),
-                          waveColor: const Color(0xFFBBF7D0),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _GovStatCard(
-                          count: overview.governanceDue,
-                          label: 'Due',
-                          icon: Icons.priority_high_rounded,
-                          iconColor: const Color(0xFFEF4444),
-                          iconBg: const Color(0xFFFEE2E2),
-                          cardBg: const Color(0xFFFEF2F2),
-                          borderColor: const Color(0xFFFEE2E2),
-                          waveColor: const Color(0xFFFECACA),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(child: SizedBox.shrink()),
-                    ],
-                  ),
-                ],
-              );
-
-              if (isVeryNarrow) {
-                return Column(
-                  children: [
-                    donutWidget,
-                    const SizedBox(height: 16),
-                    cardsWidget,
+                        const SizedBox(width: 8),
+                        const Expanded(child: SizedBox.shrink()),
+                      ],
+                    ),
                   ],
                 );
-              }
 
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  donutWidget,
-                  const SizedBox(width: 12),
-                  Container(
-                    width: 1,
-                    height: 120,
-                    color: const Color(0xFFE2E8F0),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(child: cardsWidget),
-                ],
-              );
-            },
-          ),
+                if (isVeryNarrow) {
+                  return Column(
+                    children: [
+                      donutWidget,
+                      const SizedBox(height: 16),
+                      cardsWidget,
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    donutWidget,
+                    const SizedBox(width: 12),
+                    Container(
+                      width: 1,
+                      height: 120,
+                      color: const Color(0xFFE2E8F0),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: cardsWidget),
+                  ],
+                );
+              },
+            ),
         ],
       ),
     );
@@ -2523,9 +3674,7 @@ class _GovStatCard extends StatelessWidget {
           Positioned.fill(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: CustomPaint(
-                painter: _CardWavePainter(color: waveColor),
-              ),
+              child: CustomPaint(painter: _CardWavePainter(color: waveColor)),
             ),
           ),
           Padding(
@@ -2601,10 +3750,7 @@ class _CardWavePainter extends CustomPainter {
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [
-          color.withValues(alpha: 0.35),
-          color.withValues(alpha: 0.08),
-        ],
+        colors: [color.withValues(alpha: 0.35), color.withValues(alpha: 0.08)],
       ).createShader(Rect.fromLTWH(0, 0, w, h));
     canvas.drawPath(fillPath, fillPaint);
 
@@ -2672,7 +3818,13 @@ class _DonutPainter extends CustomPainter {
       final sweep = 2 * math.pi * (s.count / total);
       paint.color = s.color;
 
-      canvas.drawArc(rect, start, sweep.clamp(0.05, 2 * math.pi - 0.05), false, paint);
+      canvas.drawArc(
+        rect,
+        start,
+        sweep.clamp(0.05, 2 * math.pi - 0.05),
+        false,
+        paint,
+      );
 
       if (i == 0) {
         firstSegmentEndAngle = start;
@@ -2780,10 +3932,7 @@ class _ZonesCardState extends State<ZonesCard> {
               child: Center(
                 child: Text(
                   'No zones allocated yet',
-                  style: GoogleFonts.outfit(
-                    fontSize: 13,
-                    color: _kSlate,
-                  ),
+                  style: GoogleFonts.outfit(fontSize: 13, color: _kSlate),
                 ),
               ),
             )
@@ -2863,33 +4012,38 @@ class _ZoneRow extends StatelessWidget {
               final resolvedZoneId = zone.id.isNotEmpty
                   ? zone.id
                   : (meta.zones
-                          .where((z) =>
-                              z.name.trim().toLowerCase() ==
-                              zone.name.trim().toLowerCase())
-                          .firstOrNull
-                          ?.id ??
-                      '');
+                            .where(
+                              (z) =>
+                                  z.name.trim().toLowerCase() ==
+                                  zone.name.trim().toLowerCase(),
+                            )
+                            .firstOrNull
+                            ?.id ??
+                        '');
 
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => AllSitesPage(
-                    initialZoneId:
-                        resolvedZoneId.isNotEmpty ? resolvedZoneId : null,
+                    initialZoneId: resolvedZoneId.isNotEmpty
+                        ? resolvedZoneId
+                        : null,
                   ),
                 ),
               );
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(
                 children: [
+                  StateAvatar(name: zone.name, size: 28),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       zone.name,
                       style: GoogleFonts.outfit(
                         fontSize: 13,
                         color: AppColors.secondary,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -2998,10 +4152,7 @@ class _ClustersCardState extends State<ClustersCard> {
               child: Center(
                 child: Text(
                   'No clusters allocated yet',
-                  style: GoogleFonts.outfit(
-                    fontSize: 13,
-                    color: _kSlate,
-                  ),
+                  style: GoogleFonts.outfit(fontSize: 13, color: _kSlate),
                 ),
               ),
             )
@@ -3082,12 +4233,14 @@ class _ClusterRow extends StatelessWidget {
               final resolvedClusterId = cluster.id.isNotEmpty
                   ? cluster.id
                   : (meta.clusters
-                          .where((c) =>
-                              c.name.trim().toLowerCase() ==
-                              cluster.name.trim().toLowerCase())
-                          .firstOrNull
-                          ?.id ??
-                      '');
+                            .where(
+                              (c) =>
+                                  c.name.trim().toLowerCase() ==
+                                  cluster.name.trim().toLowerCase(),
+                            )
+                            .firstOrNull
+                            ?.id ??
+                        '');
 
               Navigator.of(context).push(
                 MaterialPageRoute(
@@ -3103,6 +4256,13 @@ class _ClusterRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
               child: Row(
                 children: [
+                  StateAvatar(
+                    name: cluster.zoneName.isNotEmpty
+                        ? cluster.zoneName
+                        : cluster.name,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3112,15 +4272,17 @@ class _ClusterRow extends StatelessWidget {
                           style: GoogleFonts.outfit(
                             fontSize: 13,
                             color: AppColors.secondary,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
                           cluster.zoneName,
-                          style:
-                              GoogleFonts.outfit(fontSize: 11, color: _kSlate),
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            color: _kSlate,
+                          ),
                         ),
                       ],
                     ),
@@ -3181,7 +4343,9 @@ class RecentGovernanceCard extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  isLd ? Icons.calendar_today_rounded : Icons.assignment_outlined,
+                  isLd
+                      ? Icons.calendar_today_rounded
+                      : Icons.assignment_outlined,
                   size: 16,
                   color: _kBlue,
                 ),
@@ -3207,11 +4371,17 @@ class RecentGovernanceCard extends StatelessWidget {
                     },
                     borderRadius: BorderRadius.circular(6),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEFF6FF),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: const Color(0xFFBFDBFE), width: 1),
+                        border: Border.all(
+                          color: const Color(0xFFBFDBFE),
+                          width: 1,
+                        ),
                       ),
                       child: Text(
                         'View All',
@@ -3259,11 +4429,7 @@ class GovActivityRow extends StatelessWidget {
   final GovernanceListItemModel item;
   final bool isLd;
 
-  const GovActivityRow({
-    super.key,
-    required this.item,
-    this.isLd = false,
-  });
+  const GovActivityRow({super.key, required this.item, this.isLd = false});
 
   _ParsedDate _parseDate(String dateStr) {
     if (dateStr.trim().isEmpty) {
@@ -3271,7 +4437,20 @@ class GovActivityRow extends StatelessWidget {
     }
     final dt = DateTime.tryParse(dateStr.trim());
     if (dt != null) {
-      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+      const months = [
+        'JAN',
+        'FEB',
+        'MAR',
+        'APR',
+        'MAY',
+        'JUN',
+        'JUL',
+        'AUG',
+        'SEP',
+        'OCT',
+        'NOV',
+        'DEC',
+      ];
       const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       return _ParsedDate(
         month: months[dt.month - 1],
@@ -3279,16 +4458,37 @@ class GovActivityRow extends StatelessWidget {
         weekday: days[dt.weekday - 1],
       );
     }
-    final parts = dateStr.replaceAll(',', ' ').split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
+    final parts = dateStr
+        .replaceAll(',', ' ')
+        .split(RegExp(r'\s+'))
+        .where((s) => s.isNotEmpty)
+        .toList();
     String? weekday;
     String? month;
     String? day;
 
     const weekDaysMap = {
-      'mon': 'Mon', 'tue': 'Tue', 'wed': 'Wed', 'thu': 'Thu', 'fri': 'Fri', 'sat': 'Sat', 'sun': 'Sun',
+      'mon': 'Mon',
+      'tue': 'Tue',
+      'wed': 'Wed',
+      'thu': 'Thu',
+      'fri': 'Fri',
+      'sat': 'Sat',
+      'sun': 'Sun',
     };
     const monthsList = [
-      'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+      'jan',
+      'feb',
+      'mar',
+      'apr',
+      'may',
+      'jun',
+      'jul',
+      'aug',
+      'sep',
+      'oct',
+      'nov',
+      'dec',
     ];
 
     for (final p in parts) {
@@ -3367,11 +4567,15 @@ class GovActivityRow extends StatelessWidget {
               // Check if item points to an L&D Transition page
               final href = item.href ?? '';
               String? siteId;
-              if (href.isNotEmpty && (href.contains('ld-transition') || href.contains('transition'))) {
+              if (href.isNotEmpty &&
+                  (href.contains('ld-transition') ||
+                      href.contains('transition'))) {
                 siteId = href.split('/').where((s) => s.isNotEmpty).last;
               } else if (isLdItem || item.id.startsWith('ld-rev-')) {
                 // Try extracting UUID from id: ld-rev-{siteId}-...
-                final match = RegExp(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}').firstMatch(item.id);
+                final match = RegExp(
+                  r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}',
+                ).firstMatch(item.id);
                 if (match != null) {
                   siteId = match.group(0);
                 }
@@ -3412,13 +4616,18 @@ class GovActivityRow extends StatelessWidget {
                     // Blue calendar date container (matching web image)
                     Container(
                       width: 46,
-                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 4,
+                        horizontal: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF1E40AF),
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF1E40AF).withValues(alpha: 0.2),
+                            color: const Color(
+                              0xFF1E40AF,
+                            ).withValues(alpha: 0.2),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -3464,7 +4673,9 @@ class GovActivityRow extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          item.title.isNotEmpty ? item.title : (item.activityLabel ?? ''),
+                          item.title.isNotEmpty
+                              ? item.title
+                              : (item.activityLabel ?? ''),
                           style: GoogleFonts.outfit(
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
@@ -3476,11 +4687,15 @@ class GovActivityRow extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           isLdItem
-                              ? (item.siteName.isNotEmpty ? item.siteName : 'DIGILOGY-DEV')
+                              ? (item.siteName.isNotEmpty
+                                    ? item.siteName
+                                    : 'DIGILOGY-DEV')
                               : '${item.siteName}  ·  ${item.roleLabel}',
                           style: GoogleFonts.outfit(
                             fontSize: 11,
-                            fontWeight: isLdItem ? FontWeight.w500 : FontWeight.w400,
+                            fontWeight: isLdItem
+                                ? FontWeight.w500
+                                : FontWeight.w400,
                             color: _kBlue,
                           ),
                           maxLines: 1,
@@ -3500,7 +4715,10 @@ class GovActivityRow extends StatelessWidget {
                         ] else ...[
                           Text(
                             'Assignee: ${item.assigneeName}  ·  Due: ${item.dueDate}',
-                            style: GoogleFonts.outfit(fontSize: 11, color: _kSlate),
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              color: _kSlate,
+                            ),
                           ),
                         ],
                       ],

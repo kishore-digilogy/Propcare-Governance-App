@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:propcare_governance/features/reports/data/models/report_catalog_model.dart';
+import 'package:propcare_governance/features/reports/presentation/bloc/reports_state.dart';
 import 'package:propcare_governance/features/reports/presentation/pages/report_viewer_page.dart';
 import 'package:propcare_governance/features/reports/presentation/widgets/report_card_item.dart';
 
@@ -235,6 +236,22 @@ DIGIDE_0001,Digi-demo2,Digi Client,Bangalore,INACTIVE''';
       expect(find.text('Site Report'), findsOneWidget);
       expect(find.text('6 Sites'), findsOneWidget);
       expect(find.text('View Report'), findsOneWidget);
+    });
+
+    testWidgets('ReportsPage shows visual loader while isFiltering is true', (tester) async {
+      final sampleCatalog = ReportCatalogResponseModel(
+        generatedAt: '2026-11-02T05:17:35.059Z',
+        dateRange: const ReportDateRangeModel(from: '2026-10-03', to: '2026-11-02', key: 'last_30'),
+        scopeSites: 6,
+        reports: [],
+      );
+
+      final state = ReportsLoaded(
+        catalog: sampleCatalog,
+        isFiltering: true,
+      );
+
+      expect(state.isFiltering, isTrue);
     });
   });
 }

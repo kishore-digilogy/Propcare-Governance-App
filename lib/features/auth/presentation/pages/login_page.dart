@@ -111,20 +111,14 @@ class _LoginPageState extends State<LoginPage> {
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 28),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: constraints.maxHeight,
-                      ),
-                      child: IntrinsicHeight(
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // Top flexible spacer to center form vertically
-                              const Spacer(flex: 3),
+                  final isTablet = constraints.maxWidth >= 600;
+                  final formWidget = Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: isTablet ? MainAxisSize.min : MainAxisSize.max,
+                      children: [
+                        if (!isTablet) const Spacer(flex: 3),
 
                               // Brand logo (centered)
                               Center(
@@ -634,8 +628,9 @@ class _LoginPageState extends State<LoginPage> {
                               const SizedBox(height: 24),
 
                               // Need access / Contact admin
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                              Wrap(
+                                alignment: WrapAlignment.center,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   Text(
                                     'Need portal access? ',
@@ -675,28 +670,83 @@ class _LoginPageState extends State<LoginPage> {
                                 ],
                               ),
 
-                              // Bottom flexible spacer to keep content centered
-                              const Spacer(flex: 3),
-
-                              const SizedBox(height: 20),
-
-                              // Footer
-                              Center(
-                                child: Text(
-                                  '© 2024 Casa Grande PropCare Governance',
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.outfit(
-                                    color: const Color(0xFF94A3B8),
-                                    fontSize: 11,
-                                  ),
-                                ),
+                        if (!isTablet) ...[
+                          const Spacer(flex: 3),
+                          const SizedBox(height: 20),
+                          Center(
+                            child: Text(
+                              '© 2024 Casa Grande PropCare Governance',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.outfit(
+                                color: const Color(0xFF94A3B8),
+                                fontSize: 11,
                               ),
-
-                              const SizedBox(height: 12),
-                            ],
+                            ),
                           ),
+                          const SizedBox(height: 12),
+                        ],
+                      ],
+                    ),
+                  );
+
+                  if (isTablet) {
+                    return Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 32,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 480),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 36,
+                                  vertical: 38,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: const Color(0xFFE2E8F0),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFF0F172A,
+                                      ).withValues(alpha: 0.06),
+                                      blurRadius: 36,
+                                      offset: const Offset(0, 14),
+                                    ),
+                                  ],
+                                ),
+                                child: formWidget,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              '© 2024 Casa Grande PropCare Governance',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.outfit(
+                                color: const Color(0xFF94A3B8),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                    );
+                  }
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 28),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: IntrinsicHeight(child: formWidget),
                     ),
                   );
                 },

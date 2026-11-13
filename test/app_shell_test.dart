@@ -22,7 +22,7 @@ void main() {
     testWidgets('LD_HEAD role shows standard 5-item bottom nav and navigates to All Sites', (tester) async {
       HiveStorage.mockUserRole = 'LD_HEAD';
 
-      final testPages = List.generate(10, (i) => Scaffold(body: Text('Page $i')));
+      final testPages = List.generate(16, (i) => Scaffold(body: Text('Page $i')));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -31,12 +31,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Should show Dashboard, Sites, Governance, Attendance, Reports
+      // Should show Dashboard, Sites, Governance, Attendance, MOM & Email
       expect(find.text('Dashboard'), findsOneWidget);
       expect(find.text('Sites'), findsOneWidget);
       expect(find.text('Governance'), findsOneWidget);
       expect(find.text('Attendance'), findsOneWidget);
-      expect(find.text('Reports'), findsOneWidget);
+      expect(find.text('MOM & Email'), findsOneWidget);
 
       // Tapping Sites opens sub-menu with All Sites
       await tester.tap(find.text('Sites'));
@@ -61,7 +61,7 @@ void main() {
     testWidgets('CRRM role shows full 5-item bottom nav and Sites submenu includes Transition', (tester) async {
       HiveStorage.mockUserRole = 'CRRM';
 
-      final testPages = List.generate(10, (i) => Scaffold(body: Text('Page $i')));
+      final testPages = List.generate(16, (i) => Scaffold(body: Text('Page $i')));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -70,12 +70,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Should show all 5 standard items: Dashboard, Sites, Governance, Attendance, Reports
+      // Should show all 5 standard items: Dashboard, Sites, Governance, Attendance, MOM & Email
       expect(find.text('Dashboard'), findsOneWidget);
       expect(find.text('Sites'), findsOneWidget);
       expect(find.text('Governance'), findsOneWidget);
       expect(find.text('Attendance'), findsOneWidget);
-      expect(find.text('Reports'), findsOneWidget);
+      expect(find.text('MOM & Email'), findsOneWidget);
 
       // Tapping Sites opens sites submenu with Draft Sites and Transition included
       await tester.tap(find.text('Sites'));
@@ -108,7 +108,7 @@ void main() {
     testWidgets('Other roles (HR) show 5-item bottom nav and Sites submenu hides Transition', (tester) async {
       HiveStorage.mockUserRole = 'HR';
 
-      final testPages = List.generate(10, (i) => Scaffold(body: Text('Page $i')));
+      final testPages = List.generate(16, (i) => Scaffold(body: Text('Page $i')));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -122,7 +122,7 @@ void main() {
       expect(find.text('Sites'), findsOneWidget);
       expect(find.text('Governance'), findsOneWidget);
       expect(find.text('Attendance'), findsOneWidget);
-      expect(find.text('Reports'), findsOneWidget);
+      expect(find.text('MOM & Email'), findsOneWidget);
 
       // Tapping Sites opens sites submenu where Transition is HIDDEN
       await tester.tap(find.text('Sites'));

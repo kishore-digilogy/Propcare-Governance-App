@@ -95,7 +95,7 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
     } else if (itemIndex == 3) {
       setState(() => _activePageIndex = 8);
     } else if (itemIndex == 4) {
-      setState(() => _activePageIndex = 9);
+      setState(() => _activePageIndex = 10);
     }
   }
 
@@ -134,9 +134,9 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
             onTap: () => _onSelectMainItem(3),
           ),
           NavItemData(
-            label: 'Reports',
-            icon: Icons.bar_chart_rounded,
-            isSelected: _activePageIndex == 9,
+            label: 'MOM & Email',
+            icon: Icons.mail_outline_rounded,
+            isSelected: _activePageIndex == 10,
             onTap: () => _onSelectMainItem(4),
           ),
         ];
@@ -207,7 +207,7 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    final isTabletOrDesktop = media.size.shortestSide >= 700 || media.size.width >= 960;
+    final isTabletOrDesktop = media.size.shortestSide >= 700 || media.size.width >= 900;
 
     final pagesWidget = IndexedStack(
       index: _activePageIndex,
