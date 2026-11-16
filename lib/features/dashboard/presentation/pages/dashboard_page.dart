@@ -27,6 +27,7 @@ import '../bloc/dashboard_bloc.dart';
 import '../bloc/dashboard_event.dart';
 import '../bloc/dashboard_state.dart';
 import 'placeholder_page_view.dart';
+import '../../../tracking/presentation/widgets/dashboard_tracking_header.dart';
 
 // ─── colour helpers ───────────────────────────────────────────────────────────
 const _kBlue = Color(0xFF1A73E8);
@@ -800,8 +801,8 @@ class _BodyState extends State<_Body> {
             key: const PageStorageKey('governance_overview_page'),
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             children: [
-              // ── 6 stat cards (2-col grid)
-              _StatGrid(data: data),
+              // ── Live Field Attendance, Site Clock & Background Tracking Header
+              const DashboardTrackingHeader(),
               const SizedBox(height: 14),
 
               // ── Unique & attractive divider

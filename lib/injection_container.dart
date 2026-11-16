@@ -13,6 +13,7 @@ import 'features/property/data/repositories/property_repository_impl.dart';
 import 'features/property/domain/repositories/property_repository.dart';
 import 'features/property/domain/usecases/get_properties.dart';
 import 'features/property/presentation/bloc/property_bloc.dart';
+import 'features/tracking/services/tracking_controller.dart';
 
 /// Global service locator instance.
 final sl = GetIt.instance;
@@ -74,6 +75,9 @@ Future<void> initDependencies() async {
 
   // ── Core ──────────────────────────────────────────────────────────────────
   sl.registerLazySingleton<NetworkInfo>(() => _NetworkInfoImpl());
+
+  // ══ TRACKING feature ══════════════════════════════════════════════════════
+  sl.registerLazySingleton<AppController>(() => AppController());
 }
 
 /// Minimal NetworkInfo implementation.

@@ -56,6 +56,13 @@
 		<string>PropCare Governance uses your location to verify your presence at the property during attendance check-in, site audits, and governance visits.</string>
 		<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 		<string>PropCare Governance uses your location to verify your presence at the property during attendance check-in, site audits, and governance visits.</string>
+		<key>NSLocationAlwaysUsageDescription</key>
+		<string>PropCare Governance records your field route in the background during active duty hours.</string>
+		<key>UIBackgroundModes</key>
+		<array>
+			<string>location</string>
+			<string>fetch</string>
+		</array>
 		<key>NSCameraUsageDescription</key>
 		<string>PropCare Governance requires camera access to take and upload photos for site audits, issues, and checklist verification.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
