@@ -154,6 +154,15 @@ final class LocationTrackingManager: NSObject, CLLocationManagerDelegate, Flutte
             return
         }
 
+        // Reset stationary state so previous session holds never leak or backdate into the new session
+        anchor = nil
+        anchorSince = nil
+        lastInsideAt = nil
+        activeId = nil
+        activeStartAt = nil
+        activeLocation = nil
+        clearState()
+
         saveConfig()
         defaults.set(true, forKey: Keys.tracking)
         manager.distanceFilter = distanceFilter
@@ -167,7 +176,8 @@ final class LocationTrackingManager: NSObject, CLLocationManagerDelegate, Flutte
             manager.startMonitoringSignificantLocationChanges()
         }
         startHeartbeat()
-        if let last = manager.location {
+        // Only seed with cached location if it is fresh (< 30 seconds old)
+        if let last = manager.location, abs(Date().timeIntervalSince(last.timestamp)) < 30 {
             handleLocation(last)
         }
         emitStatus(true)
@@ -181,6 +191,13 @@ final class LocationTrackingManager: NSObject, CLLocationManagerDelegate, Flutte
             manager.stopMonitoringSignificantLocationChanges()
         }
         flushStationaryOnStop()
+        anchor = nil
+        anchorSince = nil
+        lastInsideAt = nil
+        activeId = nil
+        activeStartAt = nil
+        activeLocation = nil
+        clearState()
         defaults.set(false, forKey: Keys.tracking)
         emitStatus(false)
         result(true)
@@ -490,6 +507,10 @@ final class LocationTrackingManager: NSObject, CLLocationManagerDelegate, Flutte
         }
         guard let data = try? JSONSerialization.data(withJSONObject: state) else { return }
         defaults.set(data, forKey: Keys.state)
+    }
+
+    private func clearState() {
+        defaults.removeObject(forKey: Keys.state)
     }
 
     private func restoreState() {

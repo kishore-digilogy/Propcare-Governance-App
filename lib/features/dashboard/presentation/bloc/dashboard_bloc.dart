@@ -18,12 +18,33 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     LoadDashboard event,
     Emitter<DashboardState> emit,
   ) async {
-    emit(const DashboardLoading());
+    final currentData = state is DashboardLoaded
+        ? (state as DashboardLoaded).data
+        : (state is DashboardLoading ? (state as DashboardLoading).previousData : null);
+
+    final isFiltering = currentData != null;
+
+    emit(DashboardLoading(
+      previousData: currentData,
+      selectedZoneId: event.zoneId,
+      selectedClusterId: event.clusterId,
+      selectedRole: event.role,
+      isFiltering: isFiltering,
+    ));
     // Pre-cache global metadata (zones, clusters, sites, users) in the background
     MetaService.instance.fetchMetadata().catchError((_) => MetaService.instance.meta);
     try {
-      final data = await _dataSource.getDashboard();
-      emit(DashboardLoaded(data));
+      final data = await _dataSource.getDashboard(
+        zoneId: event.zoneId,
+        clusterId: event.clusterId,
+        role: event.role,
+      );
+      emit(DashboardLoaded(
+        data,
+        selectedZoneId: event.zoneId,
+        selectedClusterId: event.clusterId,
+        selectedRole: event.role ?? (data.overview.selectedRole.isNotEmpty ? data.overview.selectedRole : null),
+      ));
     } catch (e) {
       emit(DashboardError(e.toString()));
     }

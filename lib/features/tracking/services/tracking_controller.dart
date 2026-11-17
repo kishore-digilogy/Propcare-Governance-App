@@ -494,6 +494,13 @@ class AppController extends ChangeNotifier {
         'This session is interrupted. Resume it before checking out.',
       );
     }
+    if (activeSiteVisit != null) {
+      final siteName = activeSite?.name ?? activeSiteVisit?.siteName ?? 'the active site';
+      throw AppException(
+        'Cannot check out of duty: You are still clocked in at "$siteName". Please clock out from the site before checking out of duty.',
+        code: 'active_site_visit',
+      );
+    }
 
     _setBusy(true);
     try {
@@ -501,13 +508,6 @@ class AppController extends ChangeNotifier {
       try {
         fix = await _location.currentFix();
       } catch (_) {}
-      if (activeSiteVisit != null) {
-        await _finalizeSiteVisit(
-          activeSiteVisit!,
-          context: 'office_check_out',
-          fix: fix,
-        );
-      }
       await _closeActiveStationary();
       final level = await _batteryService.refresh();
       battery = level;

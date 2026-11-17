@@ -7,6 +7,13 @@ abstract class DashboardEvent extends Equatable {
 }
 
 class LoadDashboard extends DashboardEvent {
-  const LoadDashboard();
+  final String? zoneId;
+  final String? clusterId;
+  final String? role;
+
+  const LoadDashboard({this.zoneId, this.clusterId, this.role});
+
+  @override
+  List<Object?> get props => [zoneId, clusterId, role];
 }
 

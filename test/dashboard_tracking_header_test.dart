@@ -8,12 +8,15 @@ import 'package:propcare_governance/features/tracking/data/models/attendance.dar
 import 'package:propcare_governance/features/tracking/data/models/day_story.dart';
 import 'package:propcare_governance/features/tracking/data/models/site_attendance.dart';
 import 'package:propcare_governance/features/tracking/data/models/tracking.dart';
+import 'package:propcare_governance/features/tracking/core/utils/geo.dart';
 import 'package:propcare_governance/features/tracking/presentation/pages/field_tracking_page.dart';
 import 'package:propcare_governance/features/tracking/presentation/pages/session_route_map_page.dart';
 import 'package:propcare_governance/features/tracking/presentation/pages/tracking_session_history_page.dart';
+import 'package:propcare_governance/features/tracking/core/utils/tracking_exception.dart';
 import 'package:propcare_governance/features/tracking/presentation/widgets/dashboard_tracking_header.dart';
 import 'package:propcare_governance/features/tracking/services/location_service.dart';
 import 'package:propcare_governance/features/tracking/services/tracking_controller.dart';
+import 'package:propcare_governance/features/tracking/services/tracking/demo_location.dart';
 import 'package:propcare_governance/features/tracking/services/tracking/simulated_tracking_platform.dart';
 
 void main() {
@@ -40,6 +43,7 @@ void main() {
 
   tearDown(() async {
     debugDefaultTargetPlatformOverride = null;
+    controller.dispose();
     await database.close();
   });
 
@@ -260,6 +264,116 @@ void main() {
         expect(find.text('Enable'), findsOneWidget);
 
         expect(tester.takeException(), isNull);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('Cannot check out of duty while an active site visit exists', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      try {
+        await tester.runAsync(() async {
+          await controller.bootstrap();
+          await controller.officeCheckIn();
+          final targetSite = controller.sites.first;
+          DemoLocationProvider.instance.moveTo(targetSite.point);
+          controller.position = targetSite.point;
+          await controller.siteCheckIn(targetSite);
+        });
+
+        expect(controller.hasActiveSiteVisit, isTrue);
+
+        // 1. Controller method throws AppException
+        expect(
+          () => controller.officeCheckOut(),
+          throwsA(isA<AppException>().having((e) => e.code, 'code', 'active_site_visit')),
+        );
+
+        // 2. Dashboard UI prevents checkout and displays warning dialog
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: DashboardTrackingHeader(),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pump(const Duration(milliseconds: 100));
+
+        // Tap checkout button
+        final checkOutBtn = find.byIcon(Icons.logout_rounded);
+        expect(checkOutBtn, findsOneWidget);
+        await tester.tap(checkOutBtn);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Site Check-Out Required'), findsOneWidget);
+        expect(find.text('Go to Site & Clock Out'), findsOneWidget);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('Tapping Check In for Duty shows confirmation dialog with current location', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      try {
+        await tester.runAsync(() async {
+          await controller.bootstrap();
+        });
+
+        controller.position = const GeoPoint(12.9249, 80.1000);
+        controller.currentAddress =
+            'Casagrand Suncity, Vandalur – Kelambakkam Road, Chennai';
+        controller.accuracy = 5;
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: DashboardTrackingHeader(),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final checkInBtn = find.text('Check In for Duty');
+        expect(checkInBtn, findsOneWidget);
+
+        // Tap Check In
+        await tester.tap(checkInBtn);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        // Dialog appears with confirmation details
+        expect(find.text('Confirm Duty Check-In'), findsOneWidget);
+        expect(find.text('CURRENT LOCATION'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('Casagrand Suncity, Vandalur – Kelambakkam Road, Chennai'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byType(AlertDialog),
+            matching: find.text('±5m'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Cancel'), findsOneWidget);
+        expect(find.text('Confirm & Check In'), findsOneWidget);
+
+        // Tap Cancel - dialog dismisses and user is NOT checked in
+        await tester.tap(find.text('Cancel'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.text('Confirm Duty Check-In'), findsNothing);
+        expect(controller.isCheckedIn, isFalse);
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

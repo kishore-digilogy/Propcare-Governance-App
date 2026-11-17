@@ -13,14 +13,50 @@ class DashboardInitial extends DashboardState {
 }
 
 class DashboardLoading extends DashboardState {
-  const DashboardLoading();
+  final DashboardModel? previousData;
+  final String? selectedZoneId;
+  final String? selectedClusterId;
+  final String? selectedRole;
+  final bool isFiltering;
+
+  const DashboardLoading({
+    this.previousData,
+    this.selectedZoneId,
+    this.selectedClusterId,
+    this.selectedRole,
+    this.isFiltering = false,
+  });
+
+  @override
+  List<Object?> get props => [
+        previousData,
+        selectedZoneId,
+        selectedClusterId,
+        selectedRole,
+        isFiltering,
+      ];
 }
 
 class DashboardLoaded extends DashboardState {
   final DashboardModel data;
-  const DashboardLoaded(this.data);
+  final String? selectedZoneId;
+  final String? selectedClusterId;
+  final String? selectedRole;
+
+  const DashboardLoaded(
+    this.data, {
+    this.selectedZoneId,
+    this.selectedClusterId,
+    this.selectedRole,
+  });
+
   @override
-  List<Object?> get props => [data];
+  List<Object?> get props => [
+        data,
+        selectedZoneId,
+        selectedClusterId,
+        selectedRole,
+      ];
 }
 
 class DashboardError extends DashboardState {

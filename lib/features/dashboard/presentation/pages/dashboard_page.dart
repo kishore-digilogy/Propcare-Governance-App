@@ -11,6 +11,7 @@ import '../../../../core/services/meta_service.dart';
 import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/state_avatar.dart';
+import '../../../activities/presentation/pages/activities_page.dart';
 import '../../../activities/presentation/pages/activity_execution_page.dart';
 import '../../../activities/presentation/pages/checklist_report_page.dart';
 import '../../../activities/presentation/pages/mmr_mis_page.dart';
@@ -19,6 +20,7 @@ import '../../../governance_matrix/presentation/pages/governance_matrix_page.dar
 import '../../../issues/presentation/pages/issues_page.dart';
 import '../../../reports/presentation/pages/reports_page.dart';
 import '../../../sites/presentation/pages/all_sites_page.dart';
+import '../../../sites/presentation/pages/renewal_sites_page.dart';
 import '../../../sites/presentation/pages/transition_sites_page.dart';
 import '../../../sites/presentation/pages/transition_site_detail_page.dart';
 import '../../data/datasources/dashboard_remote_datasource.dart';
@@ -80,7 +82,21 @@ class _DashboardView extends StatelessWidget {
             Expanded(
               child: BlocBuilder<DashboardBloc, DashboardState>(
                 builder: (context, state) {
-                  if (state is DashboardLoading || state is DashboardInitial) {
+                  if (state is DashboardLoading) {
+                    if (state.previousData != null) {
+                      return _Body(
+                        data: state.previousData!,
+                        selectedZoneId: state.selectedZoneId,
+                        selectedClusterId: state.selectedClusterId,
+                        selectedRole: state.selectedRole,
+                        isFiltering: true,
+                      );
+                    }
+                    return const Center(
+                      child: CircularProgressIndicator(color: _kBlue),
+                    );
+                  }
+                  if (state is DashboardInitial) {
                     return const Center(
                       child: CircularProgressIndicator(color: _kBlue),
                     );
@@ -94,7 +110,13 @@ class _DashboardView extends StatelessWidget {
                     );
                   }
                   if (state is DashboardLoaded) {
-                    return _Body(data: state.data);
+                    return _Body(
+                      data: state.data,
+                      selectedZoneId: state.selectedZoneId,
+                      selectedClusterId: state.selectedClusterId,
+                      selectedRole: state.selectedRole,
+                      isFiltering: false,
+                    );
                   }
                   return const SizedBox.shrink();
                 },
@@ -672,7 +694,18 @@ class _ProfileInfoTile extends StatelessWidget {
 
 class _Body extends StatefulWidget {
   final DashboardModel data;
-  const _Body({required this.data});
+  final String? selectedZoneId;
+  final String? selectedClusterId;
+  final String? selectedRole;
+  final bool isFiltering;
+
+  const _Body({
+    required this.data,
+    this.selectedZoneId,
+    this.selectedClusterId,
+    this.selectedRole,
+    this.isFiltering = false,
+  });
 
   @override
   State<_Body> createState() => _BodyState();
@@ -680,6 +713,7 @@ class _Body extends StatefulWidget {
 
 class _BodyState extends State<_Body> {
   late final PageController _pageController;
+  final ScrollController _scrollController = ScrollController();
   int _activeToggle = 0; // 0: Governance Overview, 1: Quick Actions
   final ValueNotifier<double> _scrollOffset = ValueNotifier<double>(0.0);
   static const double _maxHeroOffset = 136.0;
@@ -691,10 +725,29 @@ class _BodyState extends State<_Body> {
   }
 
   @override
+  void didUpdateWidget(covariant _Body oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isFiltering && widget.isFiltering) {
+      _scrollToTop();
+    }
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
+    _scrollController.dispose();
     _scrollOffset.dispose();
     super.dispose();
+  }
+
+  void _scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   bool _onScrollNotification(ScrollNotification notification) {
@@ -796,8 +849,13 @@ class _BodyState extends State<_Body> {
         return RefreshIndicator(
           color: _kBlue,
           onRefresh: () async =>
-              context.read<DashboardBloc>().add(const LoadDashboard()),
+              context.read<DashboardBloc>().add(LoadDashboard(
+                    zoneId: widget.selectedZoneId,
+                    clusterId: widget.selectedClusterId,
+                    role: widget.selectedRole,
+                  )),
           child: ListView(
+            controller: _scrollController,
             key: const PageStorageKey('governance_overview_page'),
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
             children: [
@@ -805,65 +863,98 @@ class _BodyState extends State<_Body> {
               const DashboardTrackingHeader(),
               const SizedBox(height: 14),
 
-              // ── Unique & attractive divider
-              const _DueSitesDivider(),
+              // ── Interactive Filters Bar (Zone, Cluster, Role)
+              _DashboardFilterBar(
+                data: data,
+                selectedZoneId: widget.selectedZoneId,
+                selectedClusterId: widget.selectedClusterId,
+                selectedRole: widget.selectedRole,
+                onFilterChanged: (zoneId, clusterId, role) {
+                  _scrollToTop();
+                  context.read<DashboardBloc>().add(LoadDashboard(
+                        zoneId: zoneId,
+                        clusterId: clusterId,
+                        role: role,
+                      ));
+                },
+              ),
               const SizedBox(height: 14),
 
-              // ── Due sites bar (Calendar icon + 30d/60d/90d dot stats)
-              _DueSitesBar(renewals: data.renewals),
-              const SizedBox(height: 14),
-
-              // ── Adaptive Analytics Section (2-Col on Tablet / 1-Col on Mobile)
-              if (isWide) ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _SitesByZoneCard(
-                        geography: data.geography,
-                        zones: data.workspace.zones,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(child: _GovernanceCard(overview: data.overview)),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _ZonesCard(zones: data.workspace.zones)),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: _ClustersCard(clusters: data.workspace.clusters),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-              ] else ...[
-                // ── Sites By Zone (Teal Progress Bars & View All)
-                _SitesByZoneCard(
-                  geography: data.geography,
-                  zones: data.workspace.zones,
-                ),
+              if (widget.isFiltering)
+                const _DashboardBelowFilterShimmer()
+              else ...[
+                // ── Top 4 Site Stat Cards (Total Sites: 15, Live Sites: 9, Lost Sites: 6, Special Attention: 0)
+                _WebTopStatCards(data: data),
                 const SizedBox(height: 14),
 
-                // ── Governance Overview (Donut + Legend + Clipboard Illustration)
+                // ── Unique & attractive divider
+                const _DueSitesDivider(),
+                const SizedBox(height: 14),
+
+                // ── Due sites bar (Calendar icon + 30d/60d/90d dot stats)
+                _DueSitesBar(renewals: data.renewals),
+                const SizedBox(height: 14),
+
+                // ── Governance Compliance Donut Card (with % On Track + Breakdown)
                 _GovernanceCard(overview: data.overview),
                 const SizedBox(height: 14),
 
-                // ── Zones table
-                _ZonesCard(zones: data.workspace.zones),
+                // ── Surveys Card matching Web design
+                _WebSurveysCard(surveys: data.overview.surveys),
                 const SizedBox(height: 14),
 
-                // ── Clusters table
-                _ClustersCard(clusters: data.workspace.clusters),
+                // ── Governance Parameters Grid matching Web design
+                if (data.overview.governanceParams.isNotEmpty) ...[
+                  _WebGovernanceParamsGrid(params: data.overview.governanceParams),
+                  const SizedBox(height: 14),
+                ],
+
+                // ── Key Alerts & Upcoming Activities matching Web design
+                _WebAlertsAndUpcomingCard(
+                  alerts: data.overview.alerts,
+                  upcoming: data.overview.upcoming,
+                ),
                 const SizedBox(height: 14),
+
+                // ── Adaptive Analytics Section (2-Col on Tablet / 1-Col on Mobile)
+                if (isWide) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _SitesByZoneCard(
+                          geography: data.geography,
+                          zones: data.workspace.zones,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(child: _ZonesCard(zones: data.workspace.zones)),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _ClustersCard(clusters: data.workspace.clusters),
+                  const SizedBox(height: 14),
+                ] else ...[
+                  // ── Sites By Zone (Teal Progress Bars & View All)
+                  _SitesByZoneCard(
+                    geography: data.geography,
+                    zones: data.workspace.zones,
+                  ),
+                  const SizedBox(height: 14),
+
+                  // ── Zones table
+                  _ZonesCard(zones: data.workspace.zones),
+                  const SizedBox(height: 14),
+
+                  // ── Clusters table
+                  _ClustersCard(clusters: data.workspace.clusters),
+                  const SizedBox(height: 14),
+                ],
+
+                // ── Recent Governance
+                _RecentGovernanceCard(items: data.overview.governanceList),
+                const SizedBox(height: 24),
               ],
-
-              // ── Recent Governance
-              _RecentGovernanceCard(items: data.overview.governanceList),
-              const SizedBox(height: 24),
             ],
           ),
         );
@@ -2645,6 +2736,2243 @@ class _DotMatrixPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DotMatrixPainter oldDelegate) =>
       oldDelegate.color != color;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Interactive Web-Style Dashboard Filter Bar (Zone, Cluster, Role)
+// ─────────────────────────────────────────────────────────────────────────────
+
+typedef DashboardFilterBar = _DashboardFilterBar;
+typedef WebTopStatCards = _WebTopStatCards;
+typedef WebSurveysCard = _WebSurveysCard;
+typedef WebGovernanceParamsGrid = _WebGovernanceParamsGrid;
+typedef WebAlertsAndUpcomingCard = _WebAlertsAndUpcomingCard;
+typedef DashboardBelowFilterShimmer = _DashboardBelowFilterShimmer;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Below-Filter Shimmer Loading View
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ShimmerBox extends StatefulWidget {
+  final double? width;
+  final double height;
+  final double borderRadius;
+
+  const _ShimmerBox({
+    this.width,
+    required this.height,
+    this.borderRadius = 12,
+  });
+
+  @override
+  State<_ShimmerBox> createState() => _ShimmerBoxState();
+}
+
+class _ShimmerBoxState extends State<_ShimmerBox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1300),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animController,
+      builder: (context, _) {
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(widget.borderRadius),
+            gradient: LinearGradient(
+              begin: Alignment(-1.5 + 3.0 * _animController.value, -0.3),
+              end: Alignment(-0.5 + 3.0 * _animController.value, 0.3),
+              colors: const [
+                Color(0xFFF1F5F9),
+                Color(0xFFFFFFFF),
+                Color(0xFFF1F5F9),
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DashboardBelowFilterShimmer extends StatelessWidget {
+  const _DashboardBelowFilterShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 1. Top 4 Stat Cards Shimmer
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    _ShimmerBox(width: 70, height: 12, borderRadius: 4),
+                    SizedBox(height: 10),
+                    _ShimmerBox(width: 40, height: 22, borderRadius: 6),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    _ShimmerBox(width: 70, height: 12, borderRadius: 4),
+                    SizedBox(height: 10),
+                    _ShimmerBox(width: 40, height: 22, borderRadius: 6),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    _ShimmerBox(width: 70, height: 12, borderRadius: 4),
+                    SizedBox(height: 10),
+                    _ShimmerBox(width: 40, height: 22, borderRadius: 6),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    _ShimmerBox(width: 70, height: 12, borderRadius: 4),
+                    SizedBox(height: 10),
+                    _ShimmerBox(width: 40, height: 22, borderRadius: 6),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // 2. Renewal Watch Card Shimmer
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: const [
+                  _ShimmerBox(width: 32, height: 32, borderRadius: 16),
+                  SizedBox(width: 10),
+                  _ShimmerBox(width: 120, height: 16, borderRadius: 6),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: const [
+                  Expanded(child: _ShimmerBox(height: 60, borderRadius: 14)),
+                  SizedBox(width: 10),
+                  Expanded(child: _ShimmerBox(height: 60, borderRadius: 14)),
+                  SizedBox(width: 10),
+                  Expanded(child: _ShimmerBox(height: 60, borderRadius: 14)),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 3. Governance Compliance & Surveys Shimmer
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: const [
+                  _ShimmerBox(width: 32, height: 32, borderRadius: 16),
+                  SizedBox(width: 10),
+                  _ShimmerBox(width: 180, height: 16, borderRadius: 6),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const _ShimmerBox(width: 80, height: 80, borderRadius: 40),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        _ShimmerBox(height: 14, borderRadius: 6),
+                        SizedBox(height: 10),
+                        _ShimmerBox(height: 14, borderRadius: 6),
+                        SizedBox(height: 10),
+                        _ShimmerBox(height: 14, borderRadius: 6),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 4. Governance Parameters 2-column Grid Shimmer
+        Row(
+          children: const [
+            Expanded(child: _ShimmerBox(height: 130, borderRadius: 16)),
+            SizedBox(width: 12),
+            Expanded(child: _ShimmerBox(height: 130, borderRadius: 16)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: const [
+            Expanded(child: _ShimmerBox(height: 130, borderRadius: 16)),
+            SizedBox(width: 12),
+            Expanded(child: _ShimmerBox(height: 130, borderRadius: 16)),
+          ],
+        ),
+        const SizedBox(height: 16),
+
+        // 5. Key Alerts / Upcoming Activities Shimmer
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              _ShimmerBox(width: 160, height: 20, borderRadius: 6),
+              SizedBox(height: 14),
+              _ShimmerBox(height: 60, borderRadius: 12),
+              SizedBox(height: 10),
+              _ShimmerBox(height: 60, borderRadius: 12),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+}
+
+class _DashboardFilterBar extends StatefulWidget {
+  final DashboardModel data;
+  final String? selectedZoneId;
+  final String? selectedClusterId;
+  final String? selectedRole;
+  final void Function(String? zoneId, String? clusterId, String? role) onFilterChanged;
+
+  const _DashboardFilterBar({
+    required this.data,
+    required this.selectedZoneId,
+    required this.selectedClusterId,
+    required this.selectedRole,
+    required this.onFilterChanged,
+  });
+
+  @override
+  State<_DashboardFilterBar> createState() => _DashboardFilterBarState();
+}
+
+class _DashboardFilterBarState extends State<_DashboardFilterBar> {
+  bool _isCollapsed = false;
+
+  void _showZonePicker(BuildContext context) {
+    final zones = widget.data.workspace.zones;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) {
+        String query = '';
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            final filtered = zones
+                .where((z) => z.name.toLowerCase().contains(query.toLowerCase()))
+                .toList();
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.65,
+              minChildSize: 0.4,
+              maxChildSize: 0.85,
+              expand: false,
+              builder: (_, scrollController) {
+                return Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4.5,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCBD5E1),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.location_city_rounded, color: Color(0xFF2563EB), size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Select Zone',
+                            style: GoogleFonts.outfit(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF0F172A),
+                            ),
+                          ),
+                          const Spacer(),
+                          if (widget.selectedZoneId != null)
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(ctx).pop();
+                                widget.onFilterChanged(null, null, widget.selectedRole);
+                              },
+                              child: Text(
+                                'Clear',
+                                style: GoogleFonts.outfit(
+                                  color: const Color(0xFFEF4444),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search zone...',
+                          prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                        ),
+                        onChanged: (val) => setModalState(() => query = val),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: ListView(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        children: [
+                          ListTile(
+                            leading: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: widget.selectedZoneId == null ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.public_rounded,
+                                size: 17,
+                                color: widget.selectedZoneId == null ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+                              ),
+                            ),
+                            title: Text(
+                              'All Zones',
+                              style: GoogleFonts.outfit(
+                                fontWeight: widget.selectedZoneId == null ? FontWeight.w700 : FontWeight.w500,
+                                color: widget.selectedZoneId == null ? const Color(0xFF2563EB) : const Color(0xFF0F172A),
+                              ),
+                            ),
+                            trailing: widget.selectedZoneId == null
+                                ? const Icon(Icons.check_circle_rounded, color: Color(0xFF2563EB), size: 20)
+                                : null,
+                            onTap: () {
+                              Navigator.of(ctx).pop();
+                              widget.onFilterChanged(null, null, widget.selectedRole);
+                            },
+                          ),
+                          const Divider(height: 1),
+                          for (final zone in filtered)
+                            ListTile(
+                              leading: Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: widget.selectedZoneId == zone.id ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.location_city_rounded,
+                                  size: 17,
+                                  color: widget.selectedZoneId == zone.id ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+                                ),
+                              ),
+                              title: Text(
+                                zone.name,
+                                style: GoogleFonts.outfit(
+                                  fontWeight: widget.selectedZoneId == zone.id ? FontWeight.w700 : FontWeight.w500,
+                                  color: widget.selectedZoneId == zone.id ? const Color(0xFF2563EB) : const Color(0xFF0F172A),
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${zone.sites} Sites · ${zone.clusters} Clusters',
+                                style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF64748B)),
+                              ),
+                              trailing: widget.selectedZoneId == zone.id
+                                  ? const Icon(Icons.check_circle_rounded, color: Color(0xFF2563EB), size: 20)
+                                  : null,
+                              onTap: () {
+                                Navigator.of(ctx).pop();
+                                widget.onFilterChanged(zone.id, null, widget.selectedRole);
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showClusterPicker(BuildContext context) {
+    final selectedZone = widget.data.workspace.zones
+        .where((z) => z.id == widget.selectedZoneId)
+        .firstOrNull;
+
+    final clusters = selectedZone != null
+        ? widget.data.workspace.clusters
+            .where((c) => c.zoneName.toLowerCase() == selectedZone.name.toLowerCase())
+            .toList()
+        : widget.data.workspace.clusters;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) {
+        String query = '';
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            final filtered = clusters
+                .where((c) => c.name.toLowerCase().contains(query.toLowerCase()))
+                .toList();
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.65,
+              minChildSize: 0.4,
+              maxChildSize: 0.85,
+              expand: false,
+              builder: (_, scrollController) {
+                return Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4.5,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFCBD5E1),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.apartment_rounded, color: Color(0xFF2563EB), size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Select Cluster',
+                            style: GoogleFonts.outfit(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF0F172A),
+                            ),
+                          ),
+                          const Spacer(),
+                          if (widget.selectedClusterId != null)
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(ctx).pop();
+                                widget.onFilterChanged(widget.selectedZoneId, null, widget.selectedRole);
+                              },
+                              child: Text(
+                                'Clear',
+                                style: GoogleFonts.outfit(
+                                  color: const Color(0xFFEF4444),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search cluster...',
+                          prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                        ),
+                        onChanged: (val) => setModalState(() => query = val),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: ListView(
+                        controller: scrollController,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        children: [
+                          ListTile(
+                            leading: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: widget.selectedClusterId == null ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.hub_outlined,
+                                size: 17,
+                                color: widget.selectedClusterId == null ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+                              ),
+                            ),
+                            title: Text(
+                              'All Clusters',
+                              style: GoogleFonts.outfit(
+                                fontWeight: widget.selectedClusterId == null ? FontWeight.w700 : FontWeight.w500,
+                                color: widget.selectedClusterId == null ? const Color(0xFF2563EB) : const Color(0xFF0F172A),
+                              ),
+                            ),
+                            trailing: widget.selectedClusterId == null
+                                ? const Icon(Icons.check_circle_rounded, color: Color(0xFF2563EB), size: 20)
+                                : null,
+                            onTap: () {
+                              Navigator.of(ctx).pop();
+                              widget.onFilterChanged(widget.selectedZoneId, null, widget.selectedRole);
+                            },
+                          ),
+                          const Divider(height: 1),
+                          for (final cluster in filtered)
+                            ListTile(
+                              leading: Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: widget.selectedClusterId == cluster.id ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.apartment_rounded,
+                                  size: 17,
+                                  color: widget.selectedClusterId == cluster.id ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+                                ),
+                              ),
+                              title: Text(
+                                cluster.name,
+                                style: GoogleFonts.outfit(
+                                  fontWeight: widget.selectedClusterId == cluster.id ? FontWeight.w700 : FontWeight.w500,
+                                  color: widget.selectedClusterId == cluster.id ? const Color(0xFF2563EB) : const Color(0xFF0F172A),
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${cluster.zoneName} · ${cluster.sites} Sites',
+                                style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF64748B)),
+                              ),
+                              trailing: widget.selectedClusterId == cluster.id
+                                  ? const Icon(Icons.check_circle_rounded, color: Color(0xFF2563EB), size: 20)
+                                  : null,
+                              onTap: () {
+                                Navigator.of(ctx).pop();
+                                widget.onFilterChanged(widget.selectedZoneId, cluster.id, widget.selectedRole);
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showRolePicker(BuildContext context) {
+    final roles = widget.data.overview.roleFilterRoles.isNotEmpty
+        ? widget.data.overview.roleFilterRoles
+        : widget.data.workspace.roles;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.55,
+          minChildSize: 0.35,
+          maxChildSize: 0.8,
+          expand: false,
+          builder: (_, scrollController) {
+            return Column(
+              children: [
+                const SizedBox(height: 12),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4.5,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.badge_outlined, color: Color(0xFF2563EB), size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Select Role Filter',
+                        style: GoogleFonts.outfit(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    children: [
+                      for (final role in roles)
+                        ListTile(
+                          leading: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: (widget.selectedRole == role.role ||
+                                      (widget.selectedRole == null && role.role == 'CRRM'))
+                                  ? const Color(0xFFEFF6FF)
+                                  : const Color(0xFFF1F5F9),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.person_outline_rounded,
+                              size: 17,
+                              color: (widget.selectedRole == role.role ||
+                                      (widget.selectedRole == null && role.role == 'CRRM'))
+                                  ? const Color(0xFF2563EB)
+                                  : const Color(0xFF64748B),
+                            ),
+                          ),
+                          title: Text(
+                            role.label,
+                            style: GoogleFonts.outfit(
+                              fontWeight: (widget.selectedRole == role.role ||
+                                      (widget.selectedRole == null && role.role == 'CRRM'))
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: (widget.selectedRole == role.role ||
+                                      (widget.selectedRole == null && role.role == 'CRRM'))
+                                  ? const Color(0xFF2563EB)
+                                  : const Color(0xFF0F172A),
+                            ),
+                          ),
+                          trailing: (widget.selectedRole == role.role ||
+                                  (widget.selectedRole == null && role.role == 'CRRM'))
+                              ? const Icon(Icons.check_circle_rounded, color: Color(0xFF2563EB), size: 20)
+                              : null,
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            widget.onFilterChanged(widget.selectedZoneId, widget.selectedClusterId, role.role);
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedZone = widget.data.workspace.zones
+        .where((z) => z.id == widget.selectedZoneId)
+        .firstOrNull;
+    final selectedCluster = widget.data.workspace.clusters
+        .where((c) => c.id == widget.selectedClusterId)
+        .firstOrNull;
+
+    final roles = widget.data.overview.roleFilterRoles.isNotEmpty
+        ? widget.data.overview.roleFilterRoles
+        : widget.data.workspace.roles;
+
+    final selectedRoleOption = roles
+        .where((r) => r.role == widget.selectedRole)
+        .firstOrNull;
+    final selectedRoleLabel = selectedRoleOption?.label ??
+        (widget.data.overview.selectedRole.isNotEmpty
+            ? widget.data.overview.selectedRole
+            : widget.data.workspace.viewer.roleLabel);
+
+    final activeFilterCount = (widget.selectedZoneId != null ? 1 : 0) +
+        (widget.selectedClusterId != null ? 1 : 0) +
+        (widget.selectedRole != null && widget.selectedRole != 'CRRM' ? 1 : 0);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.025),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Filter Header Bar (with count & Hide/Show button matching Web Image 1)
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.tune_rounded, size: 16, color: Color(0xFF2563EB)),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Dashboard Filters',
+                style: GoogleFonts.outfit(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+              if (activeFilterCount > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$activeFilterCount',
+                    style: GoogleFonts.outfit(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+              const Spacer(),
+              if (activeFilterCount > 0)
+                InkWell(
+                  onTap: () => widget.onFilterChanged(null, null, null),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Text(
+                      'Reset',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFFEF4444),
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: () => setState(() => _isCollapsed = !_isCollapsed),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _isCollapsed ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded,
+                        size: 16,
+                        color: const Color(0xFF64748B),
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        _isCollapsed ? 'Show' : 'Hide',
+                        style: GoogleFonts.outfit(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Dropdown chips row (Zone, Cluster, Role)
+          if (!_isCollapsed) ...[
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: [
+                  // Zone Filter Pill
+                  _FilterSelectorChip(
+                    icon: Icons.location_city_rounded,
+                    label: selectedZone?.name ?? 'All Zones',
+                    isSelected: selectedZone != null,
+                    onTap: () => _showZonePicker(context),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Cluster Filter Pill
+                  _FilterSelectorChip(
+                    icon: Icons.apartment_rounded,
+                    label: selectedCluster?.name ?? 'All Clusters',
+                    isSelected: selectedCluster != null,
+                    onTap: () => _showClusterPicker(context),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Role Filter Pill
+                  _FilterSelectorChip(
+                    icon: Icons.badge_outlined,
+                    label: selectedRoleLabel,
+                    isSelected: widget.selectedRole != null && widget.selectedRole != 'CRRM',
+                    onTap: () => _showRolePicker(context),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterSelectorChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _FilterSelectorChip({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7.5),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF3B82F6) : const Color(0xFFCBD5E1),
+            width: isSelected ? 1.4 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 14.5,
+              color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.outfit(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                color: isSelected ? const Color(0xFF1E40AF) : const Color(0xFF334155),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.arrow_drop_down_rounded,
+              size: 18,
+              color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF94A3B8),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Web Top 4 Stat Cards: Total Sites, Live Sites, Lost Sites, Special Attention
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WebTopStatCards extends StatelessWidget {
+  final DashboardModel data;
+  const _WebTopStatCards({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final ov = data.overview;
+    final totalSites = ov.sites > 0 ? ov.sites : data.counts.sites;
+    final liveSites = ov.live > 0 ? ov.live : data.counts.live;
+    final lostSites = ov.inactive > 0
+        ? ov.inactive
+        : (data.counts.inactive > 0
+            ? data.counts.inactive
+            : (totalSites - liveSites - ov.transition).clamp(0, 9999));
+    final specialAttention = ov.special > 0 ? ov.special : data.counts.special;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _WebStatTile(
+                icon: Icons.domain_rounded,
+                iconColor: const Color(0xFF2563EB),
+                iconBg: const Color(0xFFEFF6FF),
+                borderColor: const Color(0xFFDBEAFE),
+                title: 'Total Sites',
+                value: '$totalSites',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AllSitesPage()),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _WebStatTile(
+                icon: Icons.check_circle_outline_rounded,
+                iconColor: const Color(0xFF059669),
+                iconBg: const Color(0xFFECFDF5),
+                borderColor: const Color(0xFFA7F3D0),
+                title: 'Live Sites',
+                value: '$liveSites',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AllSitesPage(initialStatus: 'Live'),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _WebStatTile(
+                icon: Icons.highlight_off_rounded,
+                iconColor: const Color(0xFFDC2626),
+                iconBg: const Color(0xFFFEF2F2),
+                borderColor: const Color(0xFFFECACA),
+                title: 'Lost Sites',
+                value: '$lostSites',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AllSitesPage(initialStatus: 'Inactive'),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _WebStatTile(
+                icon: Icons.warning_amber_rounded,
+                iconColor: const Color(0xFFD97706),
+                iconBg: const Color(0xFFFFFBEB),
+                borderColor: const Color(0xFFFDE68A),
+                title: 'Special Attention',
+                value: '$specialAttention',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AllSitesPage()),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _WebStatTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBg;
+  final Color borderColor;
+  final String title;
+  final String value;
+  final VoidCallback onTap;
+
+  const _WebStatTile({
+    required this.icon,
+    required this.iconColor,
+    required this.iconBg,
+    required this.borderColor,
+    required this.title,
+    required this.value,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: iconBg,
+                shape: BoxShape.circle,
+                border: Border.all(color: borderColor, width: 1.2),
+              ),
+              child: Icon(icon, color: iconColor, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.outfit(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF64748B),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    value,
+                    style: GoogleFonts.outfit(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Web Surveys Card (Assigned, Completed, Pending)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WebSurveysCard extends StatelessWidget {
+  final SurveysSummaryModel surveys;
+  const _WebSurveysCard({required this.surveys});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.025),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFDBEAFE)),
+                ),
+                child: const Icon(
+                  Icons.assignment_turned_in_outlined,
+                  size: 18,
+                  color: Color(0xFF2563EB),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Surveys',
+                style: GoogleFonts.outfit(
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFF1F5F9)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _SurveyMetricColumn(
+                    icon: Icons.person_outline_rounded,
+                    iconColor: const Color(0xFF2563EB),
+                    label: 'Assigned',
+                    value: '${surveys.assigned}',
+                  ),
+                ),
+                Container(width: 1, height: 32, color: const Color(0xFFE2E8F0)),
+                Expanded(
+                  child: _SurveyMetricColumn(
+                    icon: Icons.check_circle_outline_rounded,
+                    iconColor: const Color(0xFF059669),
+                    label: 'Completed',
+                    value: '${surveys.completed}',
+                  ),
+                ),
+                Container(width: 1, height: 32, color: const Color(0xFFE2E8F0)),
+                Expanded(
+                  child: _SurveyMetricColumn(
+                    icon: Icons.hourglass_empty_rounded,
+                    iconColor: const Color(0xFFD97706),
+                    label: 'Pending',
+                    value: '${surveys.pending}',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SurveyMetricColumn extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String value;
+
+  const _SurveyMetricColumn({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 13, color: iconColor),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: GoogleFonts.outfit(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: GoogleFonts.outfit(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF0F172A),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Web Governance Parameters Grid (Site Visits, MIS/MMR, EHS, HR, R&R)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WebGovernanceParamsGrid extends StatelessWidget {
+  final List<GovernanceParamModel> params;
+  const _WebGovernanceParamsGrid({required this.params});
+
+  @override
+  Widget build(BuildContext context) {
+    if (params.isEmpty) return const SizedBox.shrink();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTablet = constraints.maxWidth >= 600;
+        final crossAxisCount = isTablet ? 3 : 2;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'GOVERNANCE PARAMETERS',
+              style: GoogleFonts.outfit(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+                color: const Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 10),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: params.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                mainAxisExtent: 156,
+              ),
+              itemBuilder: (context, index) {
+                return _GovernanceParamCard(param: params[index]);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _GovernanceParamCard extends StatelessWidget {
+  final GovernanceParamModel param;
+  const _GovernanceParamCard({required this.param});
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, iconColor, iconBg) = switch (param.key) {
+      'siteVisits' => (Icons.location_on_outlined, const Color(0xFF2563EB), const Color(0xFFEFF6FF)),
+      'misMmr' => (Icons.description_outlined, const Color(0xFFD97706), const Color(0xFFFFFBEB)),
+      'ehs' => (Icons.shield_outlined, const Color(0xFF0284C7), const Color(0xFFF0F9FF)),
+      'hr' => (Icons.people_alt_outlined, const Color(0xFF059669), const Color(0xFFECFDF5)),
+      'rr' => (Icons.card_giftcard_rounded, const Color(0xFFE11D48), const Color(0xFFFFF1F2)),
+      _ => (Icons.assignment_outlined, const Color(0xFF2563EB), const Color(0xFFEFF6FF)),
+    };
+
+    final total = param.completed + param.pending;
+    final ratio = total > 0 ? (param.completed / total).clamp(0.0, 1.0) : 0.0;
+    final pct = (ratio * 100).round();
+
+    return InkWell(
+      onTap: () {
+        if (param.key == 'misMmr') {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const MmrMisPage()),
+          );
+        } else if (param.key == 'rr') {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const RrPage()),
+          );
+        } else if (param.key == 'ehs' || param.key == 'hr') {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ChecklistReportPage()),
+          );
+        } else if (param.key == 'siteVisits') {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const AllSitesPage()),
+          );
+        }
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, size: 15, color: iconColor),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    param.label,
+                    style: GoogleFonts.outfit(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF0F172A),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 10,
+                  color: Color(0xFF94A3B8),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Completed row
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFECFDF5),
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(
+                  color: const Color(0xFFA7F3D0).withValues(alpha: 0.5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    size: 12,
+                    color: Color(0xFF059669),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Completed',
+                    style: GoogleFonts.outfit(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF047857),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${param.completed}',
+                    style: GoogleFonts.outfit(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF047857),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Pending row
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(
+                  color: const Color(0xFFFDE68A).withValues(alpha: 0.5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.hourglass_top_rounded,
+                    size: 12,
+                    color: Color(0xFFD97706),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Pending',
+                    style: GoogleFonts.outfit(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFB45309),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${param.pending}',
+                    style: GoogleFonts.outfit(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFFB45309),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Progress Bar & Percentage
+            Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: ratio,
+                      minHeight: 4,
+                      backgroundColor: const Color(0xFFF1F5F9),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFF10B981),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  '$pct%',
+                  style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: ratio >= 1.0
+                        ? const Color(0xFF059669)
+                        : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Web Key Alerts & Upcoming Activities Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WebAlertsAndUpcomingCard extends StatelessWidget {
+  final List<KeyAlertModel> alerts;
+  final List<UpcomingActivityModel> upcoming;
+
+  const _WebAlertsAndUpcomingCard({
+    required this.alerts,
+    required this.upcoming,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // ── Key Alerts
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFDBEAFE)),
+                    ),
+                    child: const Icon(
+                      Icons.notifications_none_rounded,
+                      size: 17,
+                      color: Color(0xFF0284C7),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Key Alerts',
+                    style: GoogleFonts.outfit(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE0F2FE),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${alerts.length}',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF0284C7),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (alerts.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'No Critical Alerts In Your Allocation.',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                for (final a in alerts) _KeyAlertItemCard(alert: a),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // ── Upcoming Activities
+        _UpcomingActivitiesSection(upcoming: upcoming),
+      ],
+    );
+  }
+}
+
+class _UpcomingActivitiesSection extends StatefulWidget {
+  final List<UpcomingActivityModel> upcoming;
+
+  const _UpcomingActivitiesSection({required this.upcoming});
+
+  @override
+  State<_UpcomingActivitiesSection> createState() =>
+      _UpcomingActivitiesSectionState();
+}
+
+class _UpcomingActivitiesSectionState
+    extends State<_UpcomingActivitiesSection> {
+  bool _showAll = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final upcoming = widget.upcoming;
+    final itemsToDisplay =
+        _showAll ? upcoming : upcoming.take(5).toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFDBEAFE)),
+                ),
+                child: const Icon(
+                  Icons.calendar_month_outlined,
+                  size: 17,
+                  color: Color(0xFF2563EB),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Upcoming Activities',
+                style: GoogleFonts.outfit(
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+              if (upcoming.isNotEmpty) ...[
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${upcoming.length}',
+                    style: GoogleFonts.outfit(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF2563EB),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (upcoming.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'No Upcoming Visits In Your Allocation. New Dates Will Appear Here.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.outfit(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF94A3B8),
+                  ),
+                ),
+              ),
+            )
+          else ...[
+            for (final u in itemsToDisplay) _UpcomingActivityItemCard(activity: u),
+            if (upcoming.length > 5) ...[
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _showAll = !_showAll;
+                  });
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _showAll ? 'Show Less' : 'View All',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF2563EB),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        _showAll
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        size: 16,
+                        color: const Color(0xFF2563EB),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _KeyAlertItemCard extends StatelessWidget {
+  final KeyAlertModel alert;
+  const _KeyAlertItemCard({required this.alert});
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = alert.tone.toLowerCase();
+    final isRed = tone == 'red' || alert.title.toLowerCase().contains('overdue');
+    final isOrange = tone == 'orange' ||
+        tone == 'amber' ||
+        alert.title.toLowerCase().contains('renew');
+    final isBlue = !isRed && !isOrange;
+
+    final headerBg = isRed
+        ? const Color(0xFFEF4444)
+        : (isOrange ? const Color(0xFFF59E0B) : const Color(0xFF0284C7));
+    final bodyBg = isRed
+        ? const Color(0xFFFEF2F2)
+        : (isOrange ? const Color(0xFFFFFBEB) : const Color(0xFFF0F9FF));
+    final borderColor = isRed
+        ? const Color(0xFFFECACA)
+        : (isOrange ? const Color(0xFFFDE68A) : const Color(0xFFBAE6FD));
+    final textColor = isRed
+        ? const Color(0xFFDC2626)
+        : (isOrange ? const Color(0xFFD97706) : const Color(0xFF0284C7));
+
+    String headerTag = 'ALERT';
+    if (isRed) {
+      headerTag = 'DUE';
+    } else if (isOrange) {
+      final m = RegExp(r'(\d+)').firstMatch(alert.title);
+      headerTag = m != null ? '${m.group(1)} D' : '30 D';
+    } else if (isBlue) {
+      headerTag = 'OPEN';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.015),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: () {
+          final href = alert.href;
+          if (href.contains('statusBucket=due') || href.contains('activities')) {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const ActivitiesPage(isTeam: true),
+              ),
+            );
+          } else if (href.contains('renewals')) {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const RenewalSitesPage()),
+            );
+          } else if (href.contains('issues')) {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const IssuesPage()),
+            );
+          } else {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const ActivitiesPage(isTeam: true),
+              ),
+            );
+          }
+        },
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              // Ticket counter badge
+              Container(
+                width: 46,
+                decoration: BoxDecoration(
+                  color: bodyBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      decoration: BoxDecoration(
+                        color: headerBg,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(9),
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        headerTag,
+                        style: GoogleFonts.outfit(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text(
+                        '${alert.count > 0 ? alert.count : (alert.title.isNotEmpty ? '!' : '0')}',
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Alert title and detail
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      alert.title,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF0F172A),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (alert.detail.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        alert.detail,
+                        style: GoogleFonts.outfit(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w400,
+                          color: const Color(0xFF64748B),
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.arrow_forward_rounded,
+                size: 16,
+                color: Color(0xFF94A3B8),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UpcomingActivityItemCard extends StatelessWidget {
+  final UpcomingActivityModel activity;
+  const _UpcomingActivityItemCard({required this.activity});
+
+  static const _monthNames = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  static const _weekdayNames = [
+    'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    DateTime? dt = DateTime.tryParse(activity.dueDate);
+    String monthStr = 'DATE';
+    String dayStr = '--';
+    String weekdayStr = 'VISIT';
+    String formattedDate = activity.dueDate;
+
+    if (dt != null) {
+      final mIdx = dt.month - 1;
+      monthStr = mIdx >= 0 && mIdx < 12 ? _monthNames[mIdx] : 'NOV';
+      dayStr = '${dt.day}';
+      final wIdx = dt.weekday - 1;
+      weekdayStr = wIdx >= 0 && wIdx < 7 ? _weekdayNames[wIdx] : 'DAY';
+      formattedDate = '${dt.day} $monthStr ${dt.year}';
+    }
+
+    String relativeText;
+    if (activity.daysUntil == 0) {
+      relativeText = 'Today';
+    } else if (activity.daysUntil == 1) {
+      relativeText = 'Tomorrow';
+    } else if (activity.daysUntil > 1) {
+      relativeText = 'In ${activity.daysUntil} Days';
+    } else if (activity.daysUntil < 0) {
+      relativeText = '${-activity.daysUntil} Days Ago';
+    } else {
+      relativeText = activity.state.isNotEmpty ? activity.state : 'Upcoming';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.015),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: () {
+          if (activity.id.isNotEmpty) {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ActivityExecutionPage(
+                  activityId: activity.id,
+                  siteName: activity.siteName.isNotEmpty ? activity.siteName : null,
+                ),
+              ),
+            );
+          } else {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const ActivitiesPage(isTeam: false),
+              ),
+            );
+          }
+        },
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              // Calendar date ticket
+              Container(
+                width: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBAE6FD)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF38BDF8),
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(9),
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '* ${monthStr.toUpperCase()} *',
+                        style: GoogleFonts.outfit(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        dayStr,
+                        style: GoogleFonts.outfit(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        weekdayStr,
+                        style: GoogleFonts.outfit(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Activity details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      activity.title,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF0F172A),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (activity.siteName.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        activity.siteName,
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF64748B),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    if (formattedDate.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        formattedDate,
+                        style: GoogleFonts.outfit(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w400,
+                          color: const Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFDBEAFE)),
+                      ),
+                      child: Text(
+                        relativeText,
+                        style: GoogleFonts.outfit(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF2563EB),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

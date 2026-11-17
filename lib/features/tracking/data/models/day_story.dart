@@ -104,10 +104,10 @@ class DaySession {
   List<GeoPoint> get routePoints => locations.map((l) => l.point).toList(growable: false);
 
   List<SessionStep> get steps {
-    final list = <SessionStep>[];
     final att = attendance;
 
-    list.add(SessionStep(
+    // 1. Clock In - ALWAYS FIRST
+    final inStep = SessionStep(
       time: att.checkInAt,
       type: SessionStepType.checkIn,
       title: 'Clock In',
@@ -115,13 +115,23 @@ class DaySession {
       accuracy: att.checkInAccuracy,
       battery: att.checkInBattery,
       location: att.checkInPoint,
-    ));
+    );
+
+    // 2. Intermediate events (Holds & Site visits)
+    final intermediate = <SessionStep>[];
 
     for (final stop in stationaryEvents) {
       if (stop.durationSeconds < AppConfig.stationaryThreshold.inSeconds) continue;
       final locText = '${stop.point.latitude.toStringAsFixed(4)}, ${stop.point.longitude.toStringAsFixed(4)}';
-      list.add(SessionStep(
-        time: stop.startAt,
+      var eventTime = stop.startAt;
+      if (eventTime.isBefore(att.checkInAt)) {
+        eventTime = att.checkInAt.add(const Duration(seconds: 1));
+      }
+      if (att.checkOutAt != null && !eventTime.isBefore(att.checkOutAt!)) {
+        eventTime = att.checkOutAt!.subtract(const Duration(seconds: 1));
+      }
+      intermediate.add(SessionStep(
+        time: eventTime,
         type: SessionStepType.hold,
         title: 'Hold · ${Fmt.durationCompact(stop.duration)}',
         subtitle: locText,
@@ -131,8 +141,12 @@ class DaySession {
     }
 
     for (final visit in siteVisits) {
-      list.add(SessionStep(
-        time: visit.checkInAt,
+      var visitInTime = visit.checkInAt;
+      if (visitInTime.isBefore(att.checkInAt)) {
+        visitInTime = att.checkInAt.add(const Duration(seconds: 1));
+      }
+      intermediate.add(SessionStep(
+        time: visitInTime,
         type: SessionStepType.siteClockIn,
         title: 'Site Clock In',
         subtitle: visit.siteName,
@@ -142,8 +156,15 @@ class DaySession {
         battery: visit.checkInBattery,
       ));
       if (visit.checkOutAt != null) {
-        list.add(SessionStep(
-          time: visit.checkOutAt!,
+        var visitOutTime = visit.checkOutAt!;
+        if (!visitOutTime.isAfter(visitInTime)) {
+          visitOutTime = visitInTime.add(const Duration(seconds: 1));
+        }
+        if (att.checkOutAt != null && !visitOutTime.isBefore(att.checkOutAt!)) {
+          visitOutTime = att.checkOutAt!.subtract(const Duration(seconds: 1));
+        }
+        intermediate.add(SessionStep(
+          time: visitOutTime,
           type: SessionStepType.siteClockOut,
           title: 'Site Clock Out',
           subtitle: '${visit.siteName} (${Fmt.duration(visit.visitDuration)})',
@@ -156,6 +177,15 @@ class DaySession {
       }
     }
 
+    intermediate.sort((a, b) {
+      final cmp = a.time.compareTo(b.time);
+      if (cmp != 0) return cmp;
+      return _stepPriority(a.type).compareTo(_stepPriority(b.type));
+    });
+
+    final list = <SessionStep>[inStep, ...intermediate];
+
+    // 3. Clock Out - ALWAYS LAST
     if (att.checkOutAt != null) {
       list.add(SessionStep(
         time: att.checkOutAt!,
@@ -168,11 +198,6 @@ class DaySession {
       ));
     }
 
-    list.sort((a, b) {
-      final cmp = a.time.compareTo(b.time);
-      if (cmp != 0) return cmp;
-      return _stepPriority(a.type).compareTo(_stepPriority(b.type));
-    });
     return list;
   }
 }
@@ -290,7 +315,11 @@ class DayStory {
       }
     }
 
-    intermediate.sort((a, b) => a.time.compareTo(b.time));
+    intermediate.sort((a, b) {
+      final cmp = a.time.compareTo(b.time);
+      if (cmp != 0) return cmp;
+      return _stepPriority(a.type).compareTo(_stepPriority(b.type));
+    });
 
     final list = <SessionStep>[inStep, ...intermediate];
 
@@ -445,7 +474,11 @@ class DaySessionSummary {
       }
     }
 
-    intermediate.sort((a, b) => a.time.compareTo(b.time));
+    intermediate.sort((a, b) {
+      final cmp = a.time.compareTo(b.time);
+      if (cmp != 0) return cmp;
+      return _stepPriority(a.type).compareTo(_stepPriority(b.type));
+    });
 
     final list = <SessionStep>[inStep, ...intermediate];
 

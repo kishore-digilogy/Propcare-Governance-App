@@ -257,6 +257,18 @@ class _FieldTrackingPageState extends State<FieldTrackingPage> {
   }
 
   Future<void> _handleOfficeCheckOut() async {
+    if (_controller.hasActiveSiteVisit) {
+      final siteName = _controller.activeSite?.name ??
+          _controller.activeSiteVisit?.siteName ??
+          'the active site';
+      AppSnackBar.error(
+        context,
+        title: 'Site Check-Out Required',
+        message: 'Cannot check out of duty: You are still clocked in at "$siteName". Please clock out from the site first.',
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
