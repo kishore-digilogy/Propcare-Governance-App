@@ -54,6 +54,8 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   bool _isSidebarCollapsed = false;
   bool _sitesExpanded = true;
   bool _governanceExpanded = true;
+  bool _trainingExpanded = true;
+  bool _reportsExpanded = true;
 
   @override
   void initState() {
@@ -73,13 +75,23 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   // 8: Attendance
   // 9: Reports
   // 10: MOM & Email
-  // 11: Training
+  // 11: Training Activities
   // 12: Checklist Report
   // 13: MMR / MIS
   // 14: R&R
   // 15: Issues
+  // 16: Site Observation Report
+  // 17: Training Report Generator
+  // 18: Role & Access
+  // 19: Approvals
+  // 20: Issue Report
+  // 21: Machine Report
+  // 22: Transition / L&D Report
 
   void _onSelectMainItem(int itemIndex) {
+    final isSuperAdminOrCoo = HiveStorage.isSuperAdminOrCoo;
+    final isLd = HiveStorage.isLdRole && !isSuperAdminOrCoo;
+
     if (itemIndex == 0) {
       setState(() => _activePageIndex = 0);
     } else if (itemIndex == 1) {
@@ -88,14 +100,22 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
         _activePageIndex = 1;
       });
     } else if (itemIndex == 2) {
-      setState(() {
-        _menuState = NavMenuState.governance;
-        _activePageIndex = 6;
-      });
+      if (isLd) {
+        setState(() => _activePageIndex = 4); // Transition
+      } else {
+        setState(() {
+          _menuState = NavMenuState.governance;
+          _activePageIndex = 6;
+        });
+      }
     } else if (itemIndex == 3) {
-      setState(() => _activePageIndex = 8);
+      if (isLd) {
+        setState(() => _activePageIndex = 11); // Training
+      } else {
+        setState(() => _activePageIndex = 8); // Attendance
+      }
     } else if (itemIndex == 4) {
-      setState(() => _activePageIndex = 10);
+      setState(() => _activePageIndex = 10); // MOM & Email
     }
   }
 
@@ -106,8 +126,48 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
   }
 
   List<NavItemData> _buildCurrentNavItems() {
+    final isSuperAdminOrCoo = HiveStorage.isSuperAdminOrCoo;
+    final isLd = HiveStorage.isLdRole && !isSuperAdminOrCoo;
+
     switch (_menuState) {
       case NavMenuState.main:
+        if (isLd) {
+          return [
+            NavItemData(
+              label: 'Dashboard',
+              icon: Icons.dashboard_rounded,
+              isSelected: _activePageIndex == 0,
+              onTap: () => _onSelectMainItem(0),
+            ),
+            NavItemData(
+              label: 'Sites',
+              icon: Icons.apartment_rounded,
+              isSelected: _activePageIndex >= 1 && _activePageIndex <= 5,
+              onTap: () => _onSelectMainItem(1),
+            ),
+            NavItemData(
+              label: 'Transition',
+              icon: Icons.assignment_outlined,
+              isSelected: _activePageIndex == 4,
+              onTap: () => _onSelectMainItem(2),
+            ),
+            NavItemData(
+              label: 'Training',
+              icon: Icons.school_outlined,
+              isSelected: _activePageIndex == 11 ||
+                  _activePageIndex == 16 ||
+                  _activePageIndex == 17,
+              onTap: () => _onSelectMainItem(3),
+            ),
+            NavItemData(
+              label: 'MOM & Email',
+              icon: Icons.mail_outline_rounded,
+              isSelected: _activePageIndex == 10,
+              onTap: () => _onSelectMainItem(4),
+            ),
+          ];
+        }
+
         return [
           NavItemData(
             label: 'Dashboard',
@@ -142,7 +202,23 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
         ];
 
       case NavMenuState.sites:
-        final isSuperAdmin = HiveStorage.isSuperAdmin;
+        if (isLd) {
+          return [
+            NavItemData(
+              label: 'Back',
+              icon: Icons.arrow_back_rounded,
+              isBack: true,
+              isSelected: false,
+              onTap: _onBackToMain,
+            ),
+            NavItemData(
+              label: 'All Sites',
+              icon: Icons.domain_rounded,
+              isSelected: _activePageIndex == 1,
+              onTap: () => setState(() => _activePageIndex = 1),
+            ),
+          ];
+        }
 
         return [
           NavItemData(
@@ -164,19 +240,20 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
             isSelected: _activePageIndex == 2,
             onTap: () => setState(() => _activePageIndex = 2),
           ),
-          NavItemData(
-            label: 'Draft Sites',
-            icon: Icons.edit_note_rounded,
-            isSelected: _activePageIndex == 3,
-            onTap: () => setState(() => _activePageIndex = 3),
-          ),
-          if (isSuperAdmin)
+          if (isSuperAdminOrCoo) ...[
+            NavItemData(
+              label: 'Draft Sites',
+              icon: Icons.edit_note_rounded,
+              isSelected: _activePageIndex == 3,
+              onTap: () => setState(() => _activePageIndex = 3),
+            ),
             NavItemData(
               label: 'Transition',
               icon: Icons.swap_horiz_rounded,
               isSelected: _activePageIndex == 4,
               onTap: () => setState(() => _activePageIndex = 4),
             ),
+          ],
         ];
 
       case NavMenuState.governance:
@@ -209,35 +286,74 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
     final media = MediaQuery.of(context);
     final isTabletOrDesktop = media.size.shortestSide >= 700 || media.size.width >= 900;
 
+    final pageChildren = widget.pages ??
+        const [
+          DashboardPage(), // 0
+          AllSitesPage(), // 1
+          RenewalSitesPage(), // 2
+          AllSitesPage(initialStatus: 'DRAFT'), // 3
+          TransitionSitesPage(), // 4
+          PlaceholderPageView( // 5
+            title: 'Create Site',
+            parentTitle: 'Sites',
+            icon: Icons.add_business_rounded,
+          ),
+          ActivitiesPage(isTeam: false), // 6
+          ActivitiesPage(isTeam: true), // 7
+          AttendancePage(), // 8
+          ReportsPage(), // 9
+          MomPage(), // 10
+          PlaceholderPageView( // 11
+            title: 'Training Activities',
+            parentTitle: 'Training',
+            icon: Icons.school_outlined,
+          ),
+          ChecklistReportPage(), // 12
+          MmrMisPage(), // 13
+          RrPage(), // 14
+          IssuesPage(), // 15
+          PlaceholderPageView( // 16
+            title: 'Site Observation Report',
+            parentTitle: 'Training',
+            icon: Icons.find_in_page_outlined,
+          ),
+          PlaceholderPageView( // 17
+            title: 'Training Report Generator',
+            parentTitle: 'Training',
+            icon: Icons.analytics_outlined,
+          ),
+          PlaceholderPageView( // 18
+            title: 'Role & Access',
+            parentTitle: 'Settings',
+            icon: Icons.badge_outlined,
+          ),
+          PlaceholderPageView( // 19
+            title: 'Approvals',
+            parentTitle: 'Governance',
+            icon: Icons.verified_user_outlined,
+          ),
+          PlaceholderPageView( // 20
+            title: 'Issue Report',
+            parentTitle: 'Reports & Export',
+            icon: Icons.report_problem_outlined,
+          ),
+          PlaceholderPageView( // 21
+            title: 'Machine Report',
+            parentTitle: 'Reports & Export',
+            icon: Icons.precision_manufacturing_outlined,
+          ),
+          PlaceholderPageView( // 22
+            title: 'Transition / L&D',
+            parentTitle: 'Reports & Export',
+            icon: Icons.swap_horiz_rounded,
+          ),
+        ];
+
+    final safeIndex = _activePageIndex < pageChildren.length ? _activePageIndex : 0;
+
     final pagesWidget = IndexedStack(
-      index: _activePageIndex,
-      children: widget.pages ??
-          const [
-            DashboardPage(), // 0
-            AllSitesPage(), // 1
-            RenewalSitesPage(), // 2
-            AllSitesPage(initialStatus: 'DRAFT'), // 3
-            TransitionSitesPage(), // 4
-            PlaceholderPageView( // 5
-              title: 'Create Site',
-              parentTitle: 'Sites',
-              icon: Icons.add_business_rounded,
-            ),
-            ActivitiesPage(isTeam: false), // 6
-            ActivitiesPage(isTeam: true), // 7
-            AttendancePage(), // 8
-            ReportsPage(), // 9
-            MomPage(), // 10
-            PlaceholderPageView( // 11
-              title: 'Training',
-              parentTitle: 'L&D',
-              icon: Icons.school_outlined,
-            ),
-            ChecklistReportPage(), // 12
-            MmrMisPage(), // 13
-            RrPage(), // 14
-            IssuesPage(), // 15
-          ],
+      index: safeIndex,
+      children: pageChildren,
     );
 
     if (isTabletOrDesktop) {
@@ -314,7 +430,8 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
 
   // ── iPad / Tablet Sidebar Navigation ───────────────────────────────────────
   Widget _buildTabletSidebar() {
-    final isSuperAdmin = HiveStorage.isSuperAdmin;
+    final isSuperAdminOrCoo = HiveStorage.isSuperAdminOrCoo;
+    final isLd = HiveStorage.isLdRole && !isSuperAdminOrCoo;
     final width = _isSidebarCollapsed ? 76.0 : 252.0;
 
     return AnimatedContainer(
@@ -415,100 +532,326 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
               children: [
-                _buildSidebarTile(
-                  icon: Icons.grid_view_rounded,
-                  label: 'Dashboard',
-                  pageIndex: 0,
-                ),
-                const SizedBox(height: 4),
-
-                // Sites Expandable Group
-                _buildSidebarGroup(
-                  label: 'Sites',
-                  icon: Icons.apartment_rounded,
-                  isExpanded: _sitesExpanded,
-                  onToggle: () => setState(() => _sitesExpanded = !_sitesExpanded),
-                  children: [
-                    _buildSidebarChildTile(label: 'All Sites', pageIndex: 1),
-                    _buildSidebarChildTile(label: 'Renewal Sites', pageIndex: 2, badge: '5', badgeColor: const Color(0xFFFEF3C7), badgeTextColor: const Color(0xFFD97706)),
-                    _buildSidebarChildTile(label: 'Draft Sites', pageIndex: 3, badge: '5', badgeColor: const Color(0xFFFEF3C7), badgeTextColor: const Color(0xFFD97706)),
-                    _buildSidebarChildTile(label: 'Create Site', pageIndex: 5),
-                  ],
-                ),
-                const SizedBox(height: 4),
-
-                if (isSuperAdmin) ...[
+                if (isLd) ...[
+                  // ─── L&D Role Sidebar (Image 2) ───────────────────────────
                   _buildSidebarTile(
-                    icon: Icons.sync_alt_rounded,
-                    label: 'Transition',
-                    pageIndex: 4,
+                    icon: Icons.grid_view_rounded,
+                    label: 'Dashboard',
+                    pageIndex: 0,
                   ),
                   const SizedBox(height: 4),
+
+                  // Sites Expandable Group (only All Sites)
+                  _buildSidebarGroup(
+                    label: 'Sites',
+                    icon: Icons.apartment_rounded,
+                    isExpanded: _sitesExpanded,
+                    onToggle: () => setState(() => _sitesExpanded = !_sitesExpanded),
+                    children: [
+                      _buildSidebarChildTile(label: 'All Sites', pageIndex: 1),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.assignment_outlined,
+                    label: 'Transition',
+                    pageIndex: 4,
+                    badge: '8',
+                    badgeColor: const Color(0xFFFEF3C7),
+                    badgeTextColor: const Color(0xFFD97706),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Training Expandable Group
+                  _buildSidebarGroup(
+                    label: 'Training',
+                    icon: Icons.school_outlined,
+                    isExpanded: _trainingExpanded,
+                    onToggle: () => setState(() => _trainingExpanded = !_trainingExpanded),
+                    children: [
+                      _buildSidebarChildTile(label: 'Training Activities', pageIndex: 11),
+                      _buildSidebarChildTile(label: 'Team Activities', pageIndex: 7),
+                      _buildSidebarChildTile(label: 'Site Observation Report', pageIndex: 16),
+                      _buildSidebarChildTile(label: 'Training Report Generator', pageIndex: 17),
+                      _buildSidebarChildTile(label: 'MOM', pageIndex: 10),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.mail_outline_rounded,
+                    label: 'MOM & Email',
+                    pageIndex: 10,
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.badge_outlined,
+                    label: 'Role & Access',
+                    pageIndex: 18,
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.verified_user_outlined,
+                    label: 'Approvals',
+                    pageIndex: 19,
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Reports & Export Expandable Group
+                  _buildSidebarGroup(
+                    label: 'Reports & Export',
+                    icon: Icons.bar_chart_rounded,
+                    isExpanded: _reportsExpanded,
+                    onToggle: () => setState(() => _reportsExpanded = !_reportsExpanded),
+                    children: [
+                      _buildSidebarChildTile(label: 'Transition / L&D', pageIndex: 22),
+                    ],
+                  ),
+                ] else if (!isSuperAdminOrCoo) ...[
+                  // ─── Others Sidebar (Image 1: Machine Technician, Clusters, etc.) ────
+                  _buildSidebarTile(
+                    icon: Icons.grid_view_rounded,
+                    label: 'Dashboard',
+                    pageIndex: 0,
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Sites Expandable Group
+                  _buildSidebarGroup(
+                    label: 'Sites',
+                    icon: Icons.apartment_rounded,
+                    isExpanded: _sitesExpanded,
+                    onToggle: () => setState(() => _sitesExpanded = !_sitesExpanded),
+                    children: [
+                      _buildSidebarChildTile(label: 'All Sites', pageIndex: 1),
+                      _buildSidebarChildTile(
+                        label: 'Renewal Sites',
+                        pageIndex: 2,
+                        badge: '5',
+                        badgeColor: const Color(0xFFFEF3C7),
+                        badgeTextColor: const Color(0xFFD97706),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Governance Expandable Group
+                  _buildSidebarGroup(
+                    label: 'Governance',
+                    icon: Icons.assignment_outlined,
+                    isExpanded: _governanceExpanded,
+                    onToggle: () => setState(() => _governanceExpanded = !_governanceExpanded),
+                    children: [
+                      _buildSidebarChildTile(
+                        label: 'My Governance',
+                        pageIndex: 6,
+                        badge: '10',
+                        badgeColor: const Color(0xFFDBEAFE),
+                        badgeTextColor: const Color(0xFF2563EB),
+                      ),
+                      _buildSidebarChildTile(label: 'Team Governance', pageIndex: 7),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.calendar_month_outlined,
+                    label: 'Attendance',
+                    pageIndex: 8,
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.mail_outline_rounded,
+                    label: 'MOM & Email',
+                    pageIndex: 10,
+                    badge: '1',
+                    badgeColor: const Color(0xFFFEE2E2),
+                    badgeTextColor: const Color(0xFFDC2626),
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.fact_check_outlined,
+                    label: 'Checklist Report',
+                    pageIndex: 12,
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.warning_amber_rounded,
+                    label: 'Issues',
+                    pageIndex: 15,
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Reports & Export Expandable Group
+                  _buildSidebarGroup(
+                    label: 'Reports & Export',
+                    icon: Icons.bar_chart_rounded,
+                    isExpanded: _reportsExpanded,
+                    onToggle: () => setState(() => _reportsExpanded = !_reportsExpanded),
+                    children: [
+                      _buildSidebarChildTile(label: 'Issue Report', pageIndex: 20),
+                      _buildSidebarChildTile(label: 'Machine Report', pageIndex: 21),
+                    ],
+                  ),
+                ] else ...[
+                  // ─── Super Admin / CRRM / COO (Full Access) ───────────────
+                  _buildSidebarTile(
+                    icon: Icons.grid_view_rounded,
+                    label: 'Dashboard',
+                    pageIndex: 0,
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Sites Expandable Group
+                  _buildSidebarGroup(
+                    label: 'Sites',
+                    icon: Icons.apartment_rounded,
+                    isExpanded: _sitesExpanded,
+                    onToggle: () => setState(() => _sitesExpanded = !_sitesExpanded),
+                    children: [
+                      _buildSidebarChildTile(label: 'All Sites', pageIndex: 1),
+                      _buildSidebarChildTile(
+                        label: 'Renewal Sites',
+                        pageIndex: 2,
+                        badge: '5',
+                        badgeColor: const Color(0xFFFEF3C7),
+                        badgeTextColor: const Color(0xFFD97706),
+                      ),
+                      _buildSidebarChildTile(
+                        label: 'Draft Sites',
+                        pageIndex: 3,
+                        badge: '5',
+                        badgeColor: const Color(0xFFFEF3C7),
+                        badgeTextColor: const Color(0xFFD97706),
+                      ),
+                      _buildSidebarChildTile(label: 'Create Site', pageIndex: 5),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.assignment_outlined,
+                    label: 'Transition',
+                    pageIndex: 4,
+                    badge: '8',
+                    badgeColor: const Color(0xFFFEF3C7),
+                    badgeTextColor: const Color(0xFFD97706),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Governance Expandable Group
+                  _buildSidebarGroup(
+                    label: 'Governance',
+                    icon: Icons.assignment_outlined,
+                    isExpanded: _governanceExpanded,
+                    onToggle: () => setState(() => _governanceExpanded = !_governanceExpanded),
+                    children: [
+                      _buildSidebarChildTile(
+                        label: 'My Governance',
+                        pageIndex: 6,
+                        badge: '10',
+                        badgeColor: const Color(0xFFDBEAFE),
+                        badgeTextColor: const Color(0xFF2563EB),
+                      ),
+                      _buildSidebarChildTile(label: 'Team Governance', pageIndex: 7),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Training Expandable Group
+                  _buildSidebarGroup(
+                    label: 'Training',
+                    icon: Icons.school_outlined,
+                    isExpanded: _trainingExpanded,
+                    onToggle: () => setState(() => _trainingExpanded = !_trainingExpanded),
+                    children: [
+                      _buildSidebarChildTile(label: 'Training Activities', pageIndex: 11),
+                      _buildSidebarChildTile(label: 'Team Activities', pageIndex: 7),
+                      _buildSidebarChildTile(label: 'Site Observation Report', pageIndex: 16),
+                      _buildSidebarChildTile(label: 'Training Report Generator', pageIndex: 17),
+                      _buildSidebarChildTile(label: 'MOM', pageIndex: 10),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.calendar_month_outlined,
+                    label: 'Attendance',
+                    pageIndex: 8,
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.mail_outline_rounded,
+                    label: 'MOM & Email',
+                    pageIndex: 10,
+                    badge: '3',
+                    badgeColor: const Color(0xFFFEE2E2),
+                    badgeTextColor: const Color(0xFFDC2626),
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.fact_check_outlined,
+                    label: 'Checklist Report',
+                    pageIndex: 12,
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.inventory_2_outlined,
+                    label: 'MMR / MIS',
+                    pageIndex: 13,
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.military_tech_outlined,
+                    label: 'R&R',
+                    pageIndex: 14,
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.warning_amber_rounded,
+                    label: 'Issues',
+                    pageIndex: 15,
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.badge_outlined,
+                    label: 'Role & Access',
+                    pageIndex: 18,
+                  ),
+                  const SizedBox(height: 4),
+
+                  _buildSidebarTile(
+                    icon: Icons.verified_user_outlined,
+                    label: 'Approvals',
+                    pageIndex: 19,
+                  ),
+                  const SizedBox(height: 4),
+
+                  // Reports & Export Expandable Group
+                  _buildSidebarGroup(
+                    label: 'Reports & Export',
+                    icon: Icons.bar_chart_rounded,
+                    isExpanded: _reportsExpanded,
+                    onToggle: () => setState(() => _reportsExpanded = !_reportsExpanded),
+                    children: [
+                      _buildSidebarChildTile(label: 'Issue Report', pageIndex: 20),
+                      _buildSidebarChildTile(label: 'Machine Report', pageIndex: 21),
+                      _buildSidebarChildTile(label: 'Transition / L&D', pageIndex: 22),
+                    ],
+                  ),
                 ],
-
-                // Governance Expandable Group
-                _buildSidebarGroup(
-                  label: 'Governance',
-                  icon: Icons.assignment_outlined,
-                  isExpanded: _governanceExpanded,
-                  onToggle: () => setState(() => _governanceExpanded = !_governanceExpanded),
-                  children: [
-                    _buildSidebarChildTile(label: 'My Governance', pageIndex: 6, badge: '8', badgeColor: const Color(0xFFDBEAFE), badgeTextColor: const Color(0xFF2563EB)),
-                    _buildSidebarChildTile(label: 'Team Governance', pageIndex: 7),
-                  ],
-                ),
-                const SizedBox(height: 4),
-
-                _buildSidebarTile(
-                  icon: Icons.calendar_month_outlined,
-                  label: 'Attendance',
-                  pageIndex: 8,
-                ),
-                const SizedBox(height: 4),
-
-                _buildSidebarTile(
-                  icon: Icons.mail_outline_rounded,
-                  label: 'MOM & Email',
-                  pageIndex: 10,
-                  badge: '3',
-                  badgeColor: const Color(0xFFFEE2E2),
-                  badgeTextColor: const Color(0xFFDC2626),
-                ),
-                const SizedBox(height: 4),
-
-                _buildSidebarTile(
-                  icon: Icons.fact_check_outlined,
-                  label: 'Checklist Report',
-                  pageIndex: 12,
-                ),
-                const SizedBox(height: 4),
-
-                _buildSidebarTile(
-                  icon: Icons.inventory_2_outlined,
-                  label: 'MMR / MIS',
-                  pageIndex: 13,
-                ),
-                const SizedBox(height: 4),
-
-                _buildSidebarTile(
-                  icon: Icons.military_tech_outlined,
-                  label: 'R&R',
-                  pageIndex: 14,
-                ),
-                const SizedBox(height: 4),
-
-                _buildSidebarTile(
-                  icon: Icons.warning_amber_rounded,
-                  label: 'Issues',
-                  pageIndex: 15,
-                ),
-                const SizedBox(height: 4),
-
-                _buildSidebarTile(
-                  icon: Icons.bar_chart_rounded,
-                  label: 'Reports',
-                  pageIndex: 9,
-                ),
               ],
             ),
           ),

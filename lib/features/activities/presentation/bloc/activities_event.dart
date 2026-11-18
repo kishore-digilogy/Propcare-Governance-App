@@ -167,16 +167,27 @@ class SubmitActivityVisit extends ActivitiesEvent {
   final String visitDate;
   final bool clientMet;
   final String? note;
+  final List<dynamic>? answers;
+  final List<dynamic>? findings;
 
   const SubmitActivityVisit({
     required this.activityId,
     required this.visitDate,
     required this.clientMet,
     this.note,
+    this.answers,
+    this.findings,
   });
 
   @override
-  List<Object?> get props => [activityId, visitDate, clientMet, note];
+  List<Object?> get props => [
+        activityId,
+        visitDate,
+        clientMet,
+        note,
+        answers,
+        findings,
+      ];
 }
 
 class SendActivityMomEmail extends ActivitiesEvent {

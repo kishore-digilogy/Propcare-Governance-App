@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../router/app_router.dart';
 import '../storage/hive_storage.dart';
 import '../theme/app_theme.dart';
+import '../../features/notifications/presentation/pages/notifications_page.dart';
 
 const _kBlue = Color(0xFF1A73E8);
 const _kSlate = Color(0xFF64748B);
@@ -56,7 +57,13 @@ class AppTopHeader extends StatelessWidget {
                   color: _kSlate,
                   size: 24,
                 ),
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsPage(),
+                    ),
+                  );
+                },
               ),
               Positioned(
                 top: 8,

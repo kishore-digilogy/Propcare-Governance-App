@@ -113,6 +113,8 @@ class MockMmrMisRemoteDataSource implements ActivitiesRemoteDataSource {
     required String visitDate,
     required bool clientMet,
     String? note,
+    List<dynamic>? answers,
+    List<dynamic>? findings,
   }) async {
     throw UnimplementedError();
   }

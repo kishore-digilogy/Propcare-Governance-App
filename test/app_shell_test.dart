@@ -19,10 +19,10 @@ void main() {
   });
 
   group('AppShell Role-Based Navigation Tests', () {
-    testWidgets('LD_HEAD role shows standard 5-item bottom nav and navigates to All Sites', (tester) async {
+    testWidgets('LD_HEAD role shows L&D bottom nav (Dashboard, Sites, Transition, Training, MOM & Email)', (tester) async {
       HiveStorage.mockUserRole = 'LD_HEAD';
 
-      final testPages = List.generate(16, (i) => Scaffold(body: Text('Page $i')));
+      final testPages = List.generate(24, (i) => Scaffold(body: Text('Page $i')));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -31,21 +31,22 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Should show Dashboard, Sites, Governance, Attendance, MOM & Email
+      // Should show Dashboard, Sites, Transition, Training, MOM & Email
       expect(find.text('Dashboard'), findsOneWidget);
       expect(find.text('Sites'), findsOneWidget);
-      expect(find.text('Governance'), findsOneWidget);
-      expect(find.text('Attendance'), findsOneWidget);
+      expect(find.text('Transition'), findsOneWidget);
+      expect(find.text('Training'), findsOneWidget);
       expect(find.text('MOM & Email'), findsOneWidget);
 
-      // Tapping Sites opens sub-menu with All Sites
+      // Tapping Sites opens sub-menu with All Sites only
       await tester.tap(find.text('Sites'));
       await tester.pumpAndSettle();
 
       expect(find.text('Page 1'), findsOneWidget);
       expect(find.text('Back'), findsOneWidget);
       expect(find.text('All Sites'), findsOneWidget);
-      expect(find.text('Draft Sites'), findsOneWidget);
+      expect(find.text('Draft Sites'), findsNothing);
+      expect(find.text('Renewals'), findsNothing);
 
       // Tapping Back returns to main bottom bar
       await tester.tap(find.text('Back'));
@@ -58,10 +59,10 @@ void main() {
       expect(find.text('Page 0'), findsOneWidget);
     });
 
-    testWidgets('CRRM role shows full 5-item bottom nav and Sites submenu includes Transition', (tester) async {
+    testWidgets('CRRM / Super Admin role shows full 5-item bottom nav and Sites submenu includes Transition', (tester) async {
       HiveStorage.mockUserRole = 'CRRM';
 
-      final testPages = List.generate(16, (i) => Scaffold(body: Text('Page $i')));
+      final testPages = List.generate(24, (i) => Scaffold(body: Text('Page $i')));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -105,10 +106,10 @@ void main() {
       expect(find.text('Team Governance'), findsOneWidget);
     });
 
-    testWidgets('Other roles (HR) show 5-item bottom nav and Sites submenu hides Transition', (tester) async {
-      HiveStorage.mockUserRole = 'HR';
+    testWidgets('Other roles (Machine Technician / HR) show Image 1 menus and hides Draft Sites & Transition', (tester) async {
+      HiveStorage.mockUserRole = 'MACHINE_TECHNICIAN';
 
-      final testPages = List.generate(16, (i) => Scaffold(body: Text('Page $i')));
+      final testPages = List.generate(24, (i) => Scaffold(body: Text('Page $i')));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -117,22 +118,106 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Should show all 5 standard items
+      // Should show all 5 standard items: Dashboard, Sites, Governance, Attendance, MOM & Email
       expect(find.text('Dashboard'), findsOneWidget);
       expect(find.text('Sites'), findsOneWidget);
       expect(find.text('Governance'), findsOneWidget);
       expect(find.text('Attendance'), findsOneWidget);
       expect(find.text('MOM & Email'), findsOneWidget);
 
-      // Tapping Sites opens sites submenu where Transition is HIDDEN
+      // Tapping Sites opens sites submenu where Transition and Draft Sites are HIDDEN
       await tester.tap(find.text('Sites'));
       await tester.pumpAndSettle();
 
       expect(find.text('Back'), findsOneWidget);
       expect(find.text('All Sites'), findsOneWidget);
       expect(find.text('Renewals'), findsOneWidget);
-      expect(find.text('Draft Sites'), findsOneWidget);
+      expect(find.text('Draft Sites'), findsNothing);
       expect(find.text('Transition'), findsNothing);
+    });
+
+    testWidgets('iPad / Tablet screen renders Image 2 sidebar for L&D role', (tester) async {
+      HiveStorage.mockUserRole = 'LD_HEAD';
+
+      // Set iPad Pro 11" resolution (834 x 1194)
+      tester.view.physicalSize = const Size(834 * 2, 1194 * 2);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final testPages = List.generate(24, (i) => Scaffold(body: Text('Tablet Page $i')));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppShell(pages: testPages),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // L&D sidebar items matching Image 2
+      expect(find.text('Dashboard'), findsOneWidget);
+      expect(find.text('Sites'), findsOneWidget);
+      expect(find.text('All Sites'), findsOneWidget);
+      expect(find.text('Renewal Sites'), findsNothing);
+      expect(find.text('Transition'), findsOneWidget);
+      expect(find.text('8'), findsOneWidget); // Transition badge
+      expect(find.text('Training'), findsOneWidget);
+      expect(find.text('Training Activities'), findsOneWidget);
+      expect(find.text('Site Observation Report'), findsOneWidget);
+      expect(find.text('Training Report Generator'), findsOneWidget);
+      expect(find.text('MOM'), findsOneWidget);
+      expect(find.text('Role & Access'), findsOneWidget);
+      expect(find.text('Approvals'), findsOneWidget);
+      expect(find.text('Reports & Export'), findsOneWidget);
+      expect(find.text('Transition / L&D'), findsOneWidget);
+
+      // Non-L&D items must NOT be present
+      expect(find.text('Attendance'), findsNothing);
+      expect(find.text('Checklist Report'), findsNothing);
+      expect(find.text('MMR / MIS'), findsNothing);
+      expect(find.text('Issues'), findsNothing);
+    });
+
+    testWidgets('iPad / Tablet screen renders Image 1 sidebar for Machine Technician (Others)', (tester) async {
+      HiveStorage.mockUserRole = 'MACHINE_TECHNICIAN';
+
+      tester.view.physicalSize = const Size(834 * 2, 1194 * 2);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final testPages = List.generate(24, (i) => Scaffold(body: Text('Tablet Page $i')));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppShell(pages: testPages),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Image 1 sidebar items
+      expect(find.text('Dashboard'), findsOneWidget);
+      expect(find.text('Sites'), findsOneWidget);
+      expect(find.text('All Sites'), findsOneWidget);
+      expect(find.text('Renewal Sites'), findsOneWidget);
+      expect(find.text('Draft Sites'), findsNothing);
+      expect(find.text('Governance'), findsWidgets);
+      expect(find.text('My Governance'), findsOneWidget);
+      expect(find.text('Team Governance'), findsOneWidget);
+      expect(find.text('Attendance'), findsOneWidget);
+      expect(find.text('MOM & Email'), findsOneWidget);
+      expect(find.text('Checklist Report'), findsOneWidget);
+      expect(find.text('Issues'), findsOneWidget);
+      expect(find.text('Reports & Export'), findsOneWidget);
+      expect(find.text('Issue Report'), findsOneWidget);
+      expect(find.text('Machine Report'), findsOneWidget);
+
+      // L&D specific and admin-only items must NOT be present
+      expect(find.text('Training'), findsNothing);
+      expect(find.text('Role & Access'), findsNothing);
+      expect(find.text('Approvals'), findsNothing);
+      expect(find.text('Transition / L&D'), findsNothing);
+      expect(find.text('MMR / MIS'), findsNothing);
     });
 
     testWidgets('iPad / Tablet screen renders Left Sidebar navigation layout and switches pages', (tester) async {

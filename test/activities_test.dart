@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:propcare_governance/core/models/meta_model.dart';
 import 'package:propcare_governance/core/services/meta_service.dart';
+import 'package:propcare_governance/core/storage/hive_storage.dart';
 import 'package:propcare_governance/features/activities/data/datasources/activities_remote_datasource.dart';
 import 'package:propcare_governance/features/activities/data/models/activity_detail_model.dart';
 import 'package:propcare_governance/features/activities/data/models/activity_site_summary_model.dart';
@@ -13,6 +14,7 @@ import 'package:propcare_governance/features/activities/presentation/bloc/activi
 import 'package:propcare_governance/features/activities/presentation/bloc/activities_event.dart';
 import 'package:propcare_governance/features/activities/presentation/bloc/activities_state.dart';
 import 'package:propcare_governance/features/activities/presentation/pages/activities_page.dart';
+import 'package:propcare_governance/features/activities/presentation/widgets/activity_execution_view.dart';
 
 const sampleActivityDetail = ActivityDetailModel(
   activity: ActivityItemDetailModel(
@@ -121,6 +123,8 @@ class MockActivitiesRemoteDataSource implements ActivitiesRemoteDataSource {
     required String visitDate,
     required bool clientMet,
     String? note,
+    List<dynamic>? answers,
+    List<dynamic>? findings,
   }) async {
     return sampleActivityDetail.activity.copyWith(
       status: 'COMPLETED',
@@ -225,6 +229,8 @@ class DelayActivitiesRemoteDataSource implements ActivitiesRemoteDataSource {
     required String visitDate,
     required bool clientMet,
     String? note,
+    List<dynamic>? answers,
+    List<dynamic>? findings,
   }) async {
     return sampleActivityDetail.activity.copyWith(
       status: 'COMPLETED',
@@ -806,6 +812,8 @@ void main() {
       expect(find.text('Submit visit'), findsWidgets);
       await tester.tap(find.text('Submit visit').first);
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Complete → Send MOM'));
+      await tester.pumpAndSettle();
 
       // After visit is completed, auto-advances to Step 2: MOM & Email
       expect(find.text('2. MOM & Email'), findsOneWidget);
@@ -893,7 +901,93 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Please submit visit details first before proceeding to MOM.'), findsOneWidget);
 
+      // Tapping 'Submit visit' opens the confirmation dialog
+      await tester.tap(find.text('Submit visit').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Submit Visit'), findsOneWidget);
+      expect(
+        find.text('After Submit You Will Move To MOM & Email To Send The Client Communication.'),
+        findsOneWidget,
+      );
+      expect(find.text('Complete → Send MOM'), findsOneWidget);
+
+      // Tapping Complete -> Send MOM submits and transitions
+      await tester.tap(find.text('Complete → Send MOM'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Submit Visit'), findsNothing);
+
       bloc.close();
+    });
+
+    testWidgets('ActivityExecutionView tapping See Attendance shows under progress SnackBar', (tester) async {
+      final mockSource = MockActivitiesRemoteDataSource(
+        bySiteResponse: sampleBySiteResponse,
+        siteActivitiesResponse: sampleSiteActivitiesResponse,
+      );
+      final bloc = ActivitiesBloc(remoteDataSource: mockSource);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ActivityExecutionView(
+                activityDetail: sampleActivityDetail,
+                isSubmittingVisit: false,
+                isSendingMom: false,
+                bloc: bloc,
+                onBack: () {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('See Attendance'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('See Attendance'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Attendance is under progress'), findsOneWidget);
+
+      bloc.close();
+    });
+
+    test('ActivityItemDetailModel correctly sets isCompleted and isMomSent for COMPLETED activity', () {
+      final json = {
+        'id': '09006f56-0127-43ab-98d2-d6b5ee528b16',
+        'siteId': 'ef261f20-3171-4f37-bb12-ad3ca34dbd18',
+        'role': 'CRRM',
+        'kind': 'GOVERNANCE',
+        'title': 'CRRM Visit',
+        'status': 'COMPLETED',
+        'scheduledDate': '2027-01-30',
+        'dueDate': '2027-01-30',
+        'visitDate': '2026-11-18',
+        'completionNote': 'Visit date: 2026-11-18\nClient met: Yes\nNote: Kishore test\nMOM required',
+        'mom': <String, dynamic>{},
+      };
+
+      final model = ActivityItemDetailModel.fromJson(json);
+      expect(model.isCompleted, isTrue);
+      expect(model.isMomSent, isFalse);
+      expect(model.clientMet, isTrue);
+    });
+
+    test('HiveStorage.isClusterExecutive identifies Cluster Executive and hides roles and draft sites', () {
+      HiveStorage.mockUserRole = 'CLUSTER_EXECUTIVE';
+      expect(HiveStorage.isClusterExecutive, isTrue);
+      expect(HiveStorage.isClusterHead, isFalse);
+
+      HiveStorage.mockUserRole = 'CLUSTER_HEAD';
+      expect(HiveStorage.isClusterHead, isTrue);
+      expect(HiveStorage.isClusterExecutive, isFalse);
+
+      HiveStorage.mockUserRole = 'CRRM';
+      expect(HiveStorage.isClusterExecutive, isFalse);
+      HiveStorage.mockUserRole = null;
     });
   });
 }

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/models/meta_model.dart';
 import '../../../../core/services/meta_service.dart';
+import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/widgets/custom_dropdown_button2.dart';
 import '../../data/datasources/activities_remote_datasource.dart';
 import '../../data/models/activity_site_summary_model.dart';
@@ -219,7 +220,8 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                             const SizedBox(height: 16),
                           ],
                           _buildFiltersBar(context, state),
-                          if (widget.isTeam &&
+                          if (!HiveStorage.isClusterExecutive &&
+                              widget.isTeam &&
                               (state.activitiesResponse.belowRoles.isNotEmpty ||
                                   state.response.belowRoles.isNotEmpty)) ...[
                             const SizedBox(height: 12),
@@ -261,10 +263,41 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
             ? state.response.myRoleLabel
             : 'CRRM / Super Admin');
     final subtitle = '$roleLabel · Governance Activities';
+    final canPop = Navigator.of(context).canPop();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (canPop) ...[
+          InkWell(
+            onTap: () => Navigator.of(context).pop(),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.arrow_back_rounded, size: 16, color: AppColors.primary),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Back',
+                    style: GoogleFonts.outfit(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
         Text(
           title,
           style: GoogleFonts.outfit(
@@ -489,6 +522,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
         style: GoogleFonts.outfit(fontSize: 13, color: const Color(0xFF1E293B)),
         decoration: InputDecoration(
           isDense: true,
+          filled: false,
           hintText: 'Search activity, code, site, role...',
           hintStyle: GoogleFonts.outfit(fontSize: 13, color: const Color(0xFF94A3B8)),
           prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
@@ -502,6 +536,10 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                 )
               : null,
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 10),
         ),
       ),
@@ -1014,6 +1052,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   }
 
   Widget _buildRoleFilterChips(ActivitiesLoaded state) {
+    if (HiveStorage.isClusterExecutive) return const SizedBox.shrink();
     final roles = state.activitiesResponse.belowRoles.isNotEmpty
         ? state.activitiesResponse.belowRoles
             .map((r) => RoleOptionModel(role: r.role, label: r.label))

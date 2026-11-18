@@ -514,6 +514,10 @@ class _RrPageState extends State<RrPage> {
                 )
               : null,
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
         ),
       ),
     );

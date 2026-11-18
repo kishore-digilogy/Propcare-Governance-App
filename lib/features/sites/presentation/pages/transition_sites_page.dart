@@ -297,6 +297,10 @@ class _TransitionSitesViewState extends State<_TransitionSitesView> {
                 )
               : null,
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
         ),
         onChanged: (val) {
           context.read<TransitionBloc>().add(ChangeTransitionSearch(val));

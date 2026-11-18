@@ -111,6 +111,8 @@ class MockRrRemoteDataSource implements ActivitiesRemoteDataSource {
     required String visitDate,
     required bool clientMet,
     String? note,
+    List<dynamic>? answers,
+    List<dynamic>? findings,
   }) async {
     throw UnimplementedError();
   }
@@ -230,7 +232,7 @@ void main() {
   };
 
   group('Quick Actions R&R Tests', () {
-    testWidgets('Quick Actions renders R&R card for Super Admin (CRRM)', (tester) async {
+    testWidgets('Quick Actions hides R&R card for Super Admin (CRRM)', (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -244,17 +246,17 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Look for R&R in Quick Actions
-      expect(find.text('R&R'), findsOneWidget);
-      expect(find.text('Recognition and reward governance visits'), findsOneWidget);
+      // R&R is hidden for CRRM (only shown for Cluster Head)
+      expect(find.text('R&R'), findsNothing);
+      expect(find.text('Reports'), findsOneWidget);
     });
 
-    testWidgets('Quick Actions renders R&R card for Cluster Lead', (tester) async {
+    testWidgets('Quick Actions renders R&R card only for Cluster Head', (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
 
-      HiveStorage.mockUserRole = 'CLUSTER_LEAD';
+      HiveStorage.mockUserRole = 'CLUSTER_HEAD';
 
       await tester.pumpWidget(
         const MaterialApp(
@@ -264,7 +266,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('R&R'), findsOneWidget);
-      expect(find.text('MMR / MIS'), findsOneWidget);
+      expect(find.text('Recognition and reward governance visits'), findsOneWidget);
     });
   });
 

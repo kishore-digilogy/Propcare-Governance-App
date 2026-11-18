@@ -44,6 +44,8 @@ abstract class ActivitiesRemoteDataSource {
     required String visitDate,
     required bool clientMet,
     String? note,
+    List<dynamic>? answers,
+    List<dynamic>? findings,
   });
 
   Future<ActivityItemDetailModel> sendMomEmail({
@@ -241,13 +243,19 @@ class ActivitiesRemoteDataSourceImpl implements ActivitiesRemoteDataSource {
     required String visitDate,
     required bool clientMet,
     String? note,
+    List<dynamic>? answers,
+    List<dynamic>? findings,
   }) async {
     final path = '/activities/$activityId/complete';
-    final payload = {
+    final userNote = (note != null && note.trim().isNotEmpty) ? note.trim() : '';
+    final formattedNote =
+        'Visit date: $visitDate\nClient met: ${clientMet ? "Yes" : "No"}\nNote: $userNote\nMOM required';
+
+    final payload = <String, dynamic>{
+      'answers': answers ?? <dynamic>[],
       'visitDate': visitDate,
-      'clientMet': clientMet,
-      'note': note ?? '',
-      'completionNote': 'Visit date: $visitDate\nClient met: ${clientMet ? "Yes" : "No"}\nNote: ${note ?? ""}\nMOM required',
+      'note': formattedNote,
+      'findings': findings ?? <dynamic>[],
     };
 
     final response = await _dio.post(path, data: payload);

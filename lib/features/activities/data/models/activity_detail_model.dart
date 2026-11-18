@@ -94,8 +94,7 @@ class ActivityItemDetailModel extends Equatable {
   bool get isMomSent =>
       mom['sentAt'] != null ||
       status.toUpperCase() == 'CLOSED' ||
-      statusLabel.toLowerCase().contains('closed') ||
-      statusLabel.toLowerCase().contains('completed');
+      statusLabel.toLowerCase().contains('closed');
 
   factory ActivityItemDetailModel.fromJson(Map<String, dynamic> json) {
     // Parse clientMet from completionNote if not directly present

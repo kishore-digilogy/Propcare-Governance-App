@@ -30,6 +30,7 @@ import '../bloc/dashboard_event.dart';
 import '../bloc/dashboard_state.dart';
 import 'placeholder_page_view.dart';
 import '../../../tracking/presentation/widgets/dashboard_tracking_header.dart';
+import '../../../notifications/presentation/pages/notifications_page.dart';
 
 // ─── colour helpers ───────────────────────────────────────────────────────────
 const _kBlue = Color(0xFF1A73E8);
@@ -173,7 +174,13 @@ class _CustomHeader extends StatelessWidget {
                   color: _kSlate,
                   size: 24,
                 ),
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsPage(),
+                    ),
+                  );
+                },
               ),
               Positioned(
                 right: 8,
@@ -950,10 +957,7 @@ class _BodyState extends State<_Body> {
                   _ClustersCard(clusters: data.workspace.clusters),
                   const SizedBox(height: 14),
                 ],
-
-                // ── Recent Governance
-                _RecentGovernanceCard(items: data.overview.governanceList),
-                const SizedBox(height: 24),
+                const SizedBox(height: 10),
               ],
             ],
           ),
@@ -1255,7 +1259,7 @@ class _QuickActionsGridView extends StatelessWidget {
   Widget build(BuildContext context) {
     final isLd = HiveStorage.isLdRole;
     final isClusterLead = HiveStorage.isClusterLead;
-    final isSuperAdmin = HiveStorage.isSuperAdmin;
+    final isSuperAdmin = HiveStorage.isSuperAdminOrCoo;
 
     // Role-based Quick Actions:
     // 1. L&D Team: Training, Role & Access, Approvals, Checklist Report.
@@ -1335,13 +1339,14 @@ class _QuickActionsGridView extends StatelessWidget {
           iconColor: const Color(0xFF2563EB),
           bgColor: const Color(0xFFEFF6FF),
         ),
-        (
-          title: 'R&R',
-          subtitle: 'Recognition and reward governance visits',
-          icon: Icons.workspace_premium_outlined,
-          iconColor: const Color(0xFF2563EB),
-          bgColor: const Color(0xFFEFF6FF),
-        ),
+        if (HiveStorage.isClusterHead)
+          (
+            title: 'R&R',
+            subtitle: 'Recognition and reward governance visits',
+            icon: Icons.workspace_premium_outlined,
+            iconColor: const Color(0xFF2563EB),
+            bgColor: const Color(0xFFEFF6FF),
+          ),
         (
           title: 'Issues',
           subtitle: 'Site incidents, complaints & escalations',
@@ -1373,13 +1378,14 @@ class _QuickActionsGridView extends StatelessWidget {
           iconColor: const Color(0xFF2563EB),
           bgColor: const Color(0xFFEFF6FF),
         ),
-        (
-          title: 'R&R',
-          subtitle: 'Recognition and reward governance visits',
-          icon: Icons.workspace_premium_outlined,
-          iconColor: const Color(0xFF2563EB),
-          bgColor: const Color(0xFFEFF6FF),
-        ),
+        if (HiveStorage.isClusterHead)
+          (
+            title: 'R&R',
+            subtitle: 'Recognition and reward governance visits',
+            icon: Icons.workspace_premium_outlined,
+            iconColor: const Color(0xFF2563EB),
+            bgColor: const Color(0xFFEFF6FF),
+          ),
         (
           title: 'Issues',
           subtitle: 'Site incidents, complaints & escalations',
@@ -1412,13 +1418,14 @@ class _QuickActionsGridView extends StatelessWidget {
           iconColor: const Color(0xFF2563EB),
           bgColor: const Color(0xFFEFF6FF),
         ),
-        (
-          title: 'R&R',
-          subtitle: 'Recognition and reward governance visits',
-          icon: Icons.workspace_premium_outlined,
-          iconColor: const Color(0xFF2563EB),
-          bgColor: const Color(0xFFEFF6FF),
-        ),
+        if (HiveStorage.isClusterHead)
+          (
+            title: 'R&R',
+            subtitle: 'Recognition and reward governance visits',
+            icon: Icons.workspace_premium_outlined,
+            iconColor: const Color(0xFF2563EB),
+            bgColor: const Color(0xFFEFF6FF),
+          ),
         (
           title: 'Issues',
           subtitle: 'Site incidents, complaints & escalations',
@@ -3051,15 +3058,108 @@ class _DashboardFilterBar extends StatefulWidget {
 class _DashboardFilterBarState extends State<_DashboardFilterBar> {
   bool _isCollapsed = false;
 
+  Widget _buildModalOptionItem({
+    required IconData icon,
+    required String title,
+    required bool isSelected,
+    required VoidCallback onTap,
+    List<String>? subtitlePills,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.5),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: isSelected ? const Color(0xFFEFF6FF) : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isSelected ? const Color(0xFFBFDBFE) : Colors.transparent,
+                width: 1.2,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFFDBEAFE) : const Color(0xFFF1F5F9),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 16.5,
+                    color: isSelected ? const Color(0xFF1A73E8) : const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                          color: isSelected ? const Color(0xFF1A73E8) : const Color(0xFF0F172A),
+                        ),
+                      ),
+                      if (subtitlePills != null && subtitlePills.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: subtitlePills.map((pill) {
+                            return Container(
+                              margin: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                pill,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF475569),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (isSelected)
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: Color(0xFF1A73E8),
+                    size: 20,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showZonePicker(BuildContext context) {
     final zones = widget.data.workspace.zones;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
       builder: (ctx) {
         String query = '';
         return StatefulBuilder(
@@ -3071,149 +3171,160 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
             return DraggableScrollableSheet(
               initialChildSize: 0.65,
               minChildSize: 0.4,
-              maxChildSize: 0.85,
+              maxChildSize: 0.88,
               expand: false,
               builder: (_, scrollController) {
-                return Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4.5,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFCBD5E1),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
+                return Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xFFFFFFFF),
+                        Color(0xFFF9FBFE),
+                        Color(0xFFF0F6FD),
+                      ],
                     ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.location_city_rounded, color: Color(0xFF2563EB), size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Select Zone',
-                            style: GoogleFonts.outfit(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF0F172A),
-                            ),
-                          ),
-                          const Spacer(),
-                          if (widget.selectedZoneId != null)
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(ctx).pop();
-                                widget.onFilterChanged(null, null, widget.selectedRole);
-                              },
-                              child: Text(
-                                'Clear',
-                                style: GoogleFonts.outfit(
-                                  color: const Color(0xFFEF4444),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                        ],
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x140F172A),
+                        blurRadius: 16,
+                        offset: Offset(0, -4),
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Search zone...',
-                          prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
-                          filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 36,
+                          height: 4.5,
+                          margin: const EdgeInsets.only(top: 10, bottom: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFCBD5E1),
+                            borderRadius: BorderRadius.circular(3),
                           ),
                         ),
-                        onChanged: (val) => setModalState(() => query = val),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: ListView(
-                        controller: scrollController,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        children: [
-                          ListTile(
-                            leading: Container(
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+                        child: Row(
+                          children: [
+                            Container(
                               width: 32,
                               height: 32,
                               decoration: BoxDecoration(
-                                color: widget.selectedZoneId == null ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
-                                shape: BoxShape.circle,
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Icon(
-                                Icons.public_rounded,
-                                size: 17,
-                                color: widget.selectedZoneId == null ? const Color(0xFF2563EB) : const Color(0xFF64748B),
-                              ),
+                              child: const Icon(Icons.location_city_rounded, color: Color(0xFF1A73E8), size: 18),
                             ),
-                            title: Text(
-                              'All Zones',
+                            const SizedBox(width: 10),
+                            Text(
+                              'Select Zone',
                               style: GoogleFonts.outfit(
-                                fontWeight: widget.selectedZoneId == null ? FontWeight.w700 : FontWeight.w500,
-                                color: widget.selectedZoneId == null ? const Color(0xFF2563EB) : const Color(0xFF0F172A),
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF0F172A),
                               ),
                             ),
-                            trailing: widget.selectedZoneId == null
-                                ? const Icon(Icons.check_circle_rounded, color: Color(0xFF2563EB), size: 20)
-                                : null,
-                            onTap: () {
-                              Navigator.of(ctx).pop();
-                              widget.onFilterChanged(null, null, widget.selectedRole);
-                            },
+                            const Spacer(),
+                            if (widget.selectedZoneId != null)
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(ctx).pop();
+                                  widget.onFilterChanged(null, null, widget.selectedRole);
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                child: Text(
+                                  'Clear',
+                                  style: GoogleFonts.outfit(
+                                    color: const Color(0xFFDC2626),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x060F172A),
+                                blurRadius: 6,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
                           ),
-                          const Divider(height: 1),
-                          for (final zone in filtered)
-                            ListTile(
-                              leading: Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: widget.selectedZoneId == zone.id ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.location_city_rounded,
-                                  size: 17,
-                                  color: widget.selectedZoneId == zone.id ? const Color(0xFF2563EB) : const Color(0xFF64748B),
-                                ),
+                          child: TextField(
+                            style: GoogleFonts.outfit(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF0F172A),
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Search zone...',
+                              hintStyle: GoogleFonts.outfit(
+                                fontSize: 14,
+                                color: const Color(0xFF94A3B8),
                               ),
-                              title: Text(
-                                zone.name,
-                                style: GoogleFonts.outfit(
-                                  fontWeight: widget.selectedZoneId == zone.id ? FontWeight.w700 : FontWeight.w500,
-                                  color: widget.selectedZoneId == zone.id ? const Color(0xFF2563EB) : const Color(0xFF0F172A),
-                                ),
-                              ),
-                              subtitle: Text(
-                                '${zone.sites} Sites · ${zone.clusters} Clusters',
-                                style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF64748B)),
-                              ),
-                              trailing: widget.selectedZoneId == zone.id
-                                  ? const Icon(Icons.check_circle_rounded, color: Color(0xFF2563EB), size: 20)
-                                  : null,
+                              prefixIcon: const Icon(Icons.search_rounded, size: 19, color: Color(0xFF64748B)),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
+                            onChanged: (val) => setModalState(() => query = val),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: ListView(
+                          controller: scrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          children: [
+                            _buildModalOptionItem(
+                              icon: Icons.public_rounded,
+                              title: 'All Zones',
+                              isSelected: widget.selectedZoneId == null,
                               onTap: () {
                                 Navigator.of(ctx).pop();
-                                widget.onFilterChanged(zone.id, null, widget.selectedRole);
+                                widget.onFilterChanged(null, null, widget.selectedRole);
                               },
                             ),
-                        ],
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 4),
+                              child: Divider(height: 1, color: Color(0xFFE2E8F0)),
+                            ),
+                            for (final zone in filtered)
+                              _buildModalOptionItem(
+                                icon: Icons.location_city_rounded,
+                                title: zone.name,
+                                isSelected: widget.selectedZoneId == zone.id,
+                                subtitlePills: [
+                                  '${zone.sites} Sites',
+                                  '${zone.clusters} Clusters',
+                                ],
+                                onTap: () {
+                                  Navigator.of(ctx).pop();
+                                  widget.onFilterChanged(zone.id, null, widget.selectedRole);
+                                },
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               },
             );
@@ -3237,10 +3348,8 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
       builder: (ctx) {
         String query = '';
         return StatefulBuilder(
@@ -3252,149 +3361,160 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
             return DraggableScrollableSheet(
               initialChildSize: 0.65,
               minChildSize: 0.4,
-              maxChildSize: 0.85,
+              maxChildSize: 0.88,
               expand: false,
               builder: (_, scrollController) {
-                return Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4.5,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFCBD5E1),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
+                return Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xFFFFFFFF),
+                        Color(0xFFF9FBFE),
+                        Color(0xFFF0F6FD),
+                      ],
                     ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.apartment_rounded, color: Color(0xFF2563EB), size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Select Cluster',
-                            style: GoogleFonts.outfit(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF0F172A),
-                            ),
-                          ),
-                          const Spacer(),
-                          if (widget.selectedClusterId != null)
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(ctx).pop();
-                                widget.onFilterChanged(widget.selectedZoneId, null, widget.selectedRole);
-                              },
-                              child: Text(
-                                'Clear',
-                                style: GoogleFonts.outfit(
-                                  color: const Color(0xFFEF4444),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                        ],
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x140F172A),
+                        blurRadius: 16,
+                        offset: Offset(0, -4),
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Search cluster...',
-                          prefixIcon: const Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
-                          filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 36,
+                          height: 4.5,
+                          margin: const EdgeInsets.only(top: 10, bottom: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFCBD5E1),
+                            borderRadius: BorderRadius.circular(3),
                           ),
                         ),
-                        onChanged: (val) => setModalState(() => query = val),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: ListView(
-                        controller: scrollController,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        children: [
-                          ListTile(
-                            leading: Container(
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+                        child: Row(
+                          children: [
+                            Container(
                               width: 32,
                               height: 32,
                               decoration: BoxDecoration(
-                                color: widget.selectedClusterId == null ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
-                                shape: BoxShape.circle,
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Icon(
-                                Icons.hub_outlined,
-                                size: 17,
-                                color: widget.selectedClusterId == null ? const Color(0xFF2563EB) : const Color(0xFF64748B),
-                              ),
+                              child: const Icon(Icons.apartment_rounded, color: Color(0xFF1A73E8), size: 18),
                             ),
-                            title: Text(
-                              'All Clusters',
+                            const SizedBox(width: 10),
+                            Text(
+                              'Select Cluster',
                               style: GoogleFonts.outfit(
-                                fontWeight: widget.selectedClusterId == null ? FontWeight.w700 : FontWeight.w500,
-                                color: widget.selectedClusterId == null ? const Color(0xFF2563EB) : const Color(0xFF0F172A),
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF0F172A),
                               ),
                             ),
-                            trailing: widget.selectedClusterId == null
-                                ? const Icon(Icons.check_circle_rounded, color: Color(0xFF2563EB), size: 20)
-                                : null,
-                            onTap: () {
-                              Navigator.of(ctx).pop();
-                              widget.onFilterChanged(widget.selectedZoneId, null, widget.selectedRole);
-                            },
+                            const Spacer(),
+                            if (widget.selectedClusterId != null)
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(ctx).pop();
+                                  widget.onFilterChanged(widget.selectedZoneId, null, widget.selectedRole);
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                                child: Text(
+                                  'Clear',
+                                  style: GoogleFonts.outfit(
+                                    color: const Color(0xFFDC2626),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x060F172A),
+                                blurRadius: 6,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
                           ),
-                          const Divider(height: 1),
-                          for (final cluster in filtered)
-                            ListTile(
-                              leading: Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: widget.selectedClusterId == cluster.id ? const Color(0xFFEFF6FF) : const Color(0xFFF1F5F9),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.apartment_rounded,
-                                  size: 17,
-                                  color: widget.selectedClusterId == cluster.id ? const Color(0xFF2563EB) : const Color(0xFF64748B),
-                                ),
+                          child: TextField(
+                            style: GoogleFonts.outfit(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF0F172A),
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Search cluster...',
+                              hintStyle: GoogleFonts.outfit(
+                                fontSize: 14,
+                                color: const Color(0xFF94A3B8),
                               ),
-                              title: Text(
-                                cluster.name,
-                                style: GoogleFonts.outfit(
-                                  fontWeight: widget.selectedClusterId == cluster.id ? FontWeight.w700 : FontWeight.w500,
-                                  color: widget.selectedClusterId == cluster.id ? const Color(0xFF2563EB) : const Color(0xFF0F172A),
-                                ),
-                              ),
-                              subtitle: Text(
-                                '${cluster.zoneName} · ${cluster.sites} Sites',
-                                style: GoogleFonts.outfit(fontSize: 12, color: const Color(0xFF64748B)),
-                              ),
-                              trailing: widget.selectedClusterId == cluster.id
-                                  ? const Icon(Icons.check_circle_rounded, color: Color(0xFF2563EB), size: 20)
-                                  : null,
+                              prefixIcon: const Icon(Icons.search_rounded, size: 19, color: Color(0xFF64748B)),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
+                            onChanged: (val) => setModalState(() => query = val),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: ListView(
+                          controller: scrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          children: [
+                            _buildModalOptionItem(
+                              icon: Icons.hub_outlined,
+                              title: 'All Clusters',
+                              isSelected: widget.selectedClusterId == null,
                               onTap: () {
                                 Navigator.of(ctx).pop();
-                                widget.onFilterChanged(widget.selectedZoneId, cluster.id, widget.selectedRole);
+                                widget.onFilterChanged(widget.selectedZoneId, null, widget.selectedRole);
                               },
                             ),
-                        ],
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 4),
+                              child: Divider(height: 1, color: Color(0xFFE2E8F0)),
+                            ),
+                            for (final cluster in filtered)
+                              _buildModalOptionItem(
+                                icon: Icons.apartment_rounded,
+                                title: cluster.name,
+                                isSelected: widget.selectedClusterId == cluster.id,
+                                subtitlePills: [
+                                  cluster.zoneName,
+                                  '${cluster.sites} Sites',
+                                ],
+                                onTap: () {
+                                  Navigator.of(ctx).pop();
+                                  widget.onFilterChanged(widget.selectedZoneId, cluster.id, widget.selectedRole);
+                                },
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               },
             );
@@ -3412,10 +3532,8 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
       builder: (ctx) {
         return DraggableScrollableSheet(
           initialChildSize: 0.55,
@@ -3423,89 +3541,90 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
           maxChildSize: 0.8,
           expand: false,
           builder: (_, scrollController) {
-            return Column(
-              children: [
-                const SizedBox(height: 12),
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4.5,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFCBD5E1),
-                      borderRadius: BorderRadius.circular(3),
+            return Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFFFFFFFF),
+                    Color(0xFFF9FBFE),
+                    Color(0xFFF0F6FD),
+                  ],
+                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x140F172A),
+                    blurRadius: 16,
+                    offset: Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4.5,
+                      margin: const EdgeInsets.only(top: 10, bottom: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.badge_outlined, color: Color(0xFF2563EB), size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Select Role Filter',
-                        style: GoogleFonts.outfit(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF0F172A),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: ListView(
-                    controller: scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    children: [
-                      for (final role in roles)
-                        ListTile(
-                          leading: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: (widget.selectedRole == role.role ||
-                                      (widget.selectedRole == null && role.role == 'CRRM'))
-                                  ? const Color(0xFFEFF6FF)
-                                  : const Color(0xFFF1F5F9),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.person_outline_rounded,
-                              size: 17,
-                              color: (widget.selectedRole == role.role ||
-                                      (widget.selectedRole == null && role.role == 'CRRM'))
-                                  ? const Color(0xFF2563EB)
-                                  : const Color(0xFF64748B),
-                            ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          title: Text(
-                            role.label,
-                            style: GoogleFonts.outfit(
-                              fontWeight: (widget.selectedRole == role.role ||
-                                      (widget.selectedRole == null && role.role == 'CRRM'))
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: (widget.selectedRole == role.role ||
-                                      (widget.selectedRole == null && role.role == 'CRRM'))
-                                  ? const Color(0xFF2563EB)
-                                  : const Color(0xFF0F172A),
-                            ),
-                          ),
-                          trailing: (widget.selectedRole == role.role ||
-                                  (widget.selectedRole == null && role.role == 'CRRM'))
-                              ? const Icon(Icons.check_circle_rounded, color: Color(0xFF2563EB), size: 20)
-                              : null,
-                          onTap: () {
-                            Navigator.of(ctx).pop();
-                            widget.onFilterChanged(widget.selectedZoneId, widget.selectedClusterId, role.role);
-                          },
+                          child: const Icon(Icons.badge_outlined, color: Color(0xFF1A73E8), size: 18),
                         ),
-                    ],
+                        const SizedBox(width: 10),
+                        Text(
+                          'Select Role Filter',
+                          style: GoogleFonts.outfit(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  ),
+                  const SizedBox(height: 6),
+                  Expanded(
+                    child: ListView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      children: [
+                        for (final role in roles)
+                          _buildModalOptionItem(
+                            icon: Icons.person_outline_rounded,
+                            title: role.label,
+                            isSelected: (widget.selectedRole == role.role ||
+                                (widget.selectedRole == null && role.role == 'CRRM')),
+                            onTap: () {
+                              Navigator.of(ctx).pop();
+                              widget.onFilterChanged(widget.selectedZoneId, widget.selectedClusterId, role.role);
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             );
           },
         );
@@ -3530,110 +3649,211 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
         .where((r) => r.role == widget.selectedRole)
         .firstOrNull;
     final selectedRoleLabel = selectedRoleOption?.label ??
-        (widget.data.overview.selectedRole.isNotEmpty
-            ? widget.data.overview.selectedRole
-            : widget.data.workspace.viewer.roleLabel);
+        (widget.selectedRole != null && widget.selectedRole!.isNotEmpty
+            ? (HiveStorage.knownRoles[widget.selectedRole] ?? widget.selectedRole!)
+            : (widget.data.overview.selectedRole.isNotEmpty
+                ? widget.data.overview.selectedRole
+                : widget.data.workspace.viewer.roleLabel));
 
     final activeFilterCount = (widget.selectedZoneId != null ? 1 : 0) +
         (widget.selectedClusterId != null ? 1 : 0) +
-        (widget.selectedRole != null && widget.selectedRole != 'CRRM' ? 1 : 0);
+        (!HiveStorage.isClusterExecutive && widget.selectedRole != null && widget.selectedRole != 'CRRM' ? 1 : 0);
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFFFFFFF),
+            Color(0xFFF9FBFE),
+            Color(0xFFF0F6FD),
+          ],
+        ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: activeFilterCount > 0
+              ? const Color(0xFFBFDBFE)
+              : const Color(0xFFE2E8F0),
+          width: activeFilterCount > 0 ? 1.4 : 1.0,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.025),
-            blurRadius: 8,
+            color: activeFilterCount > 0
+                ? const Color(0xFF1A73E8).withValues(alpha: 0.05)
+                : const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 10,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Filter Header Bar (with count & Hide/Show button matching Web Image 1)
+          // Filter Header Bar (with icon badge, title/subtitle, active count pill, reset & collapse)
           Row(
             children: [
               Container(
-                width: 28,
-                height: 28,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(8),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF1A73E8), Color(0xFF1557B0)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(9),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF1A73E8).withValues(alpha: 0.22),
+                      blurRadius: 5,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                child: const Icon(Icons.tune_rounded, size: 16, color: Color(0xFF2563EB)),
+                child: const Icon(
+                  Icons.tune_rounded,
+                  size: 16,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(width: 8),
-              Text(
-                'Dashboard Filters',
-                style: GoogleFonts.outfit(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF0F172A),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      runSpacing: 2,
+                      children: [
+                        Text(
+                          'Dashboard Filters',
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
+                            color: const Color(0xFF0F172A),
+                          ),
+                        ),
+                        if (activeFilterCount > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              '$activeFilterCount active',
+                              style: GoogleFonts.outfit(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      'Scope metrics by Zone, Cluster & Role',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF64748B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
+              const SizedBox(width: 6),
               if (activeFilterCount > 0) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2563EB),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '$activeFilterCount',
-                    style: GoogleFonts.outfit(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-              const Spacer(),
-              if (activeFilterCount > 0)
                 InkWell(
                   onTap: () => widget.onFilterChanged(null, null, null),
-                  borderRadius: BorderRadius.circular(6),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    child: Text(
-                      'Reset',
-                      style: GoogleFonts.outfit(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFFEF4444),
-                      ),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4.5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF2F2),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFECACA)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.restart_alt_rounded,
+                          size: 13,
+                          color: Color(0xFFDC2626),
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          'Reset',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFDC2626),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              const SizedBox(width: 6),
+                const SizedBox(width: 6),
+              ],
               InkWell(
                 onTap: () => setState(() => _isCollapsed = !_isCollapsed),
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        _isCollapsed ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded,
-                        size: 16,
-                        color: const Color(0xFF64748B),
-                      ),
-                      const SizedBox(width: 2),
                       Text(
                         _isCollapsed ? 'Show' : 'Hide',
                         style: GoogleFonts.outfit(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF64748B),
+                          color: const Color(0xFF475569),
                         ),
+                      ),
+                      const SizedBox(width: 3),
+                      Icon(
+                        _isCollapsed
+                            ? Icons.keyboard_arrow_down_rounded
+                            : Icons.keyboard_arrow_up_rounded,
+                        size: 15,
+                        color: const Color(0xFF475569),
                       ),
                     ],
                   ),
@@ -3642,7 +3862,7 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
             ],
           ),
 
-          // Dropdown chips row (Zone, Cluster, Role)
+          // Filter Cards Row (Zone, Cluster, Role)
           if (!_isCollapsed) ...[
             const SizedBox(height: 12),
             SingleChildScrollView(
@@ -3650,31 +3870,44 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
               physics: const BouncingScrollPhysics(),
               child: Row(
                 children: [
-                  // Zone Filter Pill
+                  // Zone Filter Card
                   _FilterSelectorChip(
+                    category: 'Zone',
                     icon: Icons.location_city_rounded,
                     label: selectedZone?.name ?? 'All Zones',
                     isSelected: selectedZone != null,
                     onTap: () => _showZonePicker(context),
+                    onClear: selectedZone != null
+                        ? () => widget.onFilterChanged(null, null, widget.selectedRole)
+                        : null,
                   ),
                   const SizedBox(width: 8),
 
-                  // Cluster Filter Pill
+                  // Cluster Filter Card
                   _FilterSelectorChip(
+                    category: 'Cluster',
                     icon: Icons.apartment_rounded,
                     label: selectedCluster?.name ?? 'All Clusters',
                     isSelected: selectedCluster != null,
                     onTap: () => _showClusterPicker(context),
+                    onClear: selectedCluster != null
+                        ? () => widget.onFilterChanged(widget.selectedZoneId, null, widget.selectedRole)
+                        : null,
                   ),
-                  const SizedBox(width: 8),
-
-                  // Role Filter Pill
-                  _FilterSelectorChip(
-                    icon: Icons.badge_outlined,
-                    label: selectedRoleLabel,
-                    isSelected: widget.selectedRole != null && widget.selectedRole != 'CRRM',
-                    onTap: () => _showRolePicker(context),
-                  ),
+                  // Role Filter Card (Hidden for Cluster Executive)
+                  if (!HiveStorage.isClusterExecutive) ...[
+                    const SizedBox(width: 8),
+                    _FilterSelectorChip(
+                      category: 'Role',
+                      icon: Icons.badge_outlined,
+                      label: selectedRoleLabel,
+                      isSelected: widget.selectedRole != null && widget.selectedRole != 'CRRM',
+                      onTap: () => _showRolePicker(context),
+                      onClear: (widget.selectedRole != null && widget.selectedRole != 'CRRM')
+                          ? () => widget.onFilterChanged(widget.selectedZoneId, widget.selectedClusterId, null)
+                          : null,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -3686,57 +3919,163 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
 }
 
 class _FilterSelectorChip extends StatelessWidget {
+  final String category;
   final IconData icon;
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
+  final VoidCallback? onClear;
 
   const _FilterSelectorChip({
+    required this.category,
     required this.icon,
     required this.label,
     required this.isSelected,
     required this.onTap,
+    this.onClear,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7.5),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF3B82F6) : const Color(0xFFCBD5E1),
-            width: isSelected ? 1.4 : 1.0,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          constraints: const BoxConstraints(minWidth: 142),
+          padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+          decoration: BoxDecoration(
+            gradient: isSelected
+                ? const LinearGradient(
+                    colors: [Color(0xFFEFF6FF), Color(0xFFE0F2FE)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : const LinearGradient(
+                    colors: [Colors.white, Color(0xFFF9FBFE)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: isSelected ? const Color(0xFF1A73E8) : const Color(0xFFE2E8F0),
+              width: isSelected ? 1.4 : 1.0,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF1A73E8).withValues(alpha: 0.08),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : const [
+                    BoxShadow(
+                      color: Color(0x060F172A),
+                      blurRadius: 4,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 14.5,
-              color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF64748B),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.outfit(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                color: isSelected ? const Color(0xFF1E40AF) : const Color(0xFF334155),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon Container
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFFDBEAFE) : Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? const Color(0xFFBFDBFE) : const Color(0xFFE2E8F0),
+                  ),
+                ),
+                child: Icon(
+                  icon,
+                  size: 15.5,
+                  color: isSelected ? const Color(0xFF1D4ED8) : const Color(0xFF64748B),
+                ),
               ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.arrow_drop_down_rounded,
-              size: 18,
-              color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF94A3B8),
-            ),
-          ],
+              const SizedBox(width: 8),
+
+              // Category & Value Column
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        category.toUpperCase(),
+                        style: GoogleFonts.outfit(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                          color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF94A3B8),
+                        ),
+                      ),
+                      if (isSelected) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          width: 4.5,
+                          height: 4.5,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF2563EB),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 1.5),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 120),
+                    child: Text(
+                      label,
+                      style: GoogleFonts.outfit(
+                        fontSize: 12.5,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                        color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF334155),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 6),
+
+              // Quick-clear button or Dropdown Arrow
+              if (isSelected && onClear != null)
+                GestureDetector(
+                  onTap: onClear,
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFDBEAFE),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 12,
+                      color: Color(0xFF1D4ED8),
+                    ),
+                  ),
+                )
+              else
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 17,
+                  color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF94A3B8),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -4370,49 +4709,59 @@ class _WebAlertsAndUpcomingCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFFDBEAFE)),
+              InkWell(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsPage(),
                     ),
-                    child: const Icon(
-                      Icons.notifications_none_rounded,
-                      size: 17,
-                      color: Color(0xFF0284C7),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Key Alerts',
-                    style: GoogleFonts.outfit(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF0F172A),
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE0F2FE),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${alerts.length}',
-                      style: GoogleFonts.outfit(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF0284C7),
+                  );
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFDBEAFE)),
+                      ),
+                      child: const Icon(
+                        Icons.notifications_none_rounded,
+                        size: 17,
+                        color: Color(0xFF0284C7),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    Text(
+                      'Key Alerts',
+                      style: GoogleFonts.outfit(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0F2FE),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${alerts.length}',
+                        style: GoogleFonts.outfit(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF0284C7),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
               if (alerts.isEmpty)
@@ -6652,8 +7001,6 @@ class _ClusterRow extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 // Recent Governance Activity / Upcoming L&D Work
 // ─────────────────────────────────────────────────────────────────────────────
-
-typedef _RecentGovernanceCard = RecentGovernanceCard;
 
 class RecentGovernanceCard extends StatelessWidget {
   final List<GovernanceListItemModel> items;

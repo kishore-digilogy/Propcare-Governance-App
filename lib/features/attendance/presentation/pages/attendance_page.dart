@@ -251,6 +251,10 @@ class _SitesListView extends StatelessWidget {
                       )
                     : null,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 12,
@@ -455,6 +459,10 @@ class _SiteActivitiesDetailView extends StatelessWidget {
                       )
                     : null,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 12,
@@ -1386,10 +1394,9 @@ class _ActivityVisitCard extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 14),
-
-            // Row 5: Action Button
-            if (isCompleted)
+            // Row 5: Action Button (Completed badge only)
+            if (isCompleted) ...[
+              const SizedBox(height: 14),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
@@ -1417,81 +1424,8 @@ class _ActivityVisitCard extends StatelessWidget {
                     ),
                   ],
                 ),
-              )
-            else if (isOnSite)
-              SizedBox(
-                width: double.infinity,
-                height: 42,
-                child: ElevatedButton.icon(
-                  onPressed: isSubmitting ? null : onCheckOut,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kBlue,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  icon: isSubmitting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.logout_rounded,
-                          size: 16,
-                          color: Colors.white,
-                        ),
-                  label: Text(
-                    isSubmitting ? 'Checking Out...' : 'Check Out',
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              )
-            else
-              SizedBox(
-                width: double.infinity,
-                height: 42,
-                child: ElevatedButton.icon(
-                  onPressed: isSubmitting ? null : onCheckIn,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kBlue,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  icon: isSubmitting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.login_rounded,
-                          size: 16,
-                          color: Colors.white,
-                        ),
-                  label: Text(
-                    isSubmitting ? 'Checking In...' : 'Check In',
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
               ),
+            ],
           ],
         ),
       ),
@@ -1891,45 +1825,6 @@ class _ActivityDetailSheet extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 14),
-                ],
-
-                // Action Buttons at bottom of sheet
-                if (!isCompleted) ...[
-                  const SizedBox(height: 8),
-                  if (isOnSite)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 46,
-                      child: ElevatedButton.icon(
-                        onPressed: onCheckOut,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _kBlue,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: const Icon(Icons.logout_rounded, size: 18, color: Colors.white),
-                        label: Text(
-                          'Check Out',
-                          style: GoogleFonts.outfit(fontWeight: FontWeight.w700, color: Colors.white),
-                        ),
-                      ),
-                    )
-                  else
-                    SizedBox(
-                      width: double.infinity,
-                      height: 46,
-                      child: ElevatedButton.icon(
-                        onPressed: onCheckIn,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _kBlue,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: const Icon(Icons.login_rounded, size: 18, color: Colors.white),
-                        label: Text(
-                          'Check In',
-                          style: GoogleFonts.outfit(fontWeight: FontWeight.w700, color: Colors.white),
-                        ),
-                      ),
-                    ),
                 ],
               ],
             ),

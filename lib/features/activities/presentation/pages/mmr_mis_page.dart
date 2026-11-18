@@ -511,6 +511,10 @@ class _MmrMisPageState extends State<MmrMisPage> {
                 )
               : null,
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 10),
         ),
       ),

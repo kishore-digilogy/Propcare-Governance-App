@@ -499,6 +499,10 @@ class _IssuesViewState extends State<_IssuesView> {
                       )
                     : null,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
               ),
             ),

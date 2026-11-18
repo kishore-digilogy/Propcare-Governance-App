@@ -331,13 +331,41 @@ void main() {
     },
   );
 
+  testWidgets('DashboardFilterBar renders without overflow on narrow 360px and 320px mobile screens with active role filter', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: DashboardFilterBar(
+              data: sampleDashboard,
+              selectedZoneId: null,
+              selectedClusterId: null,
+              selectedRole: 'COO',
+              onFilterChanged: (_, __, ___) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dashboard Filters'), findsOneWidget);
+    expect(find.text('1 active'), findsOneWidget);
+    expect(find.text('Reset'), findsOneWidget);
+    expect(find.text('Hide'), findsOneWidget);
+    expect(find.text('COO'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('DashboardBelowFilterShimmer renders properly', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: SingleChildScrollView(
-            child: DashboardBelowFilterShimmer(),
-          ),
+          body: SingleChildScrollView(child: DashboardBelowFilterShimmer()),
         ),
       ),
     );

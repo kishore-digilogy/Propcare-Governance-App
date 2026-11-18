@@ -410,6 +410,10 @@ class _AllSitesViewState extends State<_AllSitesView> {
                       )
                     : null,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
               ),
             ),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'storage_keys.dart';
@@ -10,6 +11,9 @@ class HiveStorage {
   HiveStorage._();
 
   static late Box _box;
+
+  @visibleForTesting
+  static set box(Box b) => _box = b;
 
   static Future<void> init() async {
     await Hive.initFlutter();
@@ -193,6 +197,43 @@ class HiveStorage {
         upper == 'CLUSTER LEAD' ||
         upper.contains('CLUSTER_LEAD') ||
         upper.contains('CLUSTER LEAD');
+  }
+
+  /// Whether the logged-in user specifically has a Cluster Head role.
+  static bool get isClusterHead {
+    final raw = userRole;
+    if (raw == null || raw.trim().isEmpty) return false;
+    final upper = raw.trim().toUpperCase();
+    return upper == 'CLUSTER_HEAD' ||
+        upper == 'CLUSTER HEAD' ||
+        upper == 'GROUP_CLUSTER_HEAD' ||
+        upper == 'GROUP CLUSTER HEAD' ||
+        upper.contains('CLUSTER_HEAD') ||
+        upper.contains('CLUSTER HEAD');
+  }
+
+  /// Whether the logged-in user specifically has a Cluster Executive role.
+  static bool get isClusterExecutive {
+    final raw = userRole;
+    if (raw == null || raw.trim().isEmpty) return false;
+    final upper = raw.trim().toUpperCase();
+    return upper == 'CLUSTER_EXECUTIVE' ||
+        upper == 'CLUSTER EXECUTIVE' ||
+        upper.contains('CLUSTER_EXECUTIVE') ||
+        upper.contains('CLUSTER EXECUTIVE');
+  }
+
+  /// Whether the logged-in user specifically has a COO role.
+  static bool get isCoo {
+    final raw = userRole;
+    if (raw == null || raw.trim().isEmpty) return false;
+    final upper = raw.trim().toUpperCase();
+    return upper == 'COO' || upper.contains('COO');
+  }
+
+  /// Whether the current logged-in user is Super Admin / CRRM or COO.
+  static bool get isSuperAdminOrCoo {
+    return isSuperAdmin || isCoo;
   }
 
   /// Whether the current logged-in user is a Super Admin / CRRM.

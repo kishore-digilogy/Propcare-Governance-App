@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/services/meta_service.dart';
@@ -507,6 +508,8 @@ class ActivitiesBloc extends Bloc<ActivitiesEvent, ActivitiesState> {
           visitDate: event.visitDate,
           clientMet: event.clientMet,
           note: event.note,
+          answers: event.answers,
+          findings: event.findings,
         );
 
         final updatedDetail = currentState.selectedActivityDetail!.copyWith(
@@ -522,11 +525,24 @@ class ActivitiesBloc extends Bloc<ActivitiesEvent, ActivitiesState> {
           ));
         }
       } catch (e) {
+        String msg = 'Failed to submit visit: $e';
+        if (e is DioException && e.response?.data != null) {
+          final data = e.response!.data;
+          if (data is Map) {
+            if (data['message'] != null) {
+              msg = data['message'].toString();
+            } else if (data['error'] != null) {
+              msg = data['error'].toString();
+            }
+          } else if (data is String && data.isNotEmpty) {
+            msg = data;
+          }
+        }
         final latest = state;
         if (latest is ActivitiesLoaded) {
           emit(latest.copyWith(
             isSubmittingVisit: false,
-            actionErrorMessage: () => 'Failed to submit visit: $e',
+            actionErrorMessage: () => msg,
           ));
         }
       }

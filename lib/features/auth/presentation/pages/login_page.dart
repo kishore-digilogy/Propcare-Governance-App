@@ -48,8 +48,6 @@ class _LoginPageState extends State<LoginPage> {
   void _submit() {
     if (_formKey.currentState?.validate() != true) return;
     final email = _emailCtrl.text.trim();
-    HiveStorage.saveRecentEmail(email);
-    _loadRecentEmails();
     context.read<AuthBloc>().add(
       LoginSubmitted(email: email, password: _passwordCtrl.text.trim()),
     );
@@ -58,10 +56,16 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return BlocListener<AuthBloc, AuthState>(
-      listener: (context, state) {
+      listener: (context, state) async {
         if (state is AuthSuccess) {
-          HiveStorage.saveRecentEmail(_emailCtrl.text.trim());
-          context.go(AppRoutes.dashboard);
+          final email = _emailCtrl.text.trim();
+          if (email.isNotEmpty) {
+            await HiveStorage.saveRecentEmail(email);
+          }
+          if (context.mounted) {
+            _loadRecentEmails();
+            context.go(AppRoutes.dashboard);
+          }
         } else if (state is AuthFailure) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -191,13 +195,43 @@ class _LoginPageState extends State<LoginPage> {
                                   PopupMenuItem<String>(
                                     enabled: false,
                                     height: 32,
-                                    child: Text(
-                                      'Recent Accounts (${_recentEmails.length}/5)',
-                                      style: GoogleFonts.outfit(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF94A3B8),
-                                      ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'Recent Accounts (${_recentEmails.length}/5)',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFF94A3B8),
+                                          ),
+                                        ),
+                                        InkWell(
+                                          onTap: () async {
+                                            Navigator.of(context).pop();
+                                            await HiveStorage.clearRecentEmails();
+                                            _loadRecentEmails();
+                                          },
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 4,
+                                              vertical: 2,
+                                            ),
+                                            child: Text(
+                                              'Clear All',
+                                              style: GoogleFonts.outfit(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: const Color(0xFFEF4444),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                   ..._recentEmails.map(
@@ -220,6 +254,27 @@ class _LoginPageState extends State<LoginPage> {
                                                 color: AppColors.secondary,
                                               ),
                                               overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          InkWell(
+                                            onTap: () async {
+                                              Navigator.of(context).pop();
+                                              await HiveStorage.removeRecentEmail(
+                                                email,
+                                              );
+                                              _loadRecentEmails();
+                                            },
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            child: const Padding(
+                                              padding: EdgeInsets.all(4),
+                                              child: Icon(
+                                                Icons.close_rounded,
+                                                size: 15,
+                                                color: Color(0xFF94A3B8),
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -291,13 +346,46 @@ class _LoginPageState extends State<LoginPage> {
                                     PopupMenuItem<String>(
                                       enabled: false,
                                       height: 32,
-                                      child: Text(
-                                        'Select Recent Email',
-                                        style: GoogleFonts.outfit(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          color: const Color(0xFF94A3B8),
-                                        ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            'Recent Accounts (${_recentEmails.length}/5)',
+                                            style: GoogleFonts.outfit(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: const Color(0xFF94A3B8),
+                                            ),
+                                          ),
+                                          InkWell(
+                                            onTap: () async {
+                                              Navigator.of(context).pop();
+                                              await HiveStorage.clearRecentEmails();
+                                              _loadRecentEmails();
+                                            },
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 4,
+                                                    vertical: 2,
+                                                  ),
+                                              child: Text(
+                                                'Clear All',
+                                                style: GoogleFonts.outfit(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: const Color(
+                                                    0xFFEF4444,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                     ..._recentEmails.map(
@@ -320,6 +408,26 @@ class _LoginPageState extends State<LoginPage> {
                                                   color: AppColors.secondary,
                                                 ),
                                                 overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            InkWell(
+                                              onTap: () async {
+                                                Navigator.of(context).pop();
+                                                await HiveStorage.removeRecentEmail(
+                                                  email,
+                                                );
+                                                _loadRecentEmails();
+                                              },
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              child: const Padding(
+                                                padding: EdgeInsets.all(4),
+                                                child: Icon(
+                                                  Icons.close_rounded,
+                                                  size: 15,
+                                                  color: Color(0xFF94A3B8),
+                                                ),
                                               ),
                                             ),
                                           ],

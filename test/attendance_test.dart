@@ -295,7 +295,7 @@ void main() {
   });
 
   group('AttendancePage UI widget tests', () {
-    testWidgets('renders "Check In" button (not "Check In to Site") and updates on tap',
+    testWidgets('Check In and Check Out action buttons are removed from activity visit card',
         (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1.0;
@@ -350,30 +350,10 @@ void main() {
       expect(find.text('Field Executive Visit'), findsOneWidget);
       expect(find.text('ACT-EC164'), findsOneWidget);
 
-      // MUST NOT contain old button text "Check In to Site"
+      // Verify Check In and Check Out buttons are removed
       expect(find.text('Check In to Site'), findsNothing);
-
-      // MUST contain clean "Check In"
-      expect(find.text('Check In'), findsOneWidget);
-
-      // Tap "Check In"
-      await tester.tap(find.text('Check In'));
-      await tester.pumpAndSettle();
-
-      // Dialog opens with title "Check In"
-      expect(find.byType(AlertDialog), findsOneWidget);
-      expect(find.text('Record check-in time and verify GPS location for Field Executive Visit (ACT-EC164)?'), findsOneWidget);
-
-      // Tap Check In inside dialog
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Check In'));
-      await tester.pumpAndSettle();
-
-      // Should now flip to "Check Out"
       expect(find.text('Check In'), findsNothing);
-      expect(find.text('Check Out to Site'), findsNothing);
-      expect(find.text('Check Out from Site'), findsNothing);
-      expect(find.text('Check Out'), findsOneWidget);
-      expect(find.text('● On site'), findsOneWidget);
+      expect(find.text('Check Out'), findsNothing);
     });
   });
 }
