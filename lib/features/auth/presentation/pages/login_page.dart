@@ -81,64 +81,70 @@ class _LoginPageState extends State<LoginPage> {
       },
       child: Scaffold(
         backgroundColor: Colors.white,
-        body: Stack(
-          children: [
-            // Soft ambient glow orbs in the background
-            Positioned(
-              top: -60,
-              right: -60,
-              child: Container(
-                width: 240,
-                height: 240,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.primary.withValues(alpha: 0.05),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: -60,
-              left: -60,
-              child: Container(
-                width: 240,
-                height: 240,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF38BDF8).withValues(alpha: 0.04),
-                ),
-              ),
-            ),
+        body: Builder(
+          builder: (context) {
+            final screenSize = MediaQuery.of(context).size;
+            final isTabletScreen =
+                screenSize.shortestSide >= 600 || screenSize.width >= 768;
 
-            SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final isTablet = constraints.maxWidth >= 600;
-                  final formWidget = Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: isTablet
-                          ? MainAxisSize.min
-                          : MainAxisSize.max,
-                      children: [
-                        if (!isTablet) const Spacer(flex: 3),
+            return Stack(
+              children: [
+                // Soft ambient glow orbs in the background (scaled proportionally on tablet)
+                Positioned(
+                  top: isTabletScreen ? -120 : -60,
+                  right: isTabletScreen ? -120 : -60,
+                  child: Container(
+                    width: isTabletScreen ? 440 : 240,
+                    height: isTabletScreen ? 440 : 240,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primary.withValues(alpha: 0.05),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: isTabletScreen ? -120 : -60,
+                  left: isTabletScreen ? -120 : -60,
+                  child: Container(
+                    width: isTabletScreen ? 480 : 240,
+                    height: isTabletScreen ? 480 : 240,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF38BDF8).withValues(alpha: 0.04),
+                    ),
+                  ),
+                ),
 
-                        // Brand logo (centered)
-                        Center(
-                          child:
-                              Image.asset(
-                                    'assets/icons/gov_icon.png',
-                                    width: 180,
-                                    fit: BoxFit.contain,
-                                  )
-                                  .animate()
-                                  .fadeIn(duration: 600.ms)
-                                  .scale(
-                                    begin: const Offset(0.9, 0.9),
-                                    duration: 700.ms,
-                                    curve: Curves.easeOut,
-                                  ),
-                        ),
+                SafeArea(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isTablet = constraints.maxWidth >= 600;
+                      final formWidget = Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: isTablet
+                              ? MainAxisSize.min
+                              : MainAxisSize.max,
+                          children: [
+                            if (!isTablet) const Spacer(flex: 3),
+
+                            // Brand logo (centered)
+                            Center(
+                              child:
+                                  Image.asset(
+                                        'assets/icons/gov_icon.png',
+                                        width: isTablet ? 200 : 180,
+                                        fit: BoxFit.contain,
+                                      )
+                                      .animate()
+                                      .fadeIn(duration: 600.ms)
+                                      .scale(
+                                        begin: const Offset(0.9, 0.9),
+                                        duration: 700.ms,
+                                        curve: Curves.easeOut,
+                                      ),
+                            ),
 
                         const SizedBox(height: 32),
 
@@ -769,18 +775,18 @@ class _LoginPageState extends State<LoginPage> {
                     return Center(
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 32,
+                          horizontal: 28,
+                          vertical: 36,
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 480),
+                              constraints: const BoxConstraints(maxWidth: 520),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 36,
-                                  vertical: 38,
+                                  horizontal: 44,
+                                  vertical: 44,
                                 ),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
@@ -792,7 +798,7 @@ class _LoginPageState extends State<LoginPage> {
                                     BoxShadow(
                                       color: const Color(
                                         0xFF0F172A,
-                                      ).withValues(alpha: 0.06),
+                                      ).withValues(alpha: 0.07),
                                       blurRadius: 36,
                                       offset: const Offset(0, 14),
                                     ),
@@ -829,10 +835,12 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
+        );
+      },
+    ),
+  ),
+);
+}
 
   Widget _buildLabel(String text) {
     return Text(

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../data/datasources/reports_remote_datasource.dart';
 
 const _kBlue = Color(0xFF1A73E8);
 const _kSlate = Color(0xFF64748B);
@@ -15,12 +16,16 @@ class ReportViewerPage extends StatefulWidget {
   final String title;
   final String csvContent;
   final String exportKind;
+  final bool? showBackButton;
+  final VoidCallback? onBack;
 
   const ReportViewerPage({
     super.key,
     required this.title,
-    required this.csvContent,
+    this.csvContent = '',
     this.exportKind = '',
+    this.showBackButton,
+    this.onBack,
   });
 
   @override
@@ -33,13 +38,50 @@ class _ReportViewerPageState extends State<ReportViewerPage> {
   List<List<String>> _allRows = [];
   List<List<String>> _filteredRows = [];
   bool _isCardView = false;
+  bool _isLoading = false;
+  String? _errorMessage;
+  String _activeCsvContent = '';
 
   @override
   void initState() {
     super.initState();
-    _parseCsv();
-    _filteredRows = _allRows;
+    _activeCsvContent = widget.csvContent;
+    if (_activeCsvContent.isNotEmpty) {
+      _parseCsv(_activeCsvContent);
+      _filteredRows = _allRows;
+    } else if (widget.exportKind.isNotEmpty) {
+      _loadReportData();
+    }
     _searchController.addListener(_filterRows);
+  }
+
+  Future<void> _loadReportData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final dataSource = ReportsRemoteDataSourceImpl();
+      final csv = await dataSource.downloadReportCsv(
+        exportKind: widget.exportKind,
+      );
+      if (mounted) {
+        setState(() {
+          _activeCsvContent = csv;
+          _parseCsv(csv);
+          _filteredRows = _allRows;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to load report data. Please try again.';
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -48,8 +90,8 @@ class _ReportViewerPageState extends State<ReportViewerPage> {
     super.dispose();
   }
 
-  void _parseCsv() {
-    final lines = widget.csvContent
+  void _parseCsv(String content) {
+    final lines = content
         .trim()
         .split('\n')
         .where((l) => l.trim().isNotEmpty)
@@ -115,10 +157,22 @@ class _ReportViewerPageState extends State<ReportViewerPage> {
         backgroundColor: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.secondary),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        leading: (widget.showBackButton ??
+                (Navigator.of(context).canPop() || widget.onBack != null))
+            ? IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                  color: AppColors.secondary,
+                ),
+                onPressed: () {
+                  if (widget.onBack != null) {
+                    widget.onBack!();
+                  } else if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                  }
+                },
+              )
+            : null,
         title: Text(
           widget.title,
           style: GoogleFonts.outfit(
@@ -144,7 +198,7 @@ class _ReportViewerPageState extends State<ReportViewerPage> {
             tooltip: 'Copy data as CSV',
             icon: const Icon(Icons.copy_rounded, color: _kBlue, size: 20),
             onPressed: () {
-              Clipboard.setData(ClipboardData(text: widget.csvContent));
+              Clipboard.setData(ClipboardData(text: _activeCsvContent));
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
@@ -166,7 +220,63 @@ class _ReportViewerPageState extends State<ReportViewerPage> {
         ),
       ),
       body: SafeArea(
-        child: Column(
+        child: _isLoading
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(color: _kBlue),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Loading ${widget.title}...',
+                      style: GoogleFonts.outfit(
+                        fontSize: 14,
+                        color: _kSlate,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : _errorMessage != null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            size: 48,
+                            color: Colors.redAccent,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.outfit(
+                              fontSize: 14,
+                              color: AppColors.secondary,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: _loadReportData,
+                            icon: const Icon(Icons.refresh_rounded, size: 16),
+                            label: const Text('Retry'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _kBlue,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : Column(
           children: [
             // ── Search & Metrics Bar ──
             Container(

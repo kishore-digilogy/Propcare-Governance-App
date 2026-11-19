@@ -242,25 +242,27 @@ class _StoryPageContent extends StatelessWidget {
     final mediaQuery = MediaQuery.of(context);
     final topPadding = mediaQuery.padding.top;
     final bottomPadding = mediaQuery.padding.bottom;
+    final isTablet = mediaQuery.size.shortestSide >= 600 || mediaQuery.size.width >= 768;
 
     // Top bar is in SafeArea with 12px vertical padding + 32px button = ~56px.
     // Generous top clearance ensures illustration never collides with Dynamic Island or progress bars.
-    final topClearance = topPadding + 68.0;
+    final topClearance = topPadding + (isTablet ? 90.0 : 68.0);
 
     // Estimated height of _BottomCard including content and bottom safe padding
-    final bottomClearance = 300.0 + bottomPadding;
+    final bottomClearance = (isTablet ? 340.0 : 280.0) + bottomPadding;
 
     // Available height strictly in the middle viewport
-    final availableMiddle =
-        (mediaQuery.size.height - topClearance - bottomClearance)
-            .clamp(180.0, 600.0);
+    final availableMiddle = math.max(
+      180.0,
+      mediaQuery.size.height - topClearance - bottomClearance,
+    );
 
     // Compute responsive diameter fitting comfortably in available viewport
-    final isTablet = mediaQuery.size.shortestSide >= 600;
-    final double maxDiameter = isTablet ? 380.0 : mediaQuery.size.width * 0.72;
-    final double capDiameter = isTablet ? 350.0 : 290.0;
-    final double diameter =
-        (availableMiddle * 0.85).clamp(160.0, math.min(maxDiameter, capDiameter));
+    final double maxDiameter = isTablet ? 400.0 : mediaQuery.size.width * 0.72;
+    final double capDiameter = isTablet ? 360.0 : 290.0;
+    final double diameter = isTablet
+        ? math.min(availableMiddle * 0.65, 360.0).clamp(240.0, 360.0)
+        : (availableMiddle * 0.85).clamp(160.0, math.min(maxDiameter, capDiameter));
 
     // Vertically center the illustration in the middle area
     final double illustrationTop =
@@ -389,13 +391,21 @@ class _BottomCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final isTablet = mediaQuery.size.shortestSide >= 600 || mediaQuery.size.width >= 768;
+
     return SafeArea(
       top: false,
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 580),
+          constraints: BoxConstraints(maxWidth: isTablet ? 620 : 580),
           child: Container(
-            padding: const EdgeInsets.fromLTRB(28, 16, 28, 28),
+            padding: EdgeInsets.fromLTRB(
+              isTablet ? 40 : 28,
+              isTablet ? 24 : 16,
+              isTablet ? 40 : 28,
+              isTablet ? 44 : 28,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -429,7 +439,7 @@ class _BottomCard extends StatelessWidget {
             story.title,
             style: GoogleFonts.outfit(
               color: AppColors.secondary,
-              fontSize: 30,
+              fontSize: isTablet ? 34 : 30,
               fontWeight: FontWeight.w800,
               height: 1.15,
             ),
@@ -446,7 +456,7 @@ class _BottomCard extends StatelessWidget {
             story.subtitle,
             style: GoogleFonts.outfit(
               color: const Color(0xFF64748B),
-              fontSize: 15,
+              fontSize: isTablet ? 17 : 15,
               fontWeight: FontWeight.w400,
               height: 1.6,
             ),

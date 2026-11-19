@@ -769,6 +769,9 @@ class _BodyState extends State<_Body> {
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final isTabletOrDesktop = media.size.shortestSide >= 700 || media.size.width >= 900;
+
     final data = widget.data;
     final userName = data.workspace.viewer.name.isNotEmpty
         ? data.workspace.viewer.name
@@ -808,42 +811,52 @@ class _BodyState extends State<_Body> {
           ),
         ),
 
-        // Toggle Bar (Capsule design matching new Dashboard layout)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-          child: _DashboardToggleBar(
-            selectedIndex: _activeToggle,
-            onSelect: (idx) {
-              setState(() => _activeToggle = idx);
-              _pageController.animateToPage(
-                idx,
-                duration: const Duration(milliseconds: 350),
-                curve: Curves.easeInOutCubic,
-              );
-            },
-          ),
-        ),
-
-        // PageView: Page 0 = Governance Overview, Page 1 = Quick Actions
-        Expanded(
-          child: NotificationListener<ScrollNotification>(
-            onNotification: _onScrollNotification,
-            child: PageView(
-              controller: _pageController,
-              physics: const BouncingScrollPhysics(),
-              onPageChanged: (idx) {
+        if (isTabletOrDesktop)
+          // On tablets, no need for quick actions because all items are in the sidebar drawer
+          Expanded(
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _onScrollNotification,
+              child: _buildGovernanceOverviewPage(data),
+            ),
+          )
+        else ...[
+          // Toggle Bar (Capsule design matching new Dashboard layout)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: _DashboardToggleBar(
+              selectedIndex: _activeToggle,
+              onSelect: (idx) {
                 setState(() => _activeToggle = idx);
+                _pageController.animateToPage(
+                  idx,
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeInOutCubic,
+                );
               },
-              children: [
-                // Page 0: Governance Overview
-                _buildGovernanceOverviewPage(data),
-
-                // Page 1: Quick Actions
-                _buildQuickActionsPage(data),
-              ],
             ),
           ),
-        ),
+
+          // PageView: Page 0 = Governance Overview, Page 1 = Quick Actions
+          Expanded(
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _onScrollNotification,
+              child: PageView(
+                controller: _pageController,
+                physics: const BouncingScrollPhysics(),
+                onPageChanged: (idx) {
+                  setState(() => _activeToggle = idx);
+                },
+                children: [
+                  // Page 0: Governance Overview
+                  _buildGovernanceOverviewPage(data),
+
+                  // Page 1: Quick Actions
+                  _buildQuickActionsPage(data),
+                ],
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -4281,91 +4294,99 @@ class _WebSurveysCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.025),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFDBEAFE)),
-                ),
-                child: const Icon(
-                  Icons.assignment_turned_in_outlined,
-                  size: 18,
-                  color: Color(0xFF2563EB),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Surveys',
-                style: GoogleFonts.outfit(
-                  fontSize: 15.5,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF0F172A),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFF1F5F9)),
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ChecklistReportPage()),
+        );
+      },
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.025),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
             ),
-            child: Row(
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Expanded(
-                  child: _SurveyMetricColumn(
-                    icon: Icons.person_outline_rounded,
-                    iconColor: const Color(0xFF2563EB),
-                    label: 'Assigned',
-                    value: '${surveys.assigned}',
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFDBEAFE)),
+                  ),
+                  child: const Icon(
+                    Icons.assignment_turned_in_outlined,
+                    size: 18,
+                    color: Color(0xFF2563EB),
                   ),
                 ),
-                Container(width: 1, height: 32, color: const Color(0xFFE2E8F0)),
-                Expanded(
-                  child: _SurveyMetricColumn(
-                    icon: Icons.check_circle_outline_rounded,
-                    iconColor: const Color(0xFF059669),
-                    label: 'Completed',
-                    value: '${surveys.completed}',
-                  ),
-                ),
-                Container(width: 1, height: 32, color: const Color(0xFFE2E8F0)),
-                Expanded(
-                  child: _SurveyMetricColumn(
-                    icon: Icons.hourglass_empty_rounded,
-                    iconColor: const Color(0xFFD97706),
-                    label: 'Pending',
-                    value: '${surveys.pending}',
+                const SizedBox(width: 10),
+                Text(
+                  'Surveys',
+                  style: GoogleFonts.outfit(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF0F172A),
                   ),
                 ),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFF1F5F9)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _SurveyMetricColumn(
+                      icon: Icons.person_outline_rounded,
+                      iconColor: const Color(0xFF2563EB),
+                      label: 'Assigned',
+                      value: '${surveys.assigned}',
+                    ),
+                  ),
+                  Container(width: 1, height: 32, color: const Color(0xFFE2E8F0)),
+                  Expanded(
+                    child: _SurveyMetricColumn(
+                      icon: Icons.check_circle_outline_rounded,
+                      iconColor: const Color(0xFF059669),
+                      label: 'Completed',
+                      value: '${surveys.completed}',
+                    ),
+                  ),
+                  Container(width: 1, height: 32, color: const Color(0xFFE2E8F0)),
+                  Expanded(
+                    child: _SurveyMetricColumn(
+                      icon: Icons.hourglass_empty_rounded,
+                      iconColor: const Color(0xFFD97706),
+                      label: 'Pending',
+                      value: '${surveys.pending}',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -5501,44 +5522,52 @@ class _DueSitesBarState extends State<_DueSitesBar> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               // Left: Map Illustration (top) + Due Sites Across Zones (bottom) in same Column
-              SizedBox(
-                width: 76,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Image.asset(
-                      'assets/images/due_sites_map.png',
-                      width: 58,
-                      height: 44,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.location_on_rounded,
-                        color: Color(0xFFF97316),
-                        size: 32,
+              InkWell(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const RenewalSitesPage()),
+                  );
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 76,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Image.asset(
+                        'assets/images/due_sites_map.png',
+                        width: 58,
+                        height: 44,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(
+                          Icons.location_on_rounded,
+                          color: Color(0xFFF97316),
+                          size: 32,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Due Sites',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.outfit(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF0C2340),
-                        letterSpacing: -0.2,
+                      const SizedBox(height: 3),
+                      Text(
+                        'Due Sites',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0C2340),
+                          letterSpacing: -0.2,
+                        ),
                       ),
-                    ),
-                    Text(
-                      'Across Zones',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.outfit(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF627D98),
+                      Text(
+                        'Across Zones',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.outfit(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w500,
+                          color: const Color(0xFF627D98),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
 
@@ -5987,68 +6016,76 @@ class SitesByZoneCard extends StatelessWidget {
           else
             ...displayItems.map((g) {
               final frac = maxSites == 0 ? 0.0 : g.sites / maxSites;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  children: [
-                    StateAvatar(name: g.name, size: 22),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 85,
-                      child: Text(
-                        g.name,
-                        style: GoogleFonts.outfit(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF0F172A),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          Container(
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+              return InkWell(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AllSitesPage()),
+                  );
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      StateAvatar(name: g.name, size: 22),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 85,
+                        child: Text(
+                          g.name,
+                          style: GoogleFonts.outfit(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF0F172A),
                           ),
-                          FractionallySizedBox(
-                            widthFactor: frac.clamp(0.06, 1.0),
-                            child: Container(
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            Container(
                               height: 10,
                               decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF0D9488),
-                                    Color(0xFF14B8A6),
-                                  ],
-                                ),
+                                color: const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    SizedBox(
-                      width: 20,
-                      child: Text(
-                        '${g.sites}',
-                        textAlign: TextAlign.end,
-                        style: GoogleFonts.outfit(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF0F172A),
+                            FractionallySizedBox(
+                              widthFactor: frac.clamp(0.06, 1.0),
+                              child: Container(
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF0D9488),
+                                      Color(0xFF14B8A6),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 14),
+                      SizedBox(
+                        width: 20,
+                        child: Text(
+                          '${g.sites}',
+                          textAlign: TextAlign.end,
+                          style: GoogleFonts.outfit(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             }),
@@ -6341,67 +6378,75 @@ class _GovStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
-      ),
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: CustomPaint(painter: _CardWavePainter(color: waveColor)),
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const ActivitiesPage(isTeam: false)),
+        );
+      },
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor),
+        ),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: CustomPaint(painter: _CardWavePainter(color: waveColor)),
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        color: iconBg,
-                        shape: BoxShape.circle,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: iconBg,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Icon(icon, size: 14, color: iconColor),
+                        ),
                       ),
-                      child: Center(
-                        child: Icon(icon, size: 14, color: iconColor),
+                      Text(
+                        '$count',
+                        style: GoogleFonts.outfit(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0F172A),
+                          height: 1.1,
+                        ),
                       ),
-                    ),
-                    Text(
-                      '$count',
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      label,
                       style: GoogleFonts.outfit(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: const Color(0xFF0F172A),
-                        height: 1.1,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                        color: const Color(0xFF475569),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    label,
-                    style: GoogleFonts.outfit(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w500,
-                      color: const Color(0xFF475569),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -145,7 +145,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      final testPages = List.generate(24, (i) => Scaffold(body: Text('Tablet Page $i')));
+      final testPages = List.generate(27, (i) => Scaffold(body: Text('Tablet Page $i')));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -166,8 +166,9 @@ void main() {
       expect(find.text('Site Observation Report'), findsOneWidget);
       expect(find.text('Training Report Generator'), findsOneWidget);
       expect(find.text('MOM'), findsOneWidget);
-      expect(find.text('Role & Access'), findsOneWidget);
-      expect(find.text('Approvals'), findsOneWidget);
+      // Role & Access and Approvals removed on tablet per user request
+      expect(find.text('Role & Access'), findsNothing);
+      expect(find.text('Approvals'), findsNothing);
       expect(find.text('Reports & Export'), findsOneWidget);
       expect(find.text('Transition / L&D'), findsOneWidget);
 
@@ -186,7 +187,7 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
 
-      final testPages = List.generate(24, (i) => Scaffold(body: Text('Tablet Page $i')));
+      final testPages = List.generate(27, (i) => Scaffold(body: Text('Tablet Page $i')));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -242,11 +243,16 @@ void main() {
       expect(find.text('PropCare'), findsOneWidget);
       expect(find.text('Governance'), findsWidgets);
       expect(find.text('Dashboard'), findsOneWidget);
+      // Training must be visible ONLY for L&D roles, not CRRM / COO / Super Admin
+      expect(find.text('Training'), findsNothing);
 
       // Sites submenu should be open by default on tablet
       expect(find.text('All Sites'), findsOneWidget);
       expect(find.text('Renewal Sites'), findsOneWidget);
       expect(find.text('Draft Sites'), findsOneWidget);
+      expect(find.text('Create Site'), findsNothing);
+      expect(find.text('Role & Access'), findsNothing);
+      expect(find.text('Approvals'), findsNothing);
 
       // Tapping All Sites navigates to page 1
       await tester.tap(find.text('All Sites'));
@@ -271,6 +277,66 @@ void main() {
 
       // Expand sidebar button is now available
       expect(find.byTooltip('Expand sidebar'), findsOneWidget);
+    });
+
+    testWidgets('Super Admin sidebar renders Reports & Export with all reports from Site Report to Machine Report', (tester) async {
+      HiveStorage.mockUserRole = 'CRRM';
+
+      tester.view.physicalSize = const Size(834 * 2, 1194 * 2);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final testPages = List.generate(27, (i) => Scaffold(body: Text('Tablet Page $i')));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppShell(pages: testPages),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Reports & Export expandable group items (All Reports category removed per user request)
+      expect(find.text('Reports & Export'), findsOneWidget);
+      expect(find.text('All Reports'), findsNothing);
+      expect(find.text('Site Report'), findsOneWidget);
+      expect(find.text('Governance & Visits'), findsOneWidget);
+      expect(find.text('Issue Report'), findsOneWidget);
+      expect(find.text('Transition / L&D'), findsOneWidget);
+      expect(find.text('EHS Report'), findsOneWidget);
+      expect(find.text('HR Report'), findsOneWidget);
+      expect(find.text('Machine Report'), findsOneWidget);
+
+      // Tapping Site Report navigates to page 20
+      await tester.tap(find.text('Site Report'));
+      await tester.pumpAndSettle();
+      expect(find.text('Tablet Page 20'), findsOneWidget);
+
+      // Tapping Issue Report navigates to page 22
+      await tester.tap(find.text('Issue Report'));
+      await tester.pumpAndSettle();
+      expect(find.text('Tablet Page 22'), findsOneWidget);
+    });
+
+    testWidgets('Tablet hides Quick Actions toggle on Dashboard (shows full Governance Overview directly)', (tester) async {
+      HiveStorage.mockUserRole = 'CRRM';
+
+      tester.view.physicalSize = const Size(834 * 2, 1194 * 2);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: AppShell(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // On tablet, Quick Actions toggle is not rendered
+      expect(find.text('Quick Actions'), findsNothing);
+      expect(find.text('Governance Overview'), findsNothing); // Toggle bar pill not shown
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('Orientation change in landscape renders cleanly without overflow', (tester) async {

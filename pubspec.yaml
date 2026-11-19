@@ -107,7 +107,7 @@ flutter_native_splash:
   image: assets/icons/gov_icon.png
   android: true
   ios: true
-  ios_content_mode: scaleAspectFit
+  ios_content_mode: center
 
 # ─── flutter_launcher_icons config ───────────────────────────────────────────
 flutter_launcher_icons:

@@ -3,8 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/services/meta_service.dart';
+import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/widgets/custom_dropdown_button2.dart';
 import '../../data/datasources/reports_remote_datasource.dart';
+import '../../data/models/report_catalog_model.dart';
 import '../bloc/reports_bloc.dart';
 import '../bloc/reports_event.dart';
 import '../bloc/reports_state.dart';
@@ -16,7 +18,14 @@ const _kSlate = Color(0xFF64748B);
 const _kBorder = Color(0xFFE2E8F0);
 
 class ReportsPage extends StatelessWidget {
-  const ReportsPage({super.key});
+  final String? filterExportKind;
+  final String? titleOverride;
+
+  const ReportsPage({
+    super.key,
+    this.filterExportKind,
+    this.titleOverride,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,13 +33,22 @@ class ReportsPage extends StatelessWidget {
       create: (_) => ReportsBloc(
         dataSource: ReportsRemoteDataSourceImpl(),
       )..add(const LoadReportCatalog()),
-      child: const _ReportsView(),
+      child: _ReportsView(
+        filterExportKind: filterExportKind,
+        titleOverride: titleOverride,
+      ),
     );
   }
 }
 
 class _ReportsView extends StatelessWidget {
-  const _ReportsView();
+  final String? filterExportKind;
+  final String? titleOverride;
+
+  const _ReportsView({
+    this.filterExportKind,
+    this.titleOverride,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +156,7 @@ class _ReportsView extends StatelessWidget {
             const SizedBox(height: 8),
           ],
           Text(
-            'Reports & Export',
+            titleOverride ?? 'Reports & Export',
             style: GoogleFonts.outfit(
               fontSize: 22,
               fontWeight: FontWeight.w800,
@@ -174,6 +192,35 @@ class _ReportsView extends StatelessWidget {
   Widget _buildLoadedContent(BuildContext context, ReportsLoaded state) {
     final catalog = state.catalog;
     final activeCount = _activeFiltersCount(state);
+
+    // Filter reports based on filterExportKind or role
+    final isSuperAdmin = HiveStorage.isSuperAdminOrCoo;
+    final isLd = HiveStorage.isLdRole;
+
+    final List<ReportItemModel> displayedReports;
+    if (filterExportKind != null && filterExportKind!.isNotEmpty) {
+      final target = filterExportKind!.toLowerCase();
+      final filtered = catalog.reports.where((r) {
+        final k = '${r.exportKind} ${r.id} ${r.title}'.toLowerCase();
+        return k.contains(target);
+      }).toList();
+      displayedReports = filtered.isNotEmpty ? filtered : catalog.reports;
+    } else if (isSuperAdmin) {
+      // Super admin sees all reports
+      displayedReports = catalog.reports;
+    } else if (isLd) {
+      final ldFiltered = catalog.reports.where((r) {
+        final k = '${r.exportKind} ${r.id} ${r.title}'.toLowerCase();
+        return k.contains('transition') || k.contains('l&d') || k.contains('training');
+      }).toList();
+      displayedReports = ldFiltered.isNotEmpty ? ldFiltered : catalog.reports;
+    } else {
+      final otherFiltered = catalog.reports.where((r) {
+        final k = '${r.exportKind} ${r.id} ${r.title}'.toLowerCase();
+        return !k.contains('transition') && !k.contains('l&d');
+      }).toList();
+      displayedReports = otherFiltered.isNotEmpty ? otherFiltered : catalog.reports;
+    }
 
     String dateRangeLabel;
     switch (state.selectedDateRange) {
@@ -270,10 +317,10 @@ class _ReportsView extends StatelessWidget {
               return ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: catalog.reports.length,
+                itemCount: displayedReports.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 12),
                 itemBuilder: (ctx, idx) {
-                  final r = catalog.reports[idx];
+                  final r = displayedReports[idx];
                   final isRunning = state.isRunningReport && state.runningExportKind == r.exportKind;
 
                   return ReportCardItem(
@@ -297,13 +344,13 @@ class _ReportsView extends StatelessWidget {
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 2.6,
+                crossAxisSpacing: 14,
+                mainAxisSpacing: 14,
+                mainAxisExtent: 156,
               ),
-              itemCount: catalog.reports.length,
+              itemCount: displayedReports.length,
               itemBuilder: (ctx, idx) {
-                final r = catalog.reports[idx];
+                final r = displayedReports[idx];
                 final isRunning = state.isRunningReport && state.runningExportKind == r.exportKind;
 
                 return ReportCardItem(

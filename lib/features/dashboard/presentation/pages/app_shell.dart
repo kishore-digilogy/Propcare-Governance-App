@@ -10,6 +10,7 @@ import '../../../activities/presentation/pages/rr_page.dart';
 import '../../../attendance/presentation/pages/attendance_page.dart';
 import '../../../issues/presentation/pages/issues_page.dart';
 import '../../../mom/presentation/pages/mom_page.dart';
+import '../../../reports/presentation/pages/report_viewer_page.dart';
 import '../../../reports/presentation/pages/reports_page.dart';
 import '../../../sites/presentation/pages/all_sites_page.dart';
 import '../../../sites/presentation/pages/renewal_sites_page.dart';
@@ -287,66 +288,86 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
     final isTabletOrDesktop = media.size.shortestSide >= 700 || media.size.width >= 900;
 
     final pageChildren = widget.pages ??
-        const [
-          DashboardPage(), // 0
-          AllSitesPage(), // 1
-          RenewalSitesPage(), // 2
-          AllSitesPage(initialStatus: 'DRAFT'), // 3
-          TransitionSitesPage(), // 4
-          PlaceholderPageView( // 5
+        [
+          const DashboardPage(), // 0
+          const AllSitesPage(), // 1
+          const RenewalSitesPage(), // 2
+          const AllSitesPage(initialStatus: 'DRAFT'), // 3
+          const TransitionSitesPage(), // 4
+          const PlaceholderPageView( // 5
             title: 'Create Site',
             parentTitle: 'Sites',
             icon: Icons.add_business_rounded,
           ),
-          ActivitiesPage(isTeam: false), // 6
-          ActivitiesPage(isTeam: true), // 7
-          AttendancePage(), // 8
-          ReportsPage(), // 9
-          MomPage(), // 10
-          PlaceholderPageView( // 11
+          const ActivitiesPage(isTeam: false), // 6
+          const ActivitiesPage(isTeam: true), // 7
+          const AttendancePage(), // 8
+          const ReportsPage(), // 9
+          const MomPage(), // 10
+          const PlaceholderPageView( // 11
             title: 'Training Activities',
             parentTitle: 'Training',
             icon: Icons.school_outlined,
           ),
-          ChecklistReportPage(), // 12
-          MmrMisPage(), // 13
-          RrPage(), // 14
-          IssuesPage(), // 15
-          PlaceholderPageView( // 16
+          const ChecklistReportPage(), // 12
+          const MmrMisPage(), // 13
+          const RrPage(), // 14
+          const IssuesPage(), // 15
+          const PlaceholderPageView( // 16
             title: 'Site Observation Report',
             parentTitle: 'Training',
             icon: Icons.find_in_page_outlined,
           ),
-          PlaceholderPageView( // 17
+          const PlaceholderPageView( // 17
             title: 'Training Report Generator',
             parentTitle: 'Training',
             icon: Icons.analytics_outlined,
           ),
-          PlaceholderPageView( // 18
+          const PlaceholderPageView( // 18
             title: 'Role & Access',
             parentTitle: 'Settings',
             icon: Icons.badge_outlined,
           ),
-          PlaceholderPageView( // 19
+          const PlaceholderPageView( // 19
             title: 'Approvals',
             parentTitle: 'Governance',
             icon: Icons.verified_user_outlined,
           ),
-          PlaceholderPageView( // 20
+          const ReportViewerPage(
+            title: 'Site Report',
+            exportKind: 'sites',
+            showBackButton: false,
+          ), // 20
+          const ReportViewerPage(
+            title: 'Governance & Visits',
+            exportKind: 'governance',
+            showBackButton: false,
+          ), // 21
+          const ReportViewerPage(
             title: 'Issue Report',
-            parentTitle: 'Reports & Export',
-            icon: Icons.report_problem_outlined,
-          ),
-          PlaceholderPageView( // 21
-            title: 'Machine Report',
-            parentTitle: 'Reports & Export',
-            icon: Icons.precision_manufacturing_outlined,
-          ),
-          PlaceholderPageView( // 22
+            exportKind: 'issues',
+            showBackButton: false,
+          ), // 22
+          const ReportViewerPage(
             title: 'Transition / L&D',
-            parentTitle: 'Reports & Export',
-            icon: Icons.swap_horiz_rounded,
-          ),
+            exportKind: 'transition',
+            showBackButton: false,
+          ), // 23
+          const ReportViewerPage(
+            title: 'EHS Report',
+            exportKind: 'ehs',
+            showBackButton: false,
+          ), // 24
+          const ReportViewerPage(
+            title: 'HR Report',
+            exportKind: 'hr',
+            showBackButton: false,
+          ), // 25
+          const ReportViewerPage(
+            title: 'Machine Report',
+            exportKind: 'machines',
+            showBackButton: false,
+          ), // 26
         ];
 
     final safeIndex = _activePageIndex < pageChildren.length ? _activePageIndex : 0;
@@ -586,20 +607,6 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
                   ),
                   const SizedBox(height: 4),
 
-                  _buildSidebarTile(
-                    icon: Icons.badge_outlined,
-                    label: 'Role & Access',
-                    pageIndex: 18,
-                  ),
-                  const SizedBox(height: 4),
-
-                  _buildSidebarTile(
-                    icon: Icons.verified_user_outlined,
-                    label: 'Approvals',
-                    pageIndex: 19,
-                  ),
-                  const SizedBox(height: 4),
-
                   // Reports & Export Expandable Group
                   _buildSidebarGroup(
                     label: 'Reports & Export',
@@ -607,7 +614,7 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
                     isExpanded: _reportsExpanded,
                     onToggle: () => setState(() => _reportsExpanded = !_reportsExpanded),
                     children: [
-                      _buildSidebarChildTile(label: 'Transition / L&D', pageIndex: 22),
+                      _buildSidebarChildTile(label: 'Transition / L&D', pageIndex: 23),
                     ],
                   ),
                 ] else if (!isSuperAdminOrCoo) ...[
@@ -695,8 +702,8 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
                     isExpanded: _reportsExpanded,
                     onToggle: () => setState(() => _reportsExpanded = !_reportsExpanded),
                     children: [
-                      _buildSidebarChildTile(label: 'Issue Report', pageIndex: 20),
-                      _buildSidebarChildTile(label: 'Machine Report', pageIndex: 21),
+                      _buildSidebarChildTile(label: 'Issue Report', pageIndex: 22),
+                      _buildSidebarChildTile(label: 'Machine Report', pageIndex: 26),
                     ],
                   ),
                 ] else ...[
@@ -730,7 +737,6 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
                         badgeColor: const Color(0xFFFEF3C7),
                         badgeTextColor: const Color(0xFFD97706),
                       ),
-                      _buildSidebarChildTile(label: 'Create Site', pageIndex: 5),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -760,22 +766,6 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
                         badgeTextColor: const Color(0xFF2563EB),
                       ),
                       _buildSidebarChildTile(label: 'Team Governance', pageIndex: 7),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-
-                  // Training Expandable Group
-                  _buildSidebarGroup(
-                    label: 'Training',
-                    icon: Icons.school_outlined,
-                    isExpanded: _trainingExpanded,
-                    onToggle: () => setState(() => _trainingExpanded = !_trainingExpanded),
-                    children: [
-                      _buildSidebarChildTile(label: 'Training Activities', pageIndex: 11),
-                      _buildSidebarChildTile(label: 'Team Activities', pageIndex: 7),
-                      _buildSidebarChildTile(label: 'Site Observation Report', pageIndex: 16),
-                      _buildSidebarChildTile(label: 'Training Report Generator', pageIndex: 17),
-                      _buildSidebarChildTile(label: 'MOM', pageIndex: 10),
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -825,30 +815,27 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
                   ),
                   const SizedBox(height: 4),
 
-                  _buildSidebarTile(
-                    icon: Icons.badge_outlined,
-                    label: 'Role & Access',
-                    pageIndex: 18,
-                  ),
-                  const SizedBox(height: 4),
-
-                  _buildSidebarTile(
-                    icon: Icons.verified_user_outlined,
-                    label: 'Approvals',
-                    pageIndex: 19,
-                  ),
-                  const SizedBox(height: 4),
-
                   // Reports & Export Expandable Group
                   _buildSidebarGroup(
                     label: 'Reports & Export',
                     icon: Icons.bar_chart_rounded,
                     isExpanded: _reportsExpanded,
-                    onToggle: () => setState(() => _reportsExpanded = !_reportsExpanded),
+                    onToggle: () {
+                      setState(() {
+                        _reportsExpanded = !_reportsExpanded;
+                        if (_reportsExpanded) {
+                          _activePageIndex = 20;
+                        }
+                      });
+                    },
                     children: [
-                      _buildSidebarChildTile(label: 'Issue Report', pageIndex: 20),
-                      _buildSidebarChildTile(label: 'Machine Report', pageIndex: 21),
-                      _buildSidebarChildTile(label: 'Transition / L&D', pageIndex: 22),
+                      _buildSidebarChildTile(label: 'Site Report', pageIndex: 20),
+                      _buildSidebarChildTile(label: 'Governance & Visits', pageIndex: 21),
+                      _buildSidebarChildTile(label: 'Issue Report', pageIndex: 22),
+                      _buildSidebarChildTile(label: 'Transition / L&D', pageIndex: 23),
+                      _buildSidebarChildTile(label: 'EHS Report', pageIndex: 24),
+                      _buildSidebarChildTile(label: 'HR Report', pageIndex: 25),
+                      _buildSidebarChildTile(label: 'Machine Report', pageIndex: 26),
                     ],
                   ),
                 ],

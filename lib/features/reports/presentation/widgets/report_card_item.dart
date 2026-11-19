@@ -36,10 +36,9 @@ class ReportCardItem extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
           // Top row: Title and Count Badge
           Row(
@@ -53,6 +52,8 @@ class ReportCardItem extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     color: const Color(0xFF0F172A),
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 8),
@@ -78,9 +79,11 @@ class ReportCardItem extends StatelessWidget {
           ),
           const SizedBox(height: 6),
 
-          // Description (compact, no forced expansion)
+          // Description (compact, max 2 lines with ellipsis)
           Text(
             report.description,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.outfit(
               fontSize: 12,
               color: _kSlate,
@@ -90,7 +93,7 @@ class ReportCardItem extends StatelessWidget {
 
           // Bottom Action: View Report Button (Hidden if 0 records)
           if (hasRecords) ...[
-            const SizedBox(height: 10),
+            const Spacer(),
             Row(
               children: [
                 OutlinedButton.icon(
