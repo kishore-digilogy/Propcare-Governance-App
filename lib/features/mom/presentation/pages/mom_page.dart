@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/app_top_header.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../data/datasources/mom_remote_datasource.dart';
 import '../../data/models/mom_by_site_model.dart';
 import '../bloc/mom_bloc.dart';
@@ -143,26 +144,7 @@ class _MomViewState extends State<_MomView> {
   }
 
   Widget _buildLoading() {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircularProgressIndicator(
-            color: _kBlue,
-            strokeWidth: 2.5,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Loading MOM & Email visits...',
-            style: TextStyle(
-              fontSize: 13,
-              color: _kSlate,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
+    return const ShimmerListLoading();
   }
 
   Widget _buildError(BuildContext context, String message) {

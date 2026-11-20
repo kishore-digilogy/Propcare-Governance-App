@@ -6,6 +6,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/models/meta_model.dart';
 import '../../../../core/services/meta_service.dart';
 import '../../../../core/widgets/custom_dropdown_button2.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../data/datasources/activities_remote_datasource.dart';
 import '../../data/models/site_activity_item_model.dart';
 import '../bloc/activities_bloc.dart';
@@ -105,9 +106,7 @@ class _RrPageState extends State<RrPage> {
 
   Widget _buildBody(BuildContext context, ActivitiesState state) {
     if (state is ActivitiesLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
-      );
+      return const ShimmerListLoading();
     }
 
     if (state is ActivitiesError) {
@@ -160,9 +159,7 @@ class _RrPageState extends State<RrPage> {
     if (state is ActivitiesLoaded) {
       if (state.selectedActivityDetail != null || state.isLoadingActivity) {
         if (state.isLoadingActivity) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.primary),
-          );
+          return const ShimmerActivityExecutionLoading();
         }
         return ActivityExecutionView(
           activityDetail: state.selectedActivityDetail!,
@@ -218,8 +215,8 @@ class _RrPageState extends State<RrPage> {
                   _buildActivitiesContent(context, state),
                   const SizedBox(height: 16),
 
-                  // 6. Pagination
-                  if (state.activitiesResponse.total > 10)
+                  // 6. Pagination (Hidden during loading, show only if total > 10)
+                  if (!state.isLoadingActivities && state.activitiesResponse.total > 10)
                     _buildPagination(state),
                   const SizedBox(height: 32),
                 ],
@@ -327,10 +324,10 @@ class _RrPageState extends State<RrPage> {
           count: pending,
           subtitle: 'Need visit / MOM',
           icon: Icons.access_time_rounded,
-          iconColor: const Color(0xFFD97706),
-          iconBgColor: const Color(0xFFFEF3C7),
-          bgTint: const Color(0xFFFFFDF5),
-          borderColor: const Color(0xFFFDE68A),
+          iconColor: const Color(0xFF2563EB),
+          iconBgColor: const Color(0xFFEFF6FF),
+          bgTint: const Color(0xFFF8FAFC),
+          borderColor: const Color(0xFFDBEAFE),
           isCompact: isNarrow,
         );
 
@@ -645,7 +642,7 @@ class _RrPageState extends State<RrPage> {
           _buildStatusFilterChip(
             label: 'Pending',
             isSelected: current == 'pending',
-            activeColor: const Color(0xFFD97706),
+            activeColor: const Color(0xFF2563EB),
             onTap: () => _bloc.add(const ChangeActivitiesStatusFilter('pending')),
           ),
           const SizedBox(width: 6),
@@ -1106,6 +1103,7 @@ class _RrPageState extends State<RrPage> {
   }
 
   Widget _buildPagination(ActivitiesLoaded state) {
+    if (state.isLoadingActivities) return const SizedBox.shrink();
     final total = state.activitiesResponse.total;
     final limit = state.activitiesResponse.limit;
     final offset = state.activitiesResponse.offset;

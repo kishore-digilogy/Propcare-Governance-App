@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/constants/app_assets.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/models/meta_model.dart';
 import '../../../../core/services/meta_service.dart';
 import '../../../../core/widgets/custom_dropdown_button2.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../data/datasources/activities_remote_datasource.dart';
 import '../../data/models/site_activity_item_model.dart';
 import '../bloc/activities_bloc.dart';
@@ -25,15 +27,35 @@ class MmrMisPage extends StatefulWidget {
   State<MmrMisPage> createState() => _MmrMisPageState();
 }
 
-class _MmrMisPageState extends State<MmrMisPage> {
+class _MmrMisPageState extends State<MmrMisPage>
+    with SingleTickerProviderStateMixin {
   late final ActivitiesBloc _bloc;
   late final TextEditingController _searchController;
   final bool _ownsBloc = false;
   bool _isTableView = false;
 
+  late final AnimationController _animController;
+  late final Animation<double> _headerFadeAnimation;
+  late final Animation<Offset> _headerSlideAnimation;
+
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+
+    _headerFadeAnimation = CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.0, 0.7, curve: Curves.easeOutCubic),
+    );
+
+    _headerSlideAnimation = Tween<Offset>(
+      begin: const Offset(0, -0.08),
+      end: Offset.zero,
+    ).animate(_headerFadeAnimation);
+
     _bloc = widget.bloc ??
         ActivitiesBloc(
           remoteDataSource: ActivitiesRemoteDataSourceImpl(),
@@ -45,6 +67,7 @@ class _MmrMisPageState extends State<MmrMisPage> {
     ));
 
     _searchController.addListener(_onSearchChanged);
+    _animController.forward();
   }
 
   void _onSearchChanged() {
@@ -53,6 +76,7 @@ class _MmrMisPageState extends State<MmrMisPage> {
 
   @override
   void dispose() {
+    _animController.dispose();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     if (_ownsBloc) {
@@ -104,9 +128,7 @@ class _MmrMisPageState extends State<MmrMisPage> {
 
   Widget _buildBody(BuildContext context, ActivitiesState state) {
     if (state is ActivitiesLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
-      );
+      return const ShimmerListLoading();
     }
 
     if (state is ActivitiesError) {
@@ -159,9 +181,7 @@ class _MmrMisPageState extends State<MmrMisPage> {
       // If an individual activity detail is open
       if (state.selectedActivityDetail != null || state.isLoadingActivity) {
         if (state.isLoadingActivity) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.primary),
-          );
+          return const ShimmerActivityExecutionLoading();
         }
         return ActivityExecutionView(
           activityDetail: state.selectedActivityDetail!,
@@ -217,8 +237,8 @@ class _MmrMisPageState extends State<MmrMisPage> {
                   _buildActivitiesContent(context, state),
                   const SizedBox(height: 16),
 
-                  // 6. Pagination
-                  if (state.activitiesResponse.total > 10)
+                  // 6. Pagination (Hidden during loading, show only if total > 10)
+                  if (!state.isLoadingActivities && state.activitiesResponse.total > 10)
                     _buildPagination(state),
                   const SizedBox(height: 32),
                 ],
@@ -236,49 +256,169 @@ class _MmrMisPageState extends State<MmrMisPage> {
     final roleLabel = state.activitiesResponse.myRoleLabel.isNotEmpty
         ? state.activitiesResponse.myRoleLabel
         : 'Crrm';
+    final isTablet = MediaQuery.sizeOf(context).width >= 720;
 
-    return Row(
-      children: [
-        InkWell(
-          onTap: () => Navigator.of(context).maybePop(),
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+    return SlideTransition(
+      position: _headerSlideAnimation,
+      child: FadeTransition(
+        opacity: _headerFadeAnimation,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFEAF2FE),
+                Color(0xFFF3F7FD),
+                Colors.white,
+              ],
             ),
-            child: const Icon(Icons.arrow_back_rounded, size: 20, color: Color(0xFF1E293B)),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'MMR / MIS',
-                style: GoogleFonts.outfit(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF0F172A),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '$roleLabel · MIS & MMR governance — visit first, then MOM',
-                style: GoogleFonts.outfit(
-                  fontSize: 12.5,
-                  color: const Color(0xFF64748B),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFDBEAFE), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1E293B).withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Stack(
+              children: [
+                // Decorative background circle accents
+                Positioned(
+                  top: -24,
+                  right: -24,
+                  width: 120,
+                  height: 120,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFDBEAFE).withValues(alpha: 0.5),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: -18,
+                  right: 60,
+                  width: 80,
+                  height: 80,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFEFF6FF).withValues(alpha: 0.6),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isTablet ? 20 : 16,
+                    vertical: isTablet ? 16 : 14,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Back Button Pill
+                      InkWell(
+                        onTap: () => Navigator.of(context).maybePop(),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFFDBEAFE)),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x06000000),
+                                blurRadius: 4,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                size: 13,
+                                color: Color(0xFF1A73E8),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Back',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF1A73E8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      // Title + Subtitle on Left, 3D Illustration on Right
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      'MMR / MIS',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: isTablet ? 24 : 21,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF0F172A),
+                                        letterSpacing: -0.3,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      width: 24,
+                                      height: 3.5,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF1A73E8),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '$roleLabel · MIS & MMR governance — visit first, then MOM',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: isTablet ? 12.5 : 11.5,
+                                    color: const Color(0xFF64748B),
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Image.asset(
+                            AppAssets.governanceClipboard,
+                            height: isTablet ? 84 : 70,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ],
+      ),
     );
   }
 
@@ -301,11 +441,11 @@ class _MmrMisPageState extends State<MmrMisPage> {
           title: 'Total',
           count: total,
           subtitle: 'All activities',
-          icon: Icons.apartment_outlined,
-          iconColor: const Color(0xFF475569),
-          iconBgColor: const Color(0xFFF1F5F9),
-          bgTint: Colors.white,
-          borderColor: const Color(0xFFE2E8F0),
+          icon: Icons.layers_rounded,
+          iconColor: const Color(0xFF1A73E8),
+          iconBgColor: const Color(0xFFEFF6FF),
+          borderColor: const Color(0xFFDBEAFE),
+          waveColor: const Color(0xFF3B82F6),
           isCompact: isNarrow,
         );
 
@@ -315,9 +455,9 @@ class _MmrMisPageState extends State<MmrMisPage> {
           subtitle: 'MOM sent · closed',
           icon: Icons.check_circle_outline_rounded,
           iconColor: const Color(0xFF16A34A),
-          iconBgColor: const Color(0xFFDCFCE7),
-          bgTint: const Color(0xFFF0FDF4),
-          borderColor: const Color(0xFFBBF7D0),
+          iconBgColor: const Color(0xFFF0FDF4),
+          borderColor: const Color(0xFFDCFCE7),
+          waveColor: const Color(0xFF22C55E),
           isCompact: isNarrow,
         );
 
@@ -326,10 +466,10 @@ class _MmrMisPageState extends State<MmrMisPage> {
           count: pending,
           subtitle: 'Need visit / MOM',
           icon: Icons.access_time_rounded,
-          iconColor: const Color(0xFFD97706),
-          iconBgColor: const Color(0xFFFEF3C7),
-          bgTint: const Color(0xFFFFFDF5),
-          borderColor: const Color(0xFFFDE68A),
+          iconColor: const Color(0xFF2563EB),
+          iconBgColor: const Color(0xFFEFF6FF),
+          borderColor: const Color(0xFFDBEAFE),
+          waveColor: const Color(0xFF2563EB),
           isCompact: isNarrow,
         );
 
@@ -337,12 +477,12 @@ class _MmrMisPageState extends State<MmrMisPage> {
           title: 'Due',
           count: due,
           subtitle: 'Past due date',
-          icon: Icons.error_outline_rounded,
+          icon: Icons.warning_amber_rounded,
           iconColor: const Color(0xFFDC2626),
-          iconBgColor: const Color(0xFFFEE2E2),
-          bgTint: due > 0 ? const Color(0xFFFEF2F2) : Colors.white,
-          borderColor: due > 0 ? const Color(0xFFFECACA) : const Color(0xFFE2E8F0),
-          isAlert: due > 0,
+          iconBgColor: const Color(0xFFFEF2F2),
+          borderColor: const Color(0xFFFECACA),
+          waveColor: const Color(0xFFEF4444),
+          isAlert: true,
           isCompact: isNarrow,
         );
 
@@ -356,7 +496,7 @@ class _MmrMisPageState extends State<MmrMisPage> {
                   Expanded(child: cardCompleted),
                 ],
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(child: cardPending),
@@ -390,79 +530,108 @@ class _MmrMisPageState extends State<MmrMisPage> {
     required IconData icon,
     required Color iconColor,
     required Color iconBgColor,
-    required Color bgTint,
     required Color borderColor,
+    required Color waveColor,
     bool isAlert = false,
     bool isCompact = false,
   }) {
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isCompact ? 10 : 14,
-        vertical: isCompact ? 6 : 8,
-      ),
       decoration: BoxDecoration(
-        color: bgTint,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: borderColor),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1.2),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x04000000),
-            blurRadius: 3,
-            offset: Offset(0, 1),
+            color: Color(0x05000000),
+            blurRadius: 6,
+            offset: Offset(0, 2),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.outfit(
-                    fontSize: isCompact ? 11 : 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: isAlert ? const Color(0xFFB91C1C) : const Color(0xFF64748B),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            Positioned(
+              bottom: 0,
+              right: 0,
+              width: isCompact ? 105 : 135,
+              height: isCompact ? 58 : 72,
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _MmrCardBottomWavePainter(baseColor: waveColor),
+                ),
+              ),
+            ),
+            Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompact ? 11 : 14,
+                vertical: isCompact ? 9 : 12,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: isCompact ? 28 : 34,
+                        height: isCompact ? 28 : 34,
+                        decoration: BoxDecoration(
+                          color: iconBgColor,
+                          borderRadius: BorderRadius.circular(isCompact ? 8 : 10),
+                          border: Border.all(color: borderColor, width: 1.0),
+                        ),
+                        child: Icon(
+                          icon,
+                          size: isCompact ? 15 : 18,
+                          color: iconColor,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.outfit(
+                            fontSize: isCompact ? 13 : 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF1E293B),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                  SizedBox(height: isCompact ? 5 : 8),
+                  Text(
+                    '$count',
+                    style: GoogleFonts.outfit(
+                      fontSize: isCompact ? 22 : 26,
+                      fontWeight: FontWeight.w800,
+                      color: isAlert && count > 0
+                          ? const Color(0xFFDC2626)
+                          : const Color(0xFF0F172A),
+                    ),
+                  ),
+                  SizedBox(height: isCompact ? 1 : 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      fontSize: isCompact ? 10 : 11.5,
+                      fontWeight: FontWeight.w500,
+                      color: isAlert && count > 0
+                          ? const Color(0xFFDC2626)
+                          : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
               ),
-              Container(
-                width: isCompact ? 22 : 28,
-                height: isCompact ? 22 : 28,
-                decoration: BoxDecoration(
-                  color: iconBgColor,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Icon(icon, size: isCompact ? 12 : 15, color: iconColor),
-              ),
-            ],
-          ),
-          SizedBox(height: isCompact ? 2 : 4),
-          Text(
-            '$count',
-            style: GoogleFonts.outfit(
-              fontSize: isCompact ? 17 : 22,
-              fontWeight: FontWeight.w800,
-              color: isAlert ? const Color(0xFF991B1B) : const Color(0xFF0F172A),
             ),
-          ),
-          SizedBox(height: isCompact ? 1 : 2),
-          Text(
-            subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.outfit(
-              fontSize: isCompact ? 9.5 : 10.5,
-              fontWeight: FontWeight.w500,
-              color: isAlert ? const Color(0xFFDC2626) : const Color(0xFF94A3B8),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1063,152 +1232,206 @@ class _MmrMisPageState extends State<MmrMisPage> {
 
     return InkWell(
       onTap: () => _bloc.add(SelectActivityForDetail(activity.id)),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(18),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
+        margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x04000000),
-              blurRadius: 3,
-              offset: Offset(0, 1),
+              color: Color(0x05000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Row 1: Status pill & Due date
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildStatusPill(activity.status, activity.statusLabel),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Stack(
+            children: [
+              Positioned(
+                bottom: 0,
+                right: 0,
+                width: 140,
+                height: 70,
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _MmrCardBottomWavePainter(baseColor: const Color(0xFF3B82F6)),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.calendar_today_outlined, size: 13, color: Color(0xFF64748B)),
-                    const SizedBox(width: 4),
+                    // Row 1: Left icon badge + Status pill, Right due date
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 30,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF6FF),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFFDBEAFE)),
+                              ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.trending_up_rounded,
+                                  size: 17,
+                                  color: Color(0xFF1A73E8),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            _buildStatusPill(activity.status, activity.statusLabel),
+                          ],
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.calendar_today_outlined, size: 12.5, color: Color(0xFF64748B)),
+                            const SizedBox(width: 4),
+                            Text(
+                              activity.formattedDate,
+                              style: GoogleFonts.outfit(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF334155),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Activity Title
                     Text(
-                      activity.formattedDate,
+                      activity.title.isNotEmpty ? activity.title : '${activity.kind} Activity',
                       style: GoogleFonts.outfit(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF334155),
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF0F172A),
                       ),
+                    ),
+                    Container(
+                      width: 28,
+                      height: 3,
+                      margin: const EdgeInsets.only(top: 4, bottom: 9),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A73E8),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+
+                    // Metadata badges: Kind (MMR/MIS), Role, Frequency, Assigned SPOC, Priority
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _buildMetaBadge(
+                          icon: isMmr ? Icons.analytics_outlined : Icons.description_outlined,
+                          label: activity.kind.isNotEmpty ? activity.kind : 'MMR',
+                          color: isMmr ? const Color(0xFF7C3AED) : const Color(0xFF0284C7),
+                          bgColor: isMmr ? const Color(0xFFF5F3FF) : const Color(0xFFF0F9FF),
+                        ),
+                        if (activity.roleLabel.isNotEmpty || activity.role.isNotEmpty)
+                          _buildMetaBadge(
+                            icon: Icons.badge_outlined,
+                            label: activity.roleLabel.isNotEmpty ? activity.roleLabel : activity.role,
+                            color: const Color(0xFF475569),
+                            bgColor: const Color(0xFFF1F5F9),
+                          ),
+                        if (activity.frequencyLabel.isNotEmpty)
+                          _buildMetaBadge(
+                            icon: Icons.repeat_rounded,
+                            label: activity.frequencyLabel,
+                            color: const Color(0xFF0369A1),
+                            bgColor: const Color(0xFFF0F9FF),
+                          ),
+                        if (activity.assignedToName != null && activity.assignedToName!.isNotEmpty)
+                          _buildMetaBadge(
+                            icon: Icons.person_outline_rounded,
+                            label: activity.assignedToName!,
+                            color: const Color(0xFF15803D),
+                            bgColor: const Color(0xFFF0FDF4),
+                          ),
+                        if (activity.priority.isNotEmpty)
+                          _buildMetaBadge(
+                            icon: Icons.flag_outlined,
+                            label: activity.priority,
+                            color: activity.priority.toLowerCase() == 'high'
+                                ? const Color(0xFFDC2626)
+                                : const Color(0xFF475569),
+                            bgColor: activity.priority.toLowerCase() == 'high'
+                                ? const Color(0xFFFEF2F2)
+                                : const Color(0xFFF1F5F9),
+                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
+                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                    const SizedBox(height: 8),
+
+                    // Footer: Site & Location + Code badge
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFF94A3B8)),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  '${activity.siteName}${activity.clusterName.isNotEmpty ? " · ${activity.clusterName}" : ""}${activity.zoneName.isNotEmpty ? " · ${activity.zoneName}" : ""}',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    color: const Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (activity.code.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFFDBEAFE)),
+                            ),
+                            child: Text(
+                              activity.code,
+                              style: GoogleFonts.outfit(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF1D4ED8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            // Activity Title
-            Text(
-              activity.title.isNotEmpty ? activity.title : '${activity.kind} Activity',
-              style: GoogleFonts.outfit(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF0F172A),
               ),
-            ),
-            const SizedBox(height: 8),
-
-            // Metadata badges: Kind (MMR/MIS), Role, Frequency, Assigned SPOC, Priority
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                _buildMetaBadge(
-                  icon: isMmr ? Icons.analytics_outlined : Icons.description_outlined,
-                  label: activity.kind.isNotEmpty ? activity.kind : 'MMR',
-                  color: isMmr ? const Color(0xFF7C3AED) : const Color(0xFF0284C7),
-                  bgColor: isMmr ? const Color(0xFFF5F3FF) : const Color(0xFFF0F9FF),
-                ),
-                if (activity.roleLabel.isNotEmpty || activity.role.isNotEmpty)
-                  _buildMetaBadge(
-                    icon: Icons.badge_outlined,
-                    label: activity.roleLabel.isNotEmpty ? activity.roleLabel : activity.role,
-                    color: const Color(0xFF475569),
-                    bgColor: const Color(0xFFF1F5F9),
-                  ),
-                if (activity.frequencyLabel.isNotEmpty)
-                  _buildMetaBadge(
-                    icon: Icons.repeat_rounded,
-                    label: activity.frequencyLabel,
-                    color: const Color(0xFF0369A1),
-                    bgColor: const Color(0xFFF0F9FF),
-                  ),
-                if (activity.assignedToName != null && activity.assignedToName!.isNotEmpty)
-                  _buildMetaBadge(
-                    icon: Icons.person_outline_rounded,
-                    label: activity.assignedToName!,
-                    color: const Color(0xFF15803D),
-                    bgColor: const Color(0xFFF0FDF4),
-                  ),
-                if (activity.priority.isNotEmpty)
-                  _buildMetaBadge(
-                    icon: Icons.flag_outlined,
-                    label: activity.priority,
-                    color: const Color(0xFFB45309),
-                    bgColor: const Color(0xFFFFFBEB),
-                  ),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            const SizedBox(height: 8),
-
-            // Footer: Site & Location + Code badge
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFF94A3B8)),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          '${activity.siteName}${activity.clusterName.isNotEmpty ? " · ${activity.clusterName}" : ""}${activity.zoneName.isNotEmpty ? " · ${activity.zoneName}" : ""}',
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            color: const Color(0xFF64748B),
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (activity.code.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Text(
-                      activity.code,
-                      style: GoogleFonts.outfit(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF475569),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1409,22 +1632,18 @@ class _MmrMisPageState extends State<MmrMisPage> {
     final isScheduled = upper == 'SCHEDULED';
     final isOverdue = upper == 'OVERDUE';
 
-    Color dotColor = const Color(0xFFD97706);
-    Color bgColor = const Color(0xFFFFFBEB);
-    Color textColor = const Color(0xFFB45309);
+    Color dotColor = const Color(0xFF2563EB);
+    Color bgColor = const Color(0xFFEFF6FF);
+    Color textColor = const Color(0xFF1D4ED8);
 
     if (isDone) {
       dotColor = const Color(0xFF16A34A);
       bgColor = const Color(0xFFF0FDF4);
       textColor = const Color(0xFF15803D);
-    } else if (isAssigned) {
+    } else if (isAssigned || isScheduled) {
       dotColor = const Color(0xFF2563EB);
       bgColor = const Color(0xFFEFF6FF);
       textColor = const Color(0xFF1D4ED8);
-    } else if (isScheduled) {
-      dotColor = const Color(0xFF64748B);
-      bgColor = const Color(0xFFF8FAFC);
-      textColor = const Color(0xFF475569);
     } else if (isOverdue) {
       dotColor = const Color(0xFFDC2626);
       bgColor = const Color(0xFFFEF2F2);
@@ -1497,6 +1716,7 @@ class _MmrMisPageState extends State<MmrMisPage> {
   }
 
   Widget _buildPagination(ActivitiesLoaded state) {
+    if (state.isLoadingActivities) return const SizedBox.shrink();
     final total = state.activitiesResponse.total;
     final offset = state.activitiesResponse.offset;
     final limit = state.activitiesResponse.limit > 0 ? state.activitiesResponse.limit : 10;
@@ -1597,4 +1817,51 @@ class _MmrMisPageState extends State<MmrMisPage> {
       },
     );
   }
+}
+
+class _MmrCardBottomWavePainter extends CustomPainter {
+  final Color baseColor;
+
+  const _MmrCardBottomWavePainter({required this.baseColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Outer/lighter wave
+    final lightPaint = Paint()
+      ..color = baseColor.withValues(alpha: 0.08)
+      ..style = PaintingStyle.fill;
+
+    final lightPath = Path();
+    lightPath.moveTo(0, size.height);
+    lightPath.quadraticBezierTo(
+      size.width * 0.35,
+      size.height * 0.22,
+      size.width,
+      size.height * 0.12,
+    );
+    lightPath.lineTo(size.width, size.height);
+    lightPath.close();
+    canvas.drawPath(lightPath, lightPaint);
+
+    // Inner/soft wave
+    final richPaint = Paint()
+      ..color = baseColor.withValues(alpha: 0.18)
+      ..style = PaintingStyle.fill;
+
+    final richPath = Path();
+    richPath.moveTo(size.width * 0.22, size.height);
+    richPath.quadraticBezierTo(
+      size.width * 0.58,
+      size.height * 0.46,
+      size.width,
+      size.height * 0.36,
+    );
+    richPath.lineTo(size.width, size.height);
+    richPath.close();
+    canvas.drawPath(richPath, richPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MmrCardBottomWavePainter oldDelegate) =>
+      oldDelegate.baseColor != baseColor;
 }

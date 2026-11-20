@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/models/meta_model.dart';
 import '../../../../core/services/meta_service.dart';
 import '../../../../core/widgets/custom_dropdown_button2.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../data/datasources/sites_remote_datasource.dart';
 import '../../data/models/site_model.dart';
 import 'site_detail_page.dart';
@@ -81,9 +82,7 @@ class _AllSitesViewState extends State<_AllSitesView> {
           listener: (context, state) {},
           builder: (context, state) {
             if (state is SitesLoading || state is SitesInitial) {
-              return const Center(
-                child: CircularProgressIndicator(color: _kBlue),
-              );
+              return const ShimmerListLoading();
             }
 
             if (state is SitesError) {
@@ -130,10 +129,7 @@ class _AllSitesViewState extends State<_AllSitesView> {
 
           // ── Table / List View ─────────────────────────────────────────────
           if (state.isLoadingPage)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: CircularProgressIndicator(color: _kBlue)),
-            )
+            const ShimmerListLoading(itemCount: 3, padding: EdgeInsets.symmetric(vertical: 8))
           else if (items.isEmpty)
             _buildEmptyState()
           else
@@ -146,8 +142,8 @@ class _AllSitesViewState extends State<_AllSitesView> {
               },
             ),
 
-          // ── Pagination Bar (Show only if total > 10) ──────────────────────
-          if (state.totalCount > 10) ...[
+          // ── Pagination Bar (Hidden during loading, show only if total > 10) ──
+          if (!state.isLoadingPage && state.totalCount > 10) ...[
             const SizedBox(height: 16),
             _buildPaginationBar(context, state),
           ],
@@ -999,160 +995,454 @@ class _AllSitesViewState extends State<_AllSitesView> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (ctx, idx) {
         final site = items[idx];
-        return InkWell(
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => SiteDetailPage(siteId: site.id),
-              ),
-            );
-          },
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _kBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top row: Name, Special Flag, Status Badge
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              site.name,
-                              style: GoogleFonts.outfit(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF0F172A),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          if (site.specialAttention) ...[
-                            const SizedBox(width: 6),
-                            const Icon(Icons.flag_rounded, size: 15, color: _kRed),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _buildStatusBadge(site.status),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  site.sublineDisplay,
-                  style: GoogleFonts.outfit(fontSize: 11.5, color: _kSlate),
-                ),
-                const SizedBox(height: 10),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                const SizedBox(height: 10),
-
-                // Middle Info Row: Geography, Client Type, Billing PM
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Geography',
-                          style: GoogleFonts.outfit(fontSize: 11, color: _kSlate),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${site.zoneName} · ${site.clusterName}',
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF1E293B),
-                          ),
-                        ),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'Billing PM',
-                          style: GoogleFonts.outfit(fontSize: 11, color: _kSlate),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          site.formattedBillingPm,
-                          style: GoogleFonts.outfit(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF0F172A),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                // Bottom row: Manpower, SPOC, Client Type
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        _buildClientTypeBadge(site.clientType),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Manpower: ${site.manpowerDeployed}/${site.manpowerRequired}',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w500,
-                            color: _kSlate,
-                          ),
-                        ),
-                        if (site.shortage > 0) ...[
-                          const SizedBox(width: 4),
-                          Text(
-                            '(${site.shortage} Short)',
-                            style: GoogleFonts.outfit(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: _kRed,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    Text(
-                      site.leadName,
-                      style: GoogleFonts.outfit(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF334155),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
+        return _buildSiteCard(site);
       },
     );
   }
 
-  // ── Pagination Bar (Show only if total > 10) ──────────────────────────────
+  Widget _buildSiteCard(SiteItemModel site) {
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => SiteDetailPage(siteId: site.id),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.0),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x06000000),
+              blurRadius: 10,
+              offset: Offset(0, 3),
+            ),
+            BoxShadow(
+              color: Color(0x02000000),
+              blurRadius: 3,
+              offset: Offset(0, 1),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: Stack(
+            children: [
+              // Wave Painter in bottom right (Layers + Coral Arch matching reference design)
+              const Positioned(
+                bottom: 0,
+                right: 0,
+                width: 175,
+                height: 115,
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _SiteCardWavePainter(),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top Row: Avatar + Name & Subline + Status Badge
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Circular Avatar/Icon badge
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFFEFF6FF),
+                            border: Border.all(
+                              color: const Color(0xFFDBEAFE),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.apartment_rounded,
+                              color: Color(0xFF1A73E8),
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+
+                        // Site Name + Subline
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                site.name,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF0F172A),
+                                  letterSpacing: -0.2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 3),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(2.5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEFF6FF),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: const Color(0xFFDBEAFE),
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.alternate_email_rounded,
+                                      size: 9.5,
+                                      color: Color(0xFF1A73E8),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text(
+                                      site.sublineDisplay,
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w500,
+                                        color: const Color(0xFF64748B),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Special Attention Flag + Status Badge
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (site.specialAttention) ...[
+                              Container(
+                                padding: const EdgeInsets.all(5),
+                                margin: const EdgeInsets.only(right: 6),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF2F2),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: const Color(0xFFFECACA),
+                                    width: 0.8,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.flag_rounded,
+                                  size: 13,
+                                  color: Color(0xFFDC2626),
+                                ),
+                              ),
+                            ],
+                            _buildCardStatusBadge(site.status),
+                          ],
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Middle Info Row: 3 columns (Geography, Billing PM, Manpower)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFFE2E8F0),
+                          width: 1.0,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Geography
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Geography',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w500,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${site.zoneName} · ${site.clusterName}',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF1E293B),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            width: 1,
+                            height: 26,
+                            color: const Color(0xFFE2E8F0),
+                            margin: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+
+                          // Billing PM
+                          Expanded(
+                            flex: 4,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Billing PM',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w500,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  site.formattedBillingPm,
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            width: 1,
+                            height: 26,
+                            color: const Color(0xFFE2E8F0),
+                            margin: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+
+                          // Manpower
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Manpower',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w500,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                RichText(
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  text: TextSpan(
+                                    text: '${site.manpowerDeployed}/${site.manpowerRequired}',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: const Color(0xFF1E293B),
+                                    ),
+                                    children: [
+                                      if (site.shortage > 0)
+                                        TextSpan(
+                                          text: ' (${site.shortage} Short)',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: const Color(0xFFDC2626),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Bottom Row: Client Tier Pill ("Norwood 2" style) + Lead SPOC + Chevron
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Left: Client Tier Pill (like "Norwood 2" pill in reference image)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F3FF),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: const Color(0xFFDDD6FE),
+                              width: 1.0,
+                            ),
+                          ),
+                          child: Text(
+                            'Tier ${site.clientType}',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF7C3AED),
+                            ),
+                          ),
+                        ),
+
+                        // Middle: SPOC (Lead)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(3.5),
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFFF1F5F9),
+                              ),
+                              child: const Icon(
+                                Icons.person_outline_rounded,
+                                size: 12,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              site.leadName,
+                              style: GoogleFonts.outfit(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF334155),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+
+                        // Right: Forward Arrow Circle
+                        Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFFF1F5F9),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 11,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCardStatusBadge(String status) {
+    final s = status.toUpperCase();
+    Color dotColor = const Color(0xFF16A34A);
+    Color bgColor = const Color(0xFFF0FDF4);
+    Color borderColor = const Color(0xFFBBF7D0);
+    Color textColor = const Color(0xFF15803D);
+    String label = status;
+
+    if (s == 'LIVE') {
+      dotColor = const Color(0xFF16A34A);
+      bgColor = const Color(0xFFF0FDF4);
+      borderColor = const Color(0xFFBBF7D0);
+      textColor = const Color(0xFF15803D);
+      label = 'Live';
+    } else if (s.contains('TRANSITION')) {
+      dotColor = const Color(0xFFD97706);
+      bgColor = const Color(0xFFFFFBEB);
+      borderColor = const Color(0xFFFDE68A);
+      textColor = const Color(0xFFB45309);
+      label = 'Transition';
+    } else if (s == 'INACTIVE') {
+      dotColor = const Color(0xFF64748B);
+      bgColor = const Color(0xFFF1F5F9);
+      borderColor = const Color(0xFFE2E8F0);
+      textColor = const Color(0xFF475569);
+      label = 'Inactive';
+    } else {
+      dotColor = _kBlue;
+      bgColor = const Color(0xFFEFF6FF);
+      borderColor = const Color(0xFFBFDBFE);
+      textColor = _kBlue;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor, width: 0.8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: dotColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: GoogleFonts.outfit(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Pagination Bar (Show only if total > 10 and not loading) ─────────────
   Widget _buildPaginationBar(BuildContext context, SitesLoaded state) {
+    if (state.isLoadingPage) {
+      return const SizedBox.shrink();
+    }
     final total = state.totalCount;
     if (total <= 10) {
       return const SizedBox.shrink();
@@ -1478,4 +1768,51 @@ class _MetricCardItem extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SiteCardWavePainter extends CustomPainter {
+  const _SiteCardWavePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Layer 1: Outermost soft translucent sky blue wave
+    final outerPaint = Paint()
+      ..color = const Color(0xFF3B82F6).withValues(alpha: 0.08)
+      ..style = PaintingStyle.fill;
+
+    final outerPath = Path();
+    outerPath.moveTo(w * 0.1, h);
+    outerPath.quadraticBezierTo(
+      w * 0.28,
+      h * 0.28,
+      w,
+      h * 0.12,
+    );
+    outerPath.lineTo(w, h);
+    outerPath.close();
+    canvas.drawPath(outerPath, outerPaint);
+
+    // Layer 2: Middle soft royal blue wave
+    final midPaint = Paint()
+      ..color = const Color(0xFF1D4ED8).withValues(alpha: 0.10)
+      ..style = PaintingStyle.fill;
+
+    final midPath = Path();
+    midPath.moveTo(w * 0.35, h);
+    midPath.quadraticBezierTo(
+      w * 0.52,
+      h * 0.42,
+      w,
+      h * 0.36,
+    );
+    midPath.lineTo(w, h);
+    midPath.close();
+    canvas.drawPath(midPath, midPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

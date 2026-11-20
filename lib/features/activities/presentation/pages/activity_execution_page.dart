@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../data/datasources/activities_remote_datasource.dart';
 import '../bloc/activities_bloc.dart';
 import '../bloc/activities_event.dart';
@@ -30,6 +31,7 @@ class ActivityExecutionPage extends StatefulWidget {
 class _ActivityExecutionPageState extends State<ActivityExecutionPage> {
   late final ActivitiesBloc _bloc;
   late final bool _ownsBloc;
+  bool _hasModified = false;
 
   @override
   void initState() {
@@ -59,69 +61,71 @@ class _ActivityExecutionPageState extends State<ActivityExecutionPage> {
     return BlocProvider.value(
       value: _bloc,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: BlocConsumer<ActivitiesBloc, ActivitiesState>(
-              listener: (context, state) {
-                if (state is ActivitiesLoaded) {
-                  if (state.actionSuccessMessage != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(state.actionSuccessMessage!),
-                        backgroundColor: const Color(0xFF16A34A),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  } else if (state.actionErrorMessage != null && state.selectedActivityDetail != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(state.actionErrorMessage!),
-                        backgroundColor: const Color(0xFFDC2626),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                }
-              },
-              builder: (context, state) {
-                if (state is ActivitiesLoaded) {
-                  if (state.isLoadingActivity) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: AppColors.primary),
-                    );
-                  }
+        backgroundColor: const Color(0xFF0A1931),
+        body: BlocConsumer<ActivitiesBloc, ActivitiesState>(
+          listener: (context, state) {
+            if (state is ActivitiesLoaded) {
+              if (state.actionSuccessMessage != null) {
+                _hasModified = true;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(state.actionSuccessMessage!),
+                    backgroundColor: const Color(0xFF16A34A),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              } else if (state.actionErrorMessage != null && state.selectedActivityDetail != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(state.actionErrorMessage!),
+                    backgroundColor: const Color(0xFFDC2626),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            }
+          },
+          builder: (context, state) {
+            if (state is ActivitiesLoaded) {
+              if (state.isLoadingActivity) {
+                return const ShimmerActivityExecutionLoading();
+              }
 
-                  if (state.selectedActivityDetail != null) {
-                    return ActivityExecutionView(
+              if (state.selectedActivityDetail != null) {
+                return PopScope(
+                  canPop: false,
+                  onPopInvokedWithResult: (didPop, result) {
+                    if (didPop) return;
+                    Navigator.of(context).pop(_hasModified);
+                  },
+                  child: Container(
+                    color: const Color(0xFFF8FAFC),
+                    child: ActivityExecutionView(
                       activityDetail: state.selectedActivityDetail!,
                       isSubmittingVisit: state.isSubmittingVisit,
                       isSendingMom: state.isSendingMom,
                       bloc: _bloc,
-                      onBack: () => Navigator.of(context).pop(true),
-                    );
-                  }
+                      onBack: () => Navigator.of(context).pop(_hasModified),
+                    ),
+                  ),
+                );
+              }
 
-                  if (state.actionErrorMessage != null) {
-                    return _buildErrorView(state.actionErrorMessage!);
-                  }
-                }
+              if (state.actionErrorMessage != null) {
+                return SafeArea(child: _buildErrorView(state.actionErrorMessage!));
+              }
+            }
 
-                if (state is ActivitiesLoading || state is ActivitiesInitial) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: AppColors.primary),
-                  );
-                }
+            if (state is ActivitiesLoading || state is ActivitiesInitial) {
+              return const ShimmerActivityExecutionLoading();
+            }
 
-                if (state is ActivitiesError) {
-                  return _buildErrorView(state.message);
-                }
+            if (state is ActivitiesError) {
+              return SafeArea(child: _buildErrorView(state.message));
+            }
 
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
+            return const SizedBox.shrink();
+          },
         ),
       ),
     );
@@ -155,7 +159,7 @@ class _ActivityExecutionPageState extends State<ActivityExecutionPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () => Navigator.of(context).pop(_hasModified),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF334155),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

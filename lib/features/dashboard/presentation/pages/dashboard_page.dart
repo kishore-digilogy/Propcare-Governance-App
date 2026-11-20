@@ -11,6 +11,7 @@ import '../../../../core/services/meta_service.dart';
 import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/state_avatar.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../../activities/presentation/pages/activities_page.dart';
 import '../../../activities/presentation/pages/activity_execution_page.dart';
 import '../../../activities/presentation/pages/checklist_report_page.dart';
@@ -93,14 +94,10 @@ class _DashboardView extends StatelessWidget {
                         isFiltering: true,
                       );
                     }
-                    return const Center(
-                      child: CircularProgressIndicator(color: _kBlue),
-                    );
+                    return const ShimmerDashboardLoading();
                   }
                   if (state is DashboardInitial) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: _kBlue),
-                    );
+                    return const ShimmerDashboardLoading();
                   }
                   if (state is DashboardError) {
                     return _ErrorView(
@@ -3672,261 +3669,324 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
         (widget.selectedClusterId != null ? 1 : 0) +
         (!HiveStorage.isClusterExecutive && widget.selectedRole != null && widget.selectedRole != 'CRRM' ? 1 : 0);
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOutCubic,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFFFFFFF),
-            Color(0xFFF9FBFE),
-            Color(0xFFF0F6FD),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: activeFilterCount > 0
-              ? const Color(0xFFBFDBFE)
-              : const Color(0xFFE2E8F0),
-          width: activeFilterCount > 0 ? 1.4 : 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: activeFilterCount > 0
-                ? const Color(0xFF1A73E8).withValues(alpha: 0.05)
-                : const Color(0xFF0F172A).withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Filter Header Bar (with icon badge, title/subtitle, active count pill, reset & collapse)
-          Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF1A73E8), Color(0xFF1557B0)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(9),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF1A73E8).withValues(alpha: 0.22),
-                      blurRadius: 5,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.tune_rounded,
-                  size: 16,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 6,
-                      runSpacing: 2,
-                      children: [
-                        Text(
-                          'Dashboard Filters',
-                          style: GoogleFonts.outfit(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.2,
-                            color: const Color(0xFF0F172A),
-                          ),
-                        ),
-                        if (activeFilterCount > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF2563EB).withValues(alpha: 0.25),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ],
-                            ),
-                            child: Text(
-                              '$activeFilterCount active',
-                              style: GoogleFonts.outfit(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 1),
-                    Text(
-                      'Scope metrics by Zone, Cluster & Role',
-                      style: GoogleFonts.outfit(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF64748B),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
-              if (activeFilterCount > 0) ...[
-                InkWell(
-                  onTap: () => widget.onFilterChanged(null, null, null),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4.5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF2F2),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFECACA)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.restart_alt_rounded,
-                          size: 13,
-                          color: Color(0xFFDC2626),
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          'Reset',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFFDC2626),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTablet = constraints.maxWidth >= 600;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFFFFFFF),
+                Color(0xFFF9FBFE),
+                Color(0xFFF0F6FD),
               ],
-              InkWell(
-                onTap: () => setState(() => _isCollapsed = !_isCollapsed),
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4.5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _isCollapsed ? 'Show' : 'Hide',
-                        style: GoogleFonts.outfit(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF475569),
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      Icon(
-                        _isCollapsed
-                            ? Icons.keyboard_arrow_down_rounded
-                            : Icons.keyboard_arrow_up_rounded,
-                        size: 15,
-                        color: const Color(0xFF475569),
-                      ),
-                    ],
-                  ),
-                ),
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: activeFilterCount > 0
+                  ? const Color(0xFFBFDBFE)
+                  : const Color(0xFFE2E8F0),
+              width: activeFilterCount > 0 ? 1.4 : 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: activeFilterCount > 0
+                    ? const Color(0xFF1A73E8).withValues(alpha: 0.05)
+                    : const Color(0xFF0F172A).withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
-
-          // Filter Cards Row (Zone, Cluster, Role)
-          if (!_isCollapsed) ...[
-            const SizedBox(height: 12),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
+          padding: EdgeInsets.symmetric(
+            horizontal: isTablet ? 16 : 12,
+            vertical: isTablet ? 13 : 11,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Filter Header Bar (with icon badge, title/subtitle, active count pill, reset & collapse)
+              Row(
                 children: [
-                  // Zone Filter Card
-                  _FilterSelectorChip(
-                    category: 'Zone',
-                    icon: Icons.location_city_rounded,
-                    label: selectedZone?.name ?? 'All Zones',
-                    isSelected: selectedZone != null,
-                    onTap: () => _showZonePicker(context),
-                    onClear: selectedZone != null
-                        ? () => widget.onFilterChanged(null, null, widget.selectedRole)
-                        : null,
+                  Container(
+                    width: isTablet ? 36 : 32,
+                    height: isTablet ? 36 : 32,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1A73E8), Color(0xFF1557B0)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(isTablet ? 10 : 9),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF1A73E8).withValues(alpha: 0.22),
+                          blurRadius: 5,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.tune_rounded,
+                      size: isTablet ? 18 : 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 6,
+                          runSpacing: 2,
+                          children: [
+                            Text(
+                              'Dashboard Filters',
+                              style: GoogleFonts.outfit(
+                                fontSize: isTablet ? 15.5 : 14,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.2,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                            if (activeFilterCount > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                                child: Text(
+                                  '$activeFilterCount active',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 1.5),
+                        Text(
+                          'Scope metrics by Zone, Cluster & Role',
+                          style: GoogleFonts.outfit(
+                            fontSize: isTablet ? 12 : 11,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF64748B),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(width: 8),
-
-                  // Cluster Filter Card
-                  _FilterSelectorChip(
-                    category: 'Cluster',
-                    icon: Icons.apartment_rounded,
-                    label: selectedCluster?.name ?? 'All Clusters',
-                    isSelected: selectedCluster != null,
-                    onTap: () => _showClusterPicker(context),
-                    onClear: selectedCluster != null
-                        ? () => widget.onFilterChanged(widget.selectedZoneId, null, widget.selectedRole)
-                        : null,
-                  ),
-                  // Role Filter Card (Hidden for Cluster Executive)
-                  if (!HiveStorage.isClusterExecutive) ...[
-                    const SizedBox(width: 8),
-                    _FilterSelectorChip(
-                      category: 'Role',
-                      icon: Icons.badge_outlined,
-                      label: selectedRoleLabel,
-                      isSelected: widget.selectedRole != null && widget.selectedRole != 'CRRM',
-                      onTap: () => _showRolePicker(context),
-                      onClear: (widget.selectedRole != null && widget.selectedRole != 'CRRM')
-                          ? () => widget.onFilterChanged(widget.selectedZoneId, widget.selectedClusterId, null)
-                          : null,
+                  if (activeFilterCount > 0) ...[
+                    InkWell(
+                      onTap: () => widget.onFilterChanged(null, null, null),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isTablet ? 11 : 8,
+                          vertical: isTablet ? 6 : 4.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFFECACA)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.restart_alt_rounded,
+                              size: isTablet ? 14 : 13,
+                              color: const Color(0xFFDC2626),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Reset',
+                              style: GoogleFonts.outfit(
+                                fontSize: isTablet ? 12 : 11,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFFDC2626),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
+                    const SizedBox(width: 8),
                   ],
+                  InkWell(
+                    onTap: () => setState(() => _isCollapsed = !_isCollapsed),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isTablet ? 12 : 10,
+                        vertical: isTablet ? 6 : 4.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _isCollapsed ? 'Show' : 'Hide',
+                            style: GoogleFonts.outfit(
+                              fontSize: isTablet ? 12 : 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF475569),
+                            ),
+                          ),
+                          const SizedBox(width: 3),
+                          Icon(
+                            _isCollapsed
+                                ? Icons.keyboard_arrow_down_rounded
+                                : Icons.keyboard_arrow_up_rounded,
+                            size: isTablet ? 16 : 15,
+                            color: const Color(0xFF475569),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
-            ),
-          ],
-        ],
-      ),
+
+              // Filter Cards Row (Zone, Cluster, Role)
+              if (!_isCollapsed) ...[
+                const SizedBox(height: 12),
+                if (isTablet)
+                  Row(
+                    children: [
+                      // Zone Filter Card
+                      Expanded(
+                        child: _FilterSelectorChip(
+                          category: 'Zone',
+                          icon: Icons.location_city_rounded,
+                          label: selectedZone?.name ?? 'All Zones',
+                          isSelected: selectedZone != null,
+                          onTap: () => _showZonePicker(context),
+                          onClear: selectedZone != null
+                              ? () => widget.onFilterChanged(null, null, widget.selectedRole)
+                              : null,
+                          isExpanded: true,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+
+                      // Cluster Filter Card
+                      Expanded(
+                        child: _FilterSelectorChip(
+                          category: 'Cluster',
+                          icon: Icons.apartment_rounded,
+                          label: selectedCluster?.name ?? 'All Clusters',
+                          isSelected: selectedCluster != null,
+                          onTap: () => _showClusterPicker(context),
+                          onClear: selectedCluster != null
+                              ? () => widget.onFilterChanged(widget.selectedZoneId, null, widget.selectedRole)
+                              : null,
+                          isExpanded: true,
+                        ),
+                      ),
+
+                      // Role Filter Card (Hidden for Cluster Executive)
+                      if (!HiveStorage.isClusterExecutive) ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _FilterSelectorChip(
+                            category: 'Role',
+                            icon: Icons.badge_outlined,
+                            label: selectedRoleLabel,
+                            isSelected: widget.selectedRole != null && widget.selectedRole != 'CRRM',
+                            onTap: () => _showRolePicker(context),
+                            onClear: (widget.selectedRole != null && widget.selectedRole != 'CRRM')
+                                ? () => widget.onFilterChanged(widget.selectedZoneId, widget.selectedClusterId, null)
+                                : null,
+                            isExpanded: true,
+                          ),
+                        ),
+                      ],
+                    ],
+                  )
+                else
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: [
+                        // Zone Filter Card
+                        _FilterSelectorChip(
+                          category: 'Zone',
+                          icon: Icons.location_city_rounded,
+                          label: selectedZone?.name ?? 'All Zones',
+                          isSelected: selectedZone != null,
+                          onTap: () => _showZonePicker(context),
+                          onClear: selectedZone != null
+                              ? () => widget.onFilterChanged(null, null, widget.selectedRole)
+                              : null,
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Cluster Filter Card
+                        _FilterSelectorChip(
+                          category: 'Cluster',
+                          icon: Icons.apartment_rounded,
+                          label: selectedCluster?.name ?? 'All Clusters',
+                          isSelected: selectedCluster != null,
+                          onTap: () => _showClusterPicker(context),
+                          onClear: selectedCluster != null
+                              ? () => widget.onFilterChanged(widget.selectedZoneId, null, widget.selectedRole)
+                              : null,
+                        ),
+                        // Role Filter Card (Hidden for Cluster Executive)
+                        if (!HiveStorage.isClusterExecutive) ...[
+                          const SizedBox(width: 8),
+                          _FilterSelectorChip(
+                            category: 'Role',
+                            icon: Icons.badge_outlined,
+                            label: selectedRoleLabel,
+                            isSelected: widget.selectedRole != null && widget.selectedRole != 'CRRM',
+                            onTap: () => _showRolePicker(context),
+                            onClear: (widget.selectedRole != null && widget.selectedRole != 'CRRM')
+                                ? () => widget.onFilterChanged(widget.selectedZoneId, widget.selectedClusterId, null)
+                                : null,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -3938,6 +3998,7 @@ class _FilterSelectorChip extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final VoidCallback? onClear;
+  final bool isExpanded;
 
   const _FilterSelectorChip({
     required this.category,
@@ -3946,6 +4007,7 @@ class _FilterSelectorChip extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.onClear,
+    this.isExpanded = false,
   });
 
   @override
@@ -3958,7 +4020,7 @@ class _FilterSelectorChip extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
-          constraints: const BoxConstraints(minWidth: 142),
+          constraints: isExpanded ? null : const BoxConstraints(minWidth: 142),
           padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
           decoration: BoxDecoration(
             gradient: isSelected
@@ -3994,7 +4056,7 @@ class _FilterSelectorChip extends StatelessWidget {
                   ],
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: isExpanded ? MainAxisSize.max : MainAxisSize.min,
             children: [
               // Icon Container
               Container(
@@ -4016,50 +4078,65 @@ class _FilterSelectorChip extends StatelessWidget {
               const SizedBox(width: 8),
 
               // Category & Value Column
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        category.toUpperCase(),
-                        style: GoogleFonts.outfit(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                          color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF94A3B8),
-                        ),
-                      ),
-                      if (isSelected) ...[
-                        const SizedBox(width: 4),
-                        Container(
-                          width: 4.5,
-                          height: 4.5,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF2563EB),
-                            shape: BoxShape.circle,
+              Expanded(
+                flex: isExpanded ? 1 : 0,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          category.toUpperCase(),
+                          style: GoogleFonts.outfit(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                            color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF94A3B8),
                           ),
                         ),
+                        if (isSelected) ...[
+                          const SizedBox(width: 4),
+                          Container(
+                            width: 4.5,
+                            height: 4.5,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF2563EB),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 1.5),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 120),
-                    child: Text(
-                      label,
-                      style: GoogleFonts.outfit(
-                        fontSize: 12.5,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                        color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF334155),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 1.5),
+                    if (isExpanded)
+                      Text(
+                        label,
+                        style: GoogleFonts.outfit(
+                          fontSize: 12.5,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                          color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF334155),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    else
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 120),
+                        child: Text(
+                          label,
+                          style: GoogleFonts.outfit(
+                            fontSize: 12.5,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                            color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF334155),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                ),
               ),
               const SizedBox(width: 6),
 

@@ -1,61 +1,570 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/constants/app_assets.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../data/datasources/governance_matrix_remote_datasource.dart';
 import '../../data/models/governance_matrix_model.dart';
 import '../bloc/governance_matrix_bloc.dart';
 import '../bloc/governance_matrix_event.dart';
 import '../bloc/governance_matrix_state.dart';
 
-const _kBlue = Color(0xFF1A73E8);
 const _kSlate = Color(0xFF64748B);
 const _kBorder = Color(0xFFE2E8F0);
 
-class GovernanceMatrixPage extends StatelessWidget {
-  const GovernanceMatrixPage({super.key});
+class GovernanceMatrixPage extends StatefulWidget {
+  final GovernanceMatrixBloc? bloc;
+
+  const GovernanceMatrixPage({super.key, this.bloc});
+
+  @override
+  State<GovernanceMatrixPage> createState() => _GovernanceMatrixPageState();
+}
+
+class _GovernanceMatrixPageState extends State<GovernanceMatrixPage> {
+  late final GovernanceMatrixBloc _bloc;
+  bool _ownsBloc = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.bloc != null) {
+      _bloc = widget.bloc!;
+    } else {
+      _ownsBloc = true;
+      _bloc = GovernanceMatrixBloc(
+        dataSource: GovernanceMatrixRemoteDataSourceImpl(),
+      );
+    }
+    _bloc.add(const LoadGovernanceMatrix());
+  }
+
+  @override
+  void dispose() {
+    if (_ownsBloc) {
+      _bloc.close();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => GovernanceMatrixBloc(
-        dataSource: GovernanceMatrixRemoteDataSourceImpl(),
-      )..add(const LoadGovernanceMatrix()),
+    return BlocProvider.value(
+      value: _bloc,
       child: const _GovernanceMatrixView(),
     );
   }
 }
 
-class _GovernanceMatrixView extends StatelessWidget {
+class _GovernanceMatrixView extends StatefulWidget {
   const _GovernanceMatrixView();
 
   @override
+  State<_GovernanceMatrixView> createState() => _GovernanceMatrixViewState();
+}
+
+class _GovernanceMatrixViewState extends State<_GovernanceMatrixView>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animController;
+  late final Animation<double> _headerFadeAnimation;
+  late final Animation<Offset> _headerSlideAnimation;
+  late final Animation<double> _chipsFadeAnimation;
+  late final Animation<Offset> _chipsSlideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 750),
+    );
+
+    _headerFadeAnimation = CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.0, 0.55, curve: Curves.easeOutCubic),
+    );
+
+    _headerSlideAnimation = Tween<Offset>(
+      begin: const Offset(0, -0.12),
+      end: Offset.zero,
+    ).animate(_headerFadeAnimation);
+
+    _chipsFadeAnimation = CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.18, 0.70, curve: Curves.easeOutCubic),
+    );
+
+    _chipsSlideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.18),
+      end: Offset.zero,
+    ).animate(_chipsFadeAnimation);
+
+    _animController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      body: SafeArea(
-        child: Column(
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isTablet = screenWidth >= 650;
+
+    return BlocBuilder<GovernanceMatrixBloc, GovernanceMatrixState>(
+      builder: (context, state) {
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle.dark,
+          child: Scaffold(
+            backgroundColor: const Color(0xFFF8FAFC),
+            body: Column(
+              children: [
+                // 1. Light Top Header + 3D Illustration + Floating Overlapping Chips
+                _buildHeaderWithOverlappingChips(context, state, isTablet),
+
+                // 2. Light Body Content
+                Expanded(
+                  child: Builder(
+                    builder: (context) {
+                      if (state is GovernanceMatrixLoading ||
+                          state is GovernanceMatrixInitial) {
+                        return const ShimmerMatrixLoading();
+                      }
+                      if (state is GovernanceMatrixError) {
+                        return _buildErrorView(context, state.message, isTablet);
+                      }
+                      if (state is GovernanceMatrixLoaded) {
+                        return _buildLoadedContent(context, state, isTablet);
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeaderWithOverlappingChips(
+    BuildContext context,
+    GovernanceMatrixState state,
+    bool isTablet,
+  ) {
+    const chipHeight = 44.0;
+    const halfChip = chipHeight / 2; // 22.0
+
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.bottomCenter,
+      children: [
+        // 1. Light Header Container (ends directly at the vertical center of the chips)
+        SlideTransition(
+          position: _headerSlideAnimation,
+          child: FadeTransition(
+            opacity: _headerFadeAnimation,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: halfChip),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFEAF2FE),
+                    Color(0xFFF3F7FD),
+                    Colors.white,
+                  ],
+                ),
+                border: const Border(
+                  bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF1E293B).withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Stack(
+                  children: [
+                    // Decorative organic circular shapes in background
+                    Positioned(
+                      top: -30,
+                      right: -30,
+                      width: 150,
+                      height: 150,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFFDBEAFE).withValues(alpha: 0.45),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: -15,
+                      right: 80,
+                      width: 85,
+                      height: 85,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFFEFF6FF).withValues(alpha: 0.55),
+                        ),
+                      ),
+                    ),
+
+                    // Header Content
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        isTablet ? 28 : 16,
+                        12,
+                        isTablet ? 28 : 16,
+                        halfChip + 14,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Back & Refresh Row
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Back Button
+                              InkWell(
+                                onTap: () => Navigator.of(context).pop(),
+                                borderRadius: BorderRadius.circular(20),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x06000000),
+                                        blurRadius: 4,
+                                        offset: Offset(0, 1),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.arrow_back_ios_new_rounded,
+                                        size: 13,
+                                        color: Color(0xFF1A73E8),
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        'Back',
+                                        style: GoogleFonts.outfit(
+                                          fontSize: isTablet ? 14 : 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF1A73E8),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              // Refresh Button
+                              InkWell(
+                                onTap: () {
+                                  context.read<GovernanceMatrixBloc>().add(
+                                        const LoadGovernanceMatrix(
+                                          isRefresh: true,
+                                        ),
+                                      );
+                                },
+                                borderRadius: BorderRadius.circular(20),
+                                child: Container(
+                                  width: 34,
+                                  height: 34,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x06000000),
+                                        blurRadius: 4,
+                                        offset: Offset(0, 1),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.refresh_rounded,
+                                    size: 17,
+                                    color: Color(0xFF475569),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+
+                          // Title & Illustration Row
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Title: Governance (navy) + Matrix (amber)
+                                    Text.rich(
+                                      TextSpan(
+                                        children: [
+                                          TextSpan(
+                                            text: 'Governance ',
+                                            style: GoogleFonts.outfit(
+                                              fontSize: isTablet ? 27 : 22,
+                                              fontWeight: FontWeight.w800,
+                                              color: const Color(0xFF0F172A),
+                                              letterSpacing: -0.4,
+                                            ),
+                                          ),
+                                          TextSpan(
+                                            text: 'Matrix',
+                                            style: GoogleFonts.outfit(
+                                              fontSize: isTablet ? 27 : 22,
+                                              fontWeight: FontWeight.w800,
+                                              color: const Color(0xFFF59E0B),
+                                              letterSpacing: -0.4,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 5),
+
+                                    // Horizontal yellow accent bar below title
+                                    Container(
+                                      width: 44,
+                                      height: 3.5,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF59E0B),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+
+                                    // Subtitle
+                                    Text(
+                                      'Client type × function × role × activity → frequency. Business users change this; developers never hard-code a frequency.',
+                                      style: GoogleFonts.outfit(
+                                        fontSize: isTablet ? 13 : 11.5,
+                                        color: const Color(0xFF64748B),
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+
+                              // 3D Clipboard Illustration
+                              Image.asset(
+                                AppAssets.governanceClipboard,
+                                height: isTablet ? 112 : 92,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        // 2. Floating Chips Row: centered across the bottom edge of the container
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: SlideTransition(
+            position: _chipsSlideAnimation,
+            child: FadeTransition(
+              opacity: _chipsFadeAnimation,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: isTablet ? 28 : 16),
+                child: _buildChipsRow(context, state, isTablet),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChipsRow(
+    BuildContext context,
+    GovernanceMatrixState state,
+    bool isTablet,
+  ) {
+    if (state is GovernanceMatrixLoaded) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        clipBehavior: Clip.none,
+        child: Row(
+          children: state.data.uniqueTabs.map((tab) {
+            final isSelected = tab.key == state.selectedTabKey;
+            return _buildTabPill(
+              context: context,
+              tab: tab,
+              isSelected: isSelected,
+              isTablet: isTablet,
+            );
+          }).toList(),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const NeverScrollableScrollPhysics(),
+      clipBehavior: Clip.none,
+      child: Row(
+        children: [
+          _buildPlaceholderTabPill('Operations', true, isTablet),
+          _buildPlaceholderTabPill('L & D', false, isTablet),
+          _buildPlaceholderTabPill('EHS Audit', false, isTablet),
+          _buildPlaceholderTabPill('HR & Compliance', false, isTablet),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabPill({
+    required BuildContext context,
+    required ({String key, String name}) tab,
+    required bool isSelected,
+    required bool isTablet,
+  }) {
+    final icon = _getTabIcon(tab.key, tab.name);
+    return Padding(
+      padding: EdgeInsets.only(right: isTablet ? 10 : 8),
+      child: InkWell(
+        onTap: () {
+          context.read<GovernanceMatrixBloc>().add(SelectTab(tab.key));
+        },
+        borderRadius: BorderRadius.circular(28),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: EdgeInsets.symmetric(
+            horizontal: isTablet ? 18 : 15,
+            vertical: isTablet ? 10 : 8.5,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFFF59E0B) : Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: isSelected ? Colors.white : const Color(0xFFE2E8F0),
+              width: isSelected ? 2.0 : 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isSelected
+                    ? const Color(0xFFF59E0B).withValues(alpha: 0.35)
+                    : Colors.black.withValues(alpha: 0.05),
+                blurRadius: isSelected ? 10 : 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: isTablet ? 18 : 16.5,
+                color: isSelected
+                    ? const Color(0xFF0F172A)
+                    : const Color(0xFF64748B),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                tab.name,
+                style: GoogleFonts.outfit(
+                  fontSize: isTablet ? 13.5 : 12.5,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                  color: isSelected
+                      ? const Color(0xFF0F172A)
+                      : const Color(0xFF475569),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderTabPill(String name, bool isSelected, bool isTablet) {
+    return Padding(
+      padding: EdgeInsets.only(right: isTablet ? 10 : 8),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isTablet ? 18 : 15,
+          vertical: isTablet ? 10 : 8,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFFF59E0B).withValues(alpha: 0.8)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: const Color(0xFFE2E8F0),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 4,
+              offset: const Offset(0, 1.5),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Header Bar
-            _buildHeader(context),
-            // Body Content
-            Expanded(
-              child: BlocBuilder<GovernanceMatrixBloc, GovernanceMatrixState>(
-                builder: (context, state) {
-                  if (state is GovernanceMatrixLoading ||
-                      state is GovernanceMatrixInitial) {
-                    return const Center(
-                      child: CircularProgressIndicator(color: _kBlue),
-                    );
-                  }
-                  if (state is GovernanceMatrixError) {
-                    return _buildErrorView(context, state.message);
-                  }
-                  if (state is GovernanceMatrixLoaded) {
-                    return _buildLoadedContent(context, state);
-                  }
-                  return const SizedBox.shrink();
-                },
+            Container(
+              width: 16,
+              height: 16,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black12,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              name,
+              style: GoogleFonts.outfit(
+                fontSize: isTablet ? 13.5 : 12.5,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? const Color(0xFF0F172A) : const Color(0xFF475569),
               ),
             ),
           ],
@@ -64,77 +573,46 @@ class _GovernanceMatrixView extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Back Button
-              InkWell(
-                onTap: () => Navigator.of(context).pop(),
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.arrow_back_rounded, size: 18, color: _kBlue),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Back',
-                        style: GoogleFonts.outfit(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: _kBlue,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.refresh_rounded, size: 20, color: _kSlate),
-                tooltip: 'Refresh',
-                onPressed: () {
-                  context.read<GovernanceMatrixBloc>().add(
-                        const LoadGovernanceMatrix(isRefresh: true),
-                      );
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Governance Matrix',
-            style: GoogleFonts.outfit(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF0F172A),
-              letterSpacing: -0.4,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            'Client type × function × role × activity → frequency. Business users change this; developers never hard-code a frequency.',
-            style: GoogleFonts.outfit(
-              fontSize: 12,
-              color: _kSlate,
-              height: 1.35,
-            ),
-          ),
-        ],
-      ),
-    );
+  static IconData _getTabIcon(String key, String name) {
+    final k = key.toLowerCase();
+    final n = name.toLowerCase();
+    if (k.contains('operation') || n.contains('operation')) {
+      return Icons.settings_outlined;
+    }
+    if (k.contains('ld') ||
+        k.contains('train') ||
+        n.contains('l & d') ||
+        n.contains('training')) {
+      return Icons.school_outlined;
+    }
+    if (k.contains('ehs') ||
+        k.contains('audit') ||
+        n.contains('ehs') ||
+        n.contains('audit')) {
+      return Icons.verified_user_outlined;
+    }
+    if (k.contains('hr') ||
+        k.contains('compliance') ||
+        n.contains('hr') ||
+        n.contains('compliance')) {
+      return Icons.groups_outlined;
+    }
+    if (k.contains('machine') ||
+        k.contains('tech') ||
+        n.contains('machine') ||
+        n.contains('technician')) {
+      return Icons.handyman_outlined;
+    }
+    if (k.contains('crrm') || n.contains('crrm')) {
+      return Icons.business_center_outlined;
+    }
+    return Icons.grid_view_outlined;
   }
 
   Widget _buildLoadedContent(
     BuildContext context,
     GovernanceMatrixLoaded state,
+    bool isTablet,
   ) {
     final tabs = state.data.uniqueTabs;
     final selectedKey = state.selectedTabKey;
@@ -142,169 +620,235 @@ class _GovernanceMatrixView extends StatelessWidget {
     final columns = state.data.getColumnsConfigForTab(selectedKey);
 
     final selectedTabName = tabs
-        .firstWhere((t) => t.key == selectedKey, orElse: () => (key: selectedKey, name: selectedKey))
+        .firstWhere(
+          (t) => t.key == selectedKey,
+          orElse: () => (key: selectedKey, name: selectedKey),
+        )
         .name;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-      children: [
-        // ── Tab Pills (Scrollable) ───────────────────────────────────────────
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: tabs.map((tab) {
-              final isSelected = tab.key == selectedKey;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: InkWell(
-                  onTap: () {
-                    context.read<GovernanceMatrixBloc>().add(SelectTab(tab.key));
-                  },
-                  borderRadius: BorderRadius.circular(24),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: isSelected ? _kBlue : _kBorder,
-                        width: isSelected ? 1.5 : 1.0,
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(
+        isTablet ? 28 : 16,
+        18,
+        isTablet ? 28 : 16,
+        36,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Section Title & Badge + View Mode Switcher ─────────────────────
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    Container(
+                      width: 4,
+                      height: isTablet ? 20 : 18,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF59E0B),
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      boxShadow: isSelected
-                          ? [
-                              BoxShadow(
-                                color: _kBlue.withValues(alpha: 0.12),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              )
-                            ]
-                          : null,
                     ),
-                    child: Text(
-                      tab.name,
+                    Text(
+                      '$selectedTabName frequency',
                       style: GoogleFonts.outfit(
-                        fontSize: 12.5,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color: isSelected ? _kBlue : const Color(0xFF475569),
+                        fontSize: isTablet ? 17 : 15,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF0F172A),
                       ),
                     ),
-                  ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 3.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF2F6),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Text(
+                        'Final frequency sheet is the authority',
+                        style: GoogleFonts.outfit(
+                          fontSize: isTablet ? 11.5 : 10.5,
+                          fontWeight: FontWeight.w500,
+                          color: _kSlate,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              );
-            }).toList(),
+              ),
+              const SizedBox(width: 12),
+              // View Mode Switcher (Matching screenshot with amber active button)
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1.5),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _ViewModeButton(
+                      icon: Icons.grid_view_rounded,
+                      tooltip: 'Card view',
+                      isActive: state.isCardView,
+                      onTap: () {
+                        context.read<GovernanceMatrixBloc>().add(
+                              const ToggleViewMode(true),
+                            );
+                      },
+                    ),
+                    const SizedBox(width: 2),
+                    _ViewModeButton(
+                      icon: Icons.reorder_rounded,
+                      tooltip: 'Table view',
+                      isActive: !state.isCardView,
+                      onTap: () {
+                        context.read<GovernanceMatrixBloc>().add(
+                              const ToggleViewMode(false),
+                            );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(height: 16),
+          const SizedBox(height: 16),
 
-        // ── Section Title & Badge + View Mode Switcher ───────────────────────
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 8,
-                runSpacing: 4,
+          // ── Card View or Table View ────────────────────────────────────────
+          if (state.isCardView) ...[
+            if (items.isEmpty)
+              _buildEmptyState(selectedTabName, isTablet)
+            else if (!isTablet) ...[
+              // Mobile: 1 column
+              for (final item in items)
+                _MatrixCardItem(
+                  item: item,
+                  columnsConfig: columns,
+                  isOperations: selectedKey == 'operations',
+                  isTablet: false,
+                ),
+            ] else ...[
+              // Tablet / iPad: 2-column masonry grid
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '$selectedTabName frequency',
-                    style: GoogleFonts.outfit(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF0F172A),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        for (int i = 0; i < items.length; i += 2)
+                          _MatrixCardItem(
+                            item: items[i],
+                            columnsConfig: columns,
+                            isOperations: selectedKey == 'operations',
+                            isTablet: true,
+                          ),
+                      ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Text(
-                      'Final frequency sheet is the authority',
-                      style: GoogleFonts.outfit(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w500,
-                        color: _kSlate,
-                      ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        for (int i = 1; i < items.length; i += 2)
+                          _MatrixCardItem(
+                            item: items[i],
+                            columnsConfig: columns,
+                            isOperations: selectedKey == 'operations',
+                            isTablet: true,
+                          ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-            // Toggle Cards vs Table
-            Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+            ],
+          ] else ...[
+            // Table view
+            if (items.isEmpty)
+              _buildEmptyState(selectedTabName, isTablet)
+            else
+              _MatrixTableView(
+                items: items,
+                columnsConfig: columns,
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _ViewModeButton(
-                    icon: Icons.view_agenda_rounded,
-                    tooltip: 'Card view',
-                    isActive: state.isCardView,
-                    onTap: () {
-                      context.read<GovernanceMatrixBloc>().add(
-                            const ToggleViewMode(true),
-                          );
-                    },
-                  ),
-                  _ViewModeButton(
-                    icon: Icons.table_chart_rounded,
-                    tooltip: 'Table view',
-                    isActive: !state.isCardView,
-                    onTap: () {
-                      context.read<GovernanceMatrixBloc>().add(
-                            const ToggleViewMode(false),
-                          );
-                    },
-                  ),
-                ],
-              ),
-            ),
           ],
-        ),
-        const SizedBox(height: 14),
-
-        // ── Card View or Table View ──────────────────────────────────────────
-        if (state.isCardView) ...[
-          // Card design (User requested: "no need for edoit icon.. give in card deisgn..")
-          ...items.map((item) {
-            return _MatrixCardItem(
-              item: item,
-              columnsConfig: columns,
-              isOperations: selectedKey == 'operations',
-            );
-          }),
-        ] else ...[
-          // Table design matching web screenshot (no edit icon)
-          _MatrixTableView(
-            items: items,
-            columnsConfig: columns,
-          ),
         ],
-      ],
+      ),
     );
   }
 
-  Widget _buildErrorView(BuildContext context, String message) {
+  Widget _buildEmptyState(String tabName, bool isTablet) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        vertical: isTablet ? 48 : 36,
+        horizontal: 20,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.inbox_outlined,
+            size: isTablet ? 48 : 40,
+            color: _kSlate.withValues(alpha: 0.6),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No records found for $tabName',
+            style: GoogleFonts.outfit(
+              fontSize: isTablet ? 15 : 13.5,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF475569),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorView(BuildContext context, String message, bool isTablet) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(isTablet ? 36 : 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFEF4444)),
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 48,
+              color: Color(0xFFEF4444),
+            ),
             const SizedBox(height: 12),
             Text(
               'Failed to load matrix',
-              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700),
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -322,7 +866,7 @@ class _GovernanceMatrixView extends StatelessWidget {
               icon: const Icon(Icons.refresh_rounded, size: 16),
               label: const Text('Retry'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _kBlue,
+                backgroundColor: const Color(0xFFF59E0B),
                 foregroundColor: Colors.white,
               ),
             ),
@@ -334,134 +878,553 @@ class _GovernanceMatrixView extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Card Design (Requested: "give in card deisgn.. no need for edoit icon..")
+// Card Design (Image 1 Style: Tier Header Banner & Role Items with Icons/Waves)
 // ─────────────────────────────────────────────────────────────────────────────
+
+class _TierTheme {
+  final List<Color> bannerGradient;
+  final Color badgeBg;
+  final Color badgeText;
+  final Color pillBg;
+  final Color pillText;
+  final Color cardBorder;
+
+  const _TierTheme({
+    required this.bannerGradient,
+    required this.badgeBg,
+    required this.badgeText,
+    required this.pillBg,
+    required this.pillText,
+    required this.cardBorder,
+  });
+
+  static _TierTheme forType(String type) {
+    switch (type.toUpperCase().trim()) {
+      case 'A+':
+        return const _TierTheme(
+          bannerGradient: [Color(0xFFFAF5FF), Color(0xFFF3E8FF)],
+          badgeBg: Color(0xFF7E22CE),
+          badgeText: Colors.white,
+          pillBg: Color(0xFFEDE9FE),
+          pillText: Color(0xFF6D28D9),
+          cardBorder: Color(0xFFE9D5FF),
+        );
+      case 'A':
+        return const _TierTheme(
+          bannerGradient: [Color(0xFFEFF6FF), Color(0xFFDBEAFE)],
+          badgeBg: Color(0xFF2563EB),
+          badgeText: Colors.white,
+          pillBg: Color(0xFFDBEAFE),
+          pillText: Color(0xFF1D4ED8),
+          cardBorder: Color(0xFFBFDBFE),
+        );
+      case 'B':
+        return const _TierTheme(
+          bannerGradient: [Color(0xFFFFFBEB), Color(0xFFFEF3C7)],
+          badgeBg: Color(0xFFD97706),
+          badgeText: Colors.white,
+          pillBg: Color(0xFFFEF3C7),
+          pillText: Color(0xFFB45309),
+          cardBorder: Color(0xFFFDE68A),
+        );
+      case 'C':
+      default:
+        return const _TierTheme(
+          bannerGradient: [Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
+          badgeBg: Color(0xFF475569),
+          badgeText: Colors.white,
+          pillBg: Color(0xFFE2E8F0),
+          pillText: Color(0xFF334155),
+          cardBorder: Color(0xFFE2E8F0),
+        );
+    }
+  }
+}
+
+class _RoleTheme {
+  final Color iconBg;
+  final Color iconBorder;
+  final Color iconColor;
+  final Color pillBg;
+  final Color pillText;
+  final Color dotColor;
+
+  const _RoleTheme({
+    required this.iconBg,
+    required this.iconBorder,
+    required this.iconColor,
+    required this.pillBg,
+    required this.pillText,
+    required this.dotColor,
+  });
+
+  static _RoleTheme forRole(String key, String label) {
+    final k = key.toLowerCase();
+    final l = label.toLowerCase();
+
+    // 1. Leadership (COO, Zonal Head, Group Cluster Head)
+    if (k.contains('coo') ||
+        l.contains('coo') ||
+        k.contains('zonal') ||
+        l.contains('zonal') ||
+        k.contains('group') ||
+        l.contains('group')) {
+      return const _RoleTheme(
+        iconBg: Color(0xFFFAF5FF),
+        iconBorder: Color(0xFFE9D5FF),
+        iconColor: Color(0xFF7C3AED),
+        pillBg: Color(0xFFF5F3FF),
+        pillText: Color(0xFF6D28D9),
+        dotColor: Color(0xFF8B5CF6),
+      );
+    }
+
+    // 2. Cluster Level (Cluster Head, Cluster Lead, Cluster Executive)
+    if (k.contains('cluster') || l.contains('cluster')) {
+      return const _RoleTheme(
+        iconBg: Color(0xFFEFF6FF),
+        iconBorder: Color(0xFFBFDBFE),
+        iconColor: Color(0xFF2563EB),
+        pillBg: Color(0xFFF0F9FF),
+        pillText: Color(0xFF1D4ED8),
+        dotColor: Color(0xFF3B82F6),
+      );
+    }
+
+    // 3. Field / Operations Frontline (Field Executive)
+    if (k.contains('field') || l.contains('field')) {
+      return const _RoleTheme(
+        iconBg: Color(0xFFECFDF5),
+        iconBorder: Color(0xFFA7F3D0),
+        iconColor: Color(0xFF059669),
+        pillBg: Color(0xFFF0FDF4),
+        pillText: Color(0xFF047857),
+        dotColor: Color(0xFF10B981),
+      );
+    }
+
+    // 4. Governance & Reporting (MMR, MIS)
+    if (k.contains('mmr') ||
+        l.contains('mmr') ||
+        k.contains('mis') ||
+        l.contains('mis')) {
+      return const _RoleTheme(
+        iconBg: Color(0xFFFFFBEB),
+        iconBorder: Color(0xFFFDE68A),
+        iconColor: Color(0xFFD97706),
+        pillBg: Color(0xFFFEF3C7),
+        pillText: Color(0xFFB45309),
+        dotColor: Color(0xFFF59E0B),
+      );
+    }
+
+    // 5. Rewards / Recognition / Default (R&R)
+    if (k.contains('rr') || l.contains('r&r') || k.contains('reward')) {
+      return const _RoleTheme(
+        iconBg: Color(0xFFFFF1F2),
+        iconBorder: Color(0xFFFECDD3),
+        iconColor: Color(0xFFE11D48),
+        pillBg: Color(0xFFFFF1F2),
+        pillText: Color(0xFFBE123C),
+        dotColor: Color(0xFFF43F5E),
+      );
+    }
+
+    return const _RoleTheme(
+      iconBg: Color(0xFFF8FAFC),
+      iconBorder: Color(0xFFE2E8F0),
+      iconColor: Color(0xFF475569),
+      pillBg: Color(0xFFF1F5F9),
+      pillText: Color(0xFF334155),
+      dotColor: Color(0xFF64748B),
+    );
+  }
+}
 
 class _MatrixCardItem extends StatelessWidget {
   final GovernanceMatrixItemModel item;
   final List<GovernanceColumnConfig> columnsConfig;
   final bool isOperations;
+  final bool isTablet;
 
   const _MatrixCardItem({
     required this.item,
     required this.columnsConfig,
     required this.isOperations,
+    this.isTablet = false,
   });
 
-  @override
-  Widget build(BuildContext context) {
+  static IconData _getRoleIcon(String key, String label) {
+    final k = key.toLowerCase();
+    final l = label.toLowerCase();
+    if (k.contains('field') || l.contains('field')) {
+      return Icons.business_center_outlined;
+    }
+    if (k.contains('clusterexecutive') ||
+        (k.contains('cluster') && k.contains('exec')) ||
+        l.contains('cluster executive')) {
+      return Icons.layers_outlined;
+    }
+    if (k.contains('clusterlead') || l.contains('cluster lead')) {
+      return Icons.supervisor_account_outlined;
+    }
+    if (k.contains('clusterhead') || l.contains('cluster head')) {
+      return Icons.military_tech_outlined;
+    }
+    if (k.contains('group') || l.contains('group')) {
+      return Icons.corporate_fare_outlined;
+    }
+    if (k.contains('zonal') || l.contains('zonal')) {
+      return Icons.location_city_outlined;
+    }
+    if (k.contains('coo') || l.contains('coo')) {
+      return Icons.trending_up_rounded;
+    }
+    if (k.contains('mmr') || l.contains('mmr')) {
+      return Icons.assignment_outlined;
+    }
+    if (k.contains('mis') || l.contains('mis')) {
+      return Icons.insights_outlined;
+    }
+    if (k.contains('rr') || l.contains('r&r')) {
+      return Icons.emoji_events_outlined;
+    }
+    return Icons.work_outline_rounded;
+  }
+
+  Widget _buildRoleContainer({
+    required GovernanceColumnConfig col,
+    required String freq,
+  }) {
+    final isMuted = freq.toLowerCase() == 'nil' || freq.toLowerCase() == 'n/a';
+    final icon = _getRoleIcon(col.key, col.label);
+    final roleTheme = _RoleTheme.forRole(col.key, col.label);
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7.5),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(
+          color: isMuted
+              ? const Color(0xFFF1F5F9)
+              : roleTheme.iconBorder.withValues(alpha: 0.65),
+          width: 1.0,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: const Color(0xFF1E293B).withValues(alpha: 0.03),
+            blurRadius: 5,
+            offset: const Offset(0, 1.5),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // ── Card Header: Client Type Badge & Billing PM ────────────────────
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  _ClientTypeBadge(clientType: item.clientType),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Client Tier ${item.clientType}',
-                    style: GoogleFonts.outfit(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF0F172A),
-                    ),
-                  ),
-                ],
+          // Distinct Category-Colored Icon Container
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: isMuted ? const Color(0xFFF8FAFC) : roleTheme.iconBg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isMuted ? const Color(0xFFE2E8F0) : roleTheme.iconBorder,
+                width: 1.0,
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Text(
-                  item.billingPm,
-                  style: GoogleFonts.outfit(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF334155),
-                  ),
-                ),
-              ),
-            ],
+            ),
+            child: Icon(
+              icon,
+              size: 18,
+              color: isMuted ? const Color(0xFF94A3B8) : roleTheme.iconColor,
+            ),
           ),
-          const SizedBox(height: 12),
-          const Divider(height: 1, color: _kBorder),
-          const SizedBox(height: 12),
-
-          // ── Card Body: Single Frequency or Multi-Role Grid ─────────────────
-          if (!isOperations) ...[
-            // Single Frequency Tab (L&D, EHS, HR, Machine, CRRM)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFF1F5F9)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: _kBlue.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.event_repeat_rounded,
-                      size: 20,
-                      color: _kBlue,
+          const SizedBox(width: 8),
+          // Role Title & Frequency Pill
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  col.label,
+                  style: GoogleFonts.outfit(
+                    fontSize: 11.8,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF0F172A),
+                    height: 1.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3.5),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7.5,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isMuted ? const Color(0xFFF1F5F9) : roleTheme.pillBg,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: isMuted
+                          ? const Color(0xFFE2E8F0)
+                          : roleTheme.iconBorder.withValues(alpha: 0.5),
+                      width: 0.8,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'FREQUENCY',
-                        style: GoogleFonts.outfit(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: _kSlate,
-                          letterSpacing: 0.5,
+                      if (!isMuted) ...[
+                        Container(
+                          width: 4.5,
+                          height: 4.5,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: roleTheme.dotColor,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        item.frequencies['frequency'] ?? '—',
-                        style: GoogleFonts.outfit(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF0F172A),
+                        const SizedBox(width: 4),
+                      ],
+                      Flexible(
+                        child: Text(
+                          freq,
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: isMuted
+                                ? FontWeight.w500
+                                : FontWeight.w700,
+                            color: isMuted
+                                ? const Color(0xFF94A3B8)
+                                : roleTheme.pillText,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
-                ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSingleFrequencyContainer({required String freq}) {
+    final isMuted = freq.toLowerCase() == 'nil' || freq.toLowerCase() == 'n/a';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1E293B).withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 1.5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: const Icon(
+              Icons.event_repeat_rounded,
+              size: 22,
+              color: Color(0xFFD97706),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'FREQUENCY',
+                  style: GoogleFonts.outfit(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: _kSlate,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isMuted
+                        ? const Color(0xFFF1F5F9)
+                        : const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isMuted
+                          ? const Color(0xFFE2E8F0)
+                          : const Color(0xFFFDE68A),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Text(
+                    freq,
+                    style: GoogleFonts.outfit(
+                      fontSize: 12.5,
+                      fontWeight:
+                          isMuted ? FontWeight.w500 : FontWeight.w700,
+                      color: isMuted
+                          ? const Color(0xFF94A3B8)
+                          : const Color(0xFF0F172A),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = _TierTheme.forType(item.clientType);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: theme.cardBorder.withValues(alpha: 0.6),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF1E293B).withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: EdgeInsets.all(isTablet ? 14 : 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Top Header Banner with Tier Gradient ────────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: theme.bannerGradient,
+              ),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(
+                color: theme.cardBorder.withValues(alpha: 0.6),
+                width: 1.0,
               ),
             ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Solid oval badge (e.g. Purple with white "A+")
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.badgeBg,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: theme.badgeBg.withValues(alpha: 0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1.5),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          item.clientType,
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: theme.badgeText,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 9),
+                      Flexible(
+                        child: Text(
+                          'Client Tier ${item.clientType}',
+                          style: GoogleFonts.outfit(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0F172A),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Billing PM pill
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.pillBg,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: theme.cardBorder,
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Text(
+                    item.billingPm,
+                    style: GoogleFonts.outfit(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: theme.pillText,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // ── Card Body: Single Frequency or Multi-Role Grid ─────────────────
+          if (!isOperations) ...[
+            _buildSingleFrequencyContainer(
+              freq: item.frequencies['frequency'] ?? '—',
+            ),
           ] else ...[
-            // Operations: 10 roles frequency grid
             LayoutBuilder(
               builder: (ctx, constraints) {
                 final isCompact = constraints.maxWidth < 450;
@@ -474,61 +1437,13 @@ class _MatrixCardItem extends StatelessWidget {
                     crossAxisCount: crossAxisCount,
                     crossAxisSpacing: 8,
                     mainAxisSpacing: 8,
-                    childAspectRatio: isCompact ? 2.1 : 2.5,
+                    childAspectRatio: isCompact ? 2.15 : 2.5,
                   ),
                   itemCount: columnsConfig.length,
                   itemBuilder: (ctx, idx) {
                     final col = columnsConfig[idx];
                     final freq = item.frequencies[col.key] ?? 'Nil';
-                    final isMuted = freq.toLowerCase() == 'nil' ||
-                        freq.toLowerCase() == 'n/a';
-
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isMuted
-                            ? const Color(0xFFF8FAFC)
-                            : const Color(0xFFF0F7FF),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isMuted
-                              ? const Color(0xFFF1F5F9)
-                              : const Color(0xFFDBEAFE),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            col.label,
-                            style: GoogleFonts.outfit(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: _kSlate,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            freq,
-                            style: GoogleFonts.outfit(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: isMuted
-                                  ? const Color(0xFF94A3B8)
-                                  : (freq.toLowerCase().contains('weekly') ||
-                                          freq.toLowerCase().contains('15 days')
-                                      ? _kBlue
-                                      : const Color(0xFF0F172A)),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    );
+                    return _buildRoleContainer(col: col, freq: freq);
                   },
                 );
               },
@@ -541,7 +1456,7 @@ class _MatrixCardItem extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Table View (Matching web screenshot, without edit icon, full-width flexible)
+// Table View (Full-width flexible)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _MatrixTableView extends StatelessWidget {
@@ -667,8 +1582,11 @@ class _MatrixTableView extends StatelessWidget {
                                 flex: 3,
                                 child: Text(
                                   columnsConfig.isNotEmpty
-                                      ? (items[i].frequencies[columnsConfig.first.key] ?? '—')
-                                      : (items[i].frequencies['frequency'] ?? '—'),
+                                      ? (items[i].frequencies[
+                                              columnsConfig.first.key] ??
+                                          '—')
+                                      : (items[i].frequencies['frequency'] ??
+                                          '—'),
                                   style: GoogleFonts.outfit(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
@@ -687,7 +1605,6 @@ class _MatrixTableView extends StatelessWidget {
             }
 
             // For Operations (10+ roles), use horizontally scrollable DataTable
-            // with minWidth constraint to fill at least the card width
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: ConstrainedBox(
@@ -770,47 +1687,19 @@ class _ClientTypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color bg;
-    Color border;
-    Color text;
-
-    switch (clientType.toUpperCase()) {
-      case 'A+':
-        bg = const Color(0xFFF3E8FF);
-        border = const Color(0xFFE9D5FF);
-        text = const Color(0xFF7E22CE);
-        break;
-      case 'A':
-        bg = const Color(0xFFEFF6FF);
-        border = const Color(0xFFDBEAFE);
-        text = const Color(0xFF1D4ED8);
-        break;
-      case 'B':
-        bg = const Color(0xFFFFFBEB);
-        border = const Color(0xFFFDE68A);
-        text = const Color(0xFFB45309);
-        break;
-      case 'C':
-      default:
-        bg = const Color(0xFFF1F5F9);
-        border = const Color(0xFFE2E8F0);
-        text = const Color(0xFF475569);
-        break;
-    }
-
+    final theme = _TierTheme.forType(clientType);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
       decoration: BoxDecoration(
-        color: bg,
+        color: theme.badgeBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: border),
       ),
       child: Text(
         clientType,
         style: GoogleFonts.outfit(
           fontSize: 12,
           fontWeight: FontWeight.w800,
-          color: text,
+          color: theme.badgeText,
         ),
       ),
     );
@@ -818,7 +1707,7 @@ class _ClientTypeBadge extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// View Mode Switcher Button
+// View Mode Switcher Button (Amber active pill, clean rounded styling)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ViewModeButton extends StatelessWidget {
@@ -840,17 +1729,18 @@ class _ViewModeButton extends StatelessWidget {
       message: tooltip,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.all(5),
+        borderRadius: BorderRadius.circular(7),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: isActive ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
+            color: isActive ? const Color(0xFFF59E0B) : Colors.transparent,
+            borderRadius: BorderRadius.circular(7),
             boxShadow: isActive
                 ? [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 3,
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                      blurRadius: 4,
                       offset: const Offset(0, 1),
                     )
                   ]
@@ -858,12 +1748,11 @@ class _ViewModeButton extends StatelessWidget {
           ),
           child: Icon(
             icon,
-            size: 16,
-            color: isActive ? _kBlue : _kSlate,
+            size: 18,
+            color: isActive ? const Color(0xFF0F172A) : const Color(0xFF64748B),
           ),
         ),
       ),
     );
   }
 }
-

@@ -401,7 +401,7 @@ void main() {
       expect(find.text('Checklist Report'), findsWidgets);
       expect(
         find.text(
-            'Update Walkaround Pending (No) Lines To Completed After The Visit.'),
+            'Update walkaround pending (No) lines to completed after the visit.'),
         findsOneWidget,
       );
 

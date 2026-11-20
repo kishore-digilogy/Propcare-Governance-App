@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../data/datasources/activities_remote_datasource.dart';
 import '../../data/models/checklist_report_model.dart';
 import '../bloc/checklist_report_bloc.dart';
@@ -105,9 +106,7 @@ class _ChecklistReportDetailPageState extends State<ChecklistReportDetailPage> {
             backgroundColor: const Color(0xFFF8FAFC),
             body: SafeArea(
               child: state.isLoadingDetail && state.detailSite == null
-                  ? const Center(
-                      child: CircularProgressIndicator(color: AppColors.primary),
-                    )
+                  ? const ShimmerSiteDetailLoading()
                   : state.detailError != null && state.detailSite == null
                       ? _buildErrorView(state.detailError!)
                       : _buildContent(state),
@@ -800,15 +799,12 @@ class _ChecklistReportDetailPageState extends State<ChecklistReportDetailPage> {
       controller.text = currentRemarks;
     }
 
-    return Container(
+    final borderColor = isNo ? const Color(0xFFFCA5A5) : const Color(0xFFE2E8F0);
+    final focusColor = isNo ? const Color(0xFFEF4444) : const Color(0xFF1A73E8);
+    final fillColor = isNo ? const Color(0xFFFFF5F5) : Colors.white;
+
+    return SizedBox(
       height: 36,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: isNo ? const Color(0xFFFCA5A5) : const Color(0xFFE2E8F0),
-        ),
-      ),
       child: TextField(
         controller: controller,
         style: GoogleFonts.outfit(
@@ -821,10 +817,23 @@ class _ChecklistReportDetailPageState extends State<ChecklistReportDetailPage> {
             fontSize: 12,
             color: const Color(0xFF94A3B8),
           ),
-          border: InputBorder.none,
+          filled: true,
+          fillColor: fillColor,
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           isDense: true,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: borderColor, width: 1.0),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: borderColor, width: 1.0),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: focusColor, width: 1.3),
+          ),
         ),
         onChanged: (val) {
           _bloc.add(UpdateChecklistAnswer(key: key, remarks: val));

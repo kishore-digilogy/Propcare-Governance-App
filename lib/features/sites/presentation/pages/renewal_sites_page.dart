@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/models/meta_model.dart';
 import '../../../../core/services/meta_service.dart';
 import '../../../../core/widgets/custom_dropdown_button2.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../data/datasources/sites_remote_datasource.dart';
 import '../../data/models/site_model.dart';
 import 'site_detail_page.dart';
@@ -68,9 +69,7 @@ class _RenewalSitesPageState extends State<RenewalSitesPage> {
             child: BlocBuilder<RenewalsBloc, RenewalsState>(
               builder: (context, state) {
                 if (state is RenewalsLoading) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: _kBlue),
-                  );
+                  return const ShimmerListLoading();
                 }
 
                 if (state is RenewalsError) {
@@ -165,19 +164,14 @@ class _RenewalSitesPageState extends State<RenewalSitesPage> {
 
                           // Sites View (Card or Table)
                           if (state.isLoadingPage)
-                            const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 40),
-                              child: Center(
-                                child: CircularProgressIndicator(color: _kBlue),
-                              ),
-                            )
+                            const ShimmerListLoading(itemCount: 3, padding: EdgeInsets.symmetric(vertical: 8))
                           else if (_isCardView)
                             _buildCardView(state)
                           else
                             _buildTableView(state),
 
-                          // Pagination Controls (Show only if total > 10)
-                          if (state.response.total > 10) ...[
+                          // Pagination Controls (Hidden during loading, show only if total > 10)
+                          if (!state.isLoadingPage && state.response.total > 10) ...[
                             const SizedBox(height: 16),
                             _buildPaginationBar(state),
                           ],
@@ -1543,6 +1537,9 @@ class _RenewalSitesPageState extends State<RenewalSitesPage> {
   }
 
   Widget _buildPaginationBar(RenewalsLoaded state) {
+    if (state.isLoadingPage) {
+      return const SizedBox.shrink();
+    }
     final total = state.response.total;
     if (total <= 10) {
       return const SizedBox.shrink();

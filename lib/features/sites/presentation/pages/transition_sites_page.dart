@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../data/datasources/sites_remote_datasource.dart';
 import '../../data/models/site_model.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../bloc/transition_bloc.dart';
 import '../bloc/transition_event.dart';
 import '../bloc/transition_state.dart';
@@ -63,9 +64,7 @@ class _TransitionSitesViewState extends State<_TransitionSitesView> {
           listener: (context, state) {},
           builder: (context, state) {
             if (state is TransitionLoading || state is TransitionInitial) {
-              return const Center(
-                child: CircularProgressIndicator(color: _kBlue),
-              );
+              return const ShimmerListLoading();
             }
 
             if (state is TransitionError) {

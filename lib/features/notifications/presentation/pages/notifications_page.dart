@@ -8,6 +8,7 @@ import '../../../issues/presentation/pages/issues_page.dart';
 import '../../../sites/presentation/pages/all_sites_page.dart';
 import '../../../sites/presentation/pages/site_detail_page.dart';
 import '../../data/datasources/notifications_remote_datasource.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../data/models/notification_item_model.dart';
 import '../bloc/notifications_bloc.dart';
 import '../bloc/notifications_event.dart';
@@ -176,9 +177,7 @@ class _NotificationsViewState extends State<_NotificationsView> {
         },
         builder: (context, state) {
           if (state is NotificationsLoading || state is NotificationsInitial) {
-            return const Center(
-              child: CircularProgressIndicator(color: _kBlue),
-            );
+            return const ShimmerListLoading();
           }
 
           if (state is NotificationsError) {

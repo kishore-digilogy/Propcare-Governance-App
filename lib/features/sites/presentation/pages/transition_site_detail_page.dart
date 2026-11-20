@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/services/meta_service.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/storage/hive_storage.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../data/datasources/sites_remote_datasource.dart';
 import '../../data/models/transition_detail_model.dart';
 import '../bloc/transition_detail_bloc.dart';
@@ -129,9 +130,7 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
           },
           builder: (context, state) {
             if (state is TransitionDetailLoading || state is TransitionDetailInitial) {
-              return const Center(
-                child: CircularProgressIndicator(color: _kBlue),
-              );
+              return const ShimmerSiteDetailLoading();
             }
 
             if (state is TransitionDetailError) {

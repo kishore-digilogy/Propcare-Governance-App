@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../data/datasources/sites_remote_datasource.dart';
 import '../../data/models/site_detail_model.dart';
 import '../../../activities/presentation/pages/activity_execution_page.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../bloc/site_detail_bloc.dart';
 import '../bloc/site_detail_event.dart';
 import '../bloc/site_detail_state.dart';
@@ -22,7 +23,8 @@ const Color _kAmber = Color(0xFFD97706);
 class SiteDetailPage extends StatelessWidget {
   final String siteId;
   final SiteDetailBloc? bloc;
-  final Widget Function(BuildContext context, String activityId)? activityExecutionPageBuilder;
+  final Widget Function(BuildContext context, String activityId)?
+  activityExecutionPageBuilder;
 
   const SiteDetailPage({
     super.key,
@@ -44,9 +46,9 @@ class SiteDetailPage extends StatelessWidget {
     }
 
     return BlocProvider(
-      create: (_) => SiteDetailBloc(
-        dataSource: SitesRemoteDataSourceImpl(),
-      )..add(LoadSiteDetail(siteId)),
+      create: (_) =>
+          SiteDetailBloc(dataSource: SitesRemoteDataSourceImpl())
+            ..add(LoadSiteDetail(siteId)),
       child: _SiteDetailView(
         siteId: siteId,
         activityExecutionPageBuilder: activityExecutionPageBuilder,
@@ -57,7 +59,8 @@ class SiteDetailPage extends StatelessWidget {
 
 class _SiteDetailView extends StatelessWidget {
   final String siteId;
-  final Widget Function(BuildContext context, String activityId)? activityExecutionPageBuilder;
+  final Widget Function(BuildContext context, String activityId)?
+  activityExecutionPageBuilder;
 
   const _SiteDetailView({
     required this.siteId,
@@ -91,7 +94,7 @@ class _SiteDetailView extends StatelessWidget {
           },
           builder: (context, state) {
             if (state is SiteDetailLoading || state is SiteDetailInitial) {
-              return const Center(child: CircularProgressIndicator(color: _kBlue));
+              return const ShimmerSiteDetailLoading();
             }
 
             if (state is SiteDetailError) {
@@ -109,7 +112,10 @@ class _SiteDetailView extends StatelessWidget {
     );
   }
 
-  Widget _buildLoadedView(BuildContext context, SiteDetailResponseModel detail) {
+  Widget _buildLoadedView(
+    BuildContext context,
+    SiteDetailResponseModel detail,
+  ) {
     final site = detail.site;
 
     return LayoutBuilder(
@@ -133,7 +139,10 @@ class _SiteDetailView extends StatelessWidget {
                   },
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
@@ -149,7 +158,11 @@ class _SiteDetailView extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.arrow_back_rounded, size: 16, color: _kBlue),
+                        const Icon(
+                          Icons.arrow_back_rounded,
+                          size: 16,
+                          color: _kBlue,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           'Back',
@@ -217,13 +230,13 @@ class _SiteDetailView extends StatelessWidget {
                 children: [
                   Expanded(
                     flex: 65,
-                    child: _buildGovernanceActivitiesCard(context, detail.activities),
+                    child: _buildGovernanceActivitiesCard(
+                      context,
+                      detail.activities,
+                    ),
                   ),
                   const SizedBox(width: 18),
-                  Expanded(
-                    flex: 35,
-                    child: _buildSiteMasterCard(site),
-                  ),
+                  Expanded(flex: 35, child: _buildSiteMasterCard(site)),
                 ],
               )
             else ...[
@@ -271,10 +284,14 @@ class _SiteDetailView extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: site.status == 'LIVE' ? const Color(0xFFF0FDF4) : const Color(0xFFF1F5F9),
+                color: site.status == 'LIVE'
+                    ? const Color(0xFFF0FDF4)
+                    : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: site.status == 'LIVE' ? const Color(0xFFBBF7D0) : const Color(0xFFE2E8F0),
+                  color: site.status == 'LIVE'
+                      ? const Color(0xFFBBF7D0)
+                      : const Color(0xFFE2E8F0),
                 ),
               ),
               child: Row(
@@ -363,7 +380,9 @@ class _SiteDetailView extends StatelessWidget {
             foregroundColor: _kBlue,
             side: const BorderSide(color: Color(0xFF93C5FD)),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
             backgroundColor: Colors.white,
           ),
           onPressed: () {
@@ -373,21 +392,24 @@ class _SiteDetailView extends StatelessWidget {
                 site: site,
                 onConfirm: (fromDate, toDate, reason) {
                   context.read<SiteDetailBloc>().add(
-                        SubmitSpecialAttention(
-                          siteId: site.id,
-                          enabled: true,
-                          fromDate: fromDate.toIso8601String().substring(0, 10),
-                          toDate: toDate.toIso8601String().substring(0, 10),
-                          reason: reason,
-                        ),
-                      );
+                    SubmitSpecialAttention(
+                      siteId: site.id,
+                      enabled: true,
+                      fromDate: fromDate.toIso8601String().substring(0, 10),
+                      toDate: toDate.toIso8601String().substring(0, 10),
+                      reason: reason,
+                    ),
+                  );
                 },
               ),
             );
           },
           child: Text(
             'Mark special attention',
-            style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.w600),
+            style: GoogleFonts.outfit(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
 
@@ -397,7 +419,9 @@ class _SiteDetailView extends StatelessWidget {
             foregroundColor: _kBlue,
             side: const BorderSide(color: Color(0xFF93C5FD)),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
             backgroundColor: Colors.white,
           ),
           onPressed: () {
@@ -410,20 +434,23 @@ class _SiteDetailView extends StatelessWidget {
                   final todayStr =
                       "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
                   context.read<SiteDetailBloc>().add(
-                        SubmitClassification(
-                          siteId: site.id,
-                          clientType: type,
-                          effectiveDate: todayStr,
-                          reason: reason,
-                        ),
-                      );
+                    SubmitClassification(
+                      siteId: site.id,
+                      clientType: type,
+                      effectiveDate: todayStr,
+                      reason: reason,
+                    ),
+                  );
                 },
               ),
             );
           },
           child: Text(
             'Client type',
-            style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.w600),
+            style: GoogleFonts.outfit(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
 
@@ -433,7 +460,9 @@ class _SiteDetailView extends StatelessWidget {
             foregroundColor: const Color(0xFFDC2626),
             side: const BorderSide(color: Color(0xFFFCA5A5)),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
             backgroundColor: Colors.white,
           ),
           onPressed: () {
@@ -443,19 +472,22 @@ class _SiteDetailView extends StatelessWidget {
                 site: site,
                 onConfirm: (reason) {
                   context.read<SiteDetailBloc>().add(
-                        SubmitLifecycle(
-                          siteId: site.id,
-                          action: 'inactive',
-                          reason: reason,
-                        ),
-                      );
+                    SubmitLifecycle(
+                      siteId: site.id,
+                      action: 'inactive',
+                      reason: reason,
+                    ),
+                  );
                 },
               ),
             );
           },
           child: Text(
             'Mark inactive',
-            style: GoogleFonts.outfit(fontSize: 12.5, fontWeight: FontWeight.w600),
+            style: GoogleFonts.outfit(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],
@@ -494,7 +526,16 @@ class _SiteDetailView extends StatelessWidget {
 
     if (isDesktop) {
       return Row(
-        children: cards.map((c) => Expanded(child: Padding(padding: const EdgeInsets.only(right: 12), child: c))).toList(),
+        children: cards
+            .map(
+              (c) => Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: c,
+                ),
+              ),
+            )
+            .toList(),
       );
     }
 
@@ -593,7 +634,10 @@ class _SiteDetailView extends StatelessWidget {
   }
 
   // ── Governance Activities Card (Card View) ────────────────────────────────
-  Widget _buildGovernanceActivitiesCard(BuildContext context, List<SiteActivityModel> activities) {
+  Widget _buildGovernanceActivitiesCard(
+    BuildContext context,
+    List<SiteActivityModel> activities,
+  ) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -647,7 +691,8 @@ class _SiteDetailView extends StatelessWidget {
               padding: const EdgeInsets.all(14),
               itemCount: activities.length,
               separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (ctx, i) => _buildActivityCard(context, activities[i]),
+              itemBuilder: (ctx, i) =>
+                  _buildActivityCard(context, activities[i]),
             ),
         ],
       ),
@@ -665,9 +710,7 @@ class _SiteDetailView extends StatelessWidget {
             MaterialPageRoute(
               builder: (ctx) => activityExecutionPageBuilder != null
                   ? activityExecutionPageBuilder!(ctx, act.id)
-                  : ActivityExecutionPage(
-                      activityId: act.id,
-                    ),
+                  : ActivityExecutionPage(activityId: act.id),
             ),
           );
           if (result == true && context.mounted) {
@@ -716,12 +759,19 @@ class _SiteDetailView extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3.5,
+                    ),
                     decoration: BoxDecoration(
-                      color: isCompleted ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+                      color: isCompleted
+                          ? const Color(0xFFDCFCE7)
+                          : const Color(0xFFF1F5F9),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isCompleted ? const Color(0xFF86EFAC) : const Color(0xFFCBD5E1),
+                        color: isCompleted
+                            ? const Color(0xFF86EFAC)
+                            : const Color(0xFFCBD5E1),
                       ),
                     ),
                     child: Row(
@@ -732,7 +782,9 @@ class _SiteDetailView extends StatelessWidget {
                           height: 6,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: isCompleted ? _kGreen : const Color(0xFF64748B),
+                            color: isCompleted
+                                ? _kGreen
+                                : const Color(0xFF64748B),
                           ),
                         ),
                         const SizedBox(width: 5),
@@ -741,7 +793,9 @@ class _SiteDetailView extends StatelessWidget {
                           style: GoogleFonts.outfit(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
-                            color: isCompleted ? const Color(0xFF15803D) : const Color(0xFF475569),
+                            color: isCompleted
+                                ? const Color(0xFF15803D)
+                                : const Color(0xFF475569),
                           ),
                         ),
                       ],
@@ -871,7 +925,10 @@ class _SiteDetailView extends StatelessWidget {
           _buildMasterRow('Contact email', site.clientEmail ?? '—'),
           _buildMasterRow('Contact phone', site.contactPhone ?? '—'),
           _buildMasterRow('Zone / Group', site.zoneGroupDisplay),
-          _buildMasterRow('Cluster', site.clusterName.isNotEmpty ? site.clusterName : site.cluster),
+          _buildMasterRow(
+            'Cluster',
+            site.clusterName.isNotEmpty ? site.clusterName : site.cluster,
+          ),
           _buildMasterRow('Zonal head', site.zonalHead),
           _buildMasterRow('Group cluster head', site.groupClusterHead),
           _buildMasterRow('Cluster head', site.clusterHead),
@@ -926,7 +983,10 @@ class _SiteDetailView extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'Failed to load site details',
-              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700),
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -952,4 +1012,3 @@ class _SiteDetailView extends StatelessWidget {
     );
   }
 }
-

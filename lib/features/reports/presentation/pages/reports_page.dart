@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../../../core/constants/app_assets.dart';
 import '../../../../core/services/meta_service.dart';
 import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/widgets/custom_dropdown_button2.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../data/datasources/reports_remote_datasource.dart';
 import '../../data/models/report_catalog_model.dart';
 import '../bloc/reports_bloc.dart';
@@ -20,15 +22,26 @@ const _kBorder = Color(0xFFE2E8F0);
 class ReportsPage extends StatelessWidget {
   final String? filterExportKind;
   final String? titleOverride;
+  final ReportsBloc? bloc;
 
   const ReportsPage({
     super.key,
     this.filterExportKind,
     this.titleOverride,
+    this.bloc,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (bloc != null) {
+      return BlocProvider.value(
+        value: bloc!,
+        child: _ReportsView(
+          filterExportKind: filterExportKind,
+          titleOverride: titleOverride,
+        ),
+      );
+    }
     return BlocProvider(
       create: (_) => ReportsBloc(
         dataSource: ReportsRemoteDataSourceImpl(),
@@ -41,7 +54,7 @@ class ReportsPage extends StatelessWidget {
   }
 }
 
-class _ReportsView extends StatelessWidget {
+class _ReportsView extends StatefulWidget {
   final String? filterExportKind;
   final String? titleOverride;
 
@@ -49,6 +62,75 @@ class _ReportsView extends StatelessWidget {
     this.filterExportKind,
     this.titleOverride,
   });
+
+  @override
+  State<_ReportsView> createState() => _ReportsViewState();
+}
+
+class _ReportsViewState extends State<_ReportsView>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animController;
+  late final Animation<double> _headerFadeAnimation;
+  late final Animation<Offset> _headerSlideAnimation;
+  late final Animation<double> _scopeFadeAnimation;
+  late final Animation<Offset> _scopeSlideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+
+    _headerFadeAnimation = CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.0, 0.55, curve: Curves.easeOutCubic),
+    );
+
+    _headerSlideAnimation = Tween<Offset>(
+      begin: const Offset(0, -0.12),
+      end: Offset.zero,
+    ).animate(_headerFadeAnimation);
+
+    _scopeFadeAnimation = CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.15, 0.65, curve: Curves.easeOutCubic),
+    );
+
+    _scopeSlideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.18),
+      end: Offset.zero,
+    ).animate(_scopeFadeAnimation);
+
+    _animController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildAnimatedCardItem(int index, int totalCount, Widget child) {
+    final start = (0.20 + (index * 0.07)).clamp(0.0, 0.75);
+    final end = (start + 0.35).clamp(0.0, 1.0);
+    final itemCurve = CurvedAnimation(
+      parent: _animController,
+      curve: Interval(start, end, curve: Curves.easeOutCubic),
+    );
+
+    return FadeTransition(
+      opacity: itemCurve,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.22),
+          end: Offset.zero,
+        ).animate(itemCurve),
+        child: child,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +168,7 @@ class _ReportsView extends StatelessWidget {
           builder: (context, state) {
             return Column(
               children: [
-                // Header (Screenshot 1)
+                // Header (with 3D illustration and slide-down entrance)
                 _buildHeader(context, state),
 
                 // Body content
@@ -94,9 +176,7 @@ class _ReportsView extends StatelessWidget {
                   child: Builder(
                     builder: (ctx) {
                       if (state is ReportsLoading || state is ReportsInitial) {
-                        return const Center(
-                          child: CircularProgressIndicator(color: _kBlue),
-                        );
+                        return const ShimmerListLoading();
                       }
                       if (state is ReportsError) {
                         return _buildErrorView(context, state.message);
@@ -118,62 +198,180 @@ class _ReportsView extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context, ReportsState state) {
     final canPop = Navigator.of(context).canPop();
+    final isTablet = MediaQuery.sizeOf(context).width >= 720;
 
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Back Button (only shown if pushed onto stack, avoids popping root tab off stack)
-          if (canPop) ...[
-            InkWell(
-              onTap: () {
-                if (Navigator.of(context).canPop()) {
-                  Navigator.of(context).pop();
-                }
-              },
-              borderRadius: BorderRadius.circular(8),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+    return SlideTransition(
+      position: _headerSlideAnimation,
+      child: FadeTransition(
+        opacity: _headerFadeAnimation,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFEAF2FE),
+                Color(0xFFF3F7FD),
+                Colors.white,
+              ],
+            ),
+            border: const Border(
+              bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1E293B).withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Stack(
+            children: [
+              // Subtle background circle accents
+              Positioned(
+                top: -30,
+                right: -30,
+                width: 140,
+                height: 140,
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFDBEAFE).withValues(alpha: 0.45),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: -20,
+                right: 70,
+                width: 90,
+                height: 90,
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFEFF6FF).withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+              // Header Foreground Content
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  isTablet ? 24 : 16,
+                  12,
+                  isTablet ? 24 : 16,
+                  14,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.arrow_back_rounded, size: 18, color: _kBlue),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Back',
-                      style: GoogleFonts.outfit(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: _kBlue,
+                    // Back Button Pill
+                    if (canPop) ...[
+                      InkWell(
+                        onTap: () {
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x06000000),
+                                blurRadius: 4,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                size: 13,
+                                color: _kBlue,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Back',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: _kBlue,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
+                      const SizedBox(height: 10),
+                    ],
+
+                    // Title + Subtitle on Left, 3D Illustration on Right
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    widget.titleOverride ?? 'Reports & Export',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: isTablet ? 26 : 22,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF0F172A),
+                                      letterSpacing: -0.4,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    width: 28,
+                                    height: 3.5,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF59E0B),
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                'Role-Wise View For All Roles In Your Site Scope — Counts Respect Your Site Scope And Filters.',
+                                style: GoogleFonts.outfit(
+                                  fontSize: isTablet ? 13 : 11.5,
+                                  color: _kSlate,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        // 3D Clipboard Illustration
+                        Image.asset(
+                          AppAssets.governanceClipboard,
+                          height: isTablet ? 115 : 92,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          Text(
-            titleOverride ?? 'Reports & Export',
-            style: GoogleFonts.outfit(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF0F172A),
-              letterSpacing: -0.4,
-            ),
+            ],
           ),
-          const SizedBox(height: 3),
-          Text(
-            'Role-Wise View For All Roles In Your Site Scope — Counts Respect Your Site Scope And Filters.',
-            style: GoogleFonts.outfit(
-              fontSize: 12,
-              color: _kSlate,
-              height: 1.35,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -198,8 +396,8 @@ class _ReportsView extends StatelessWidget {
     final isLd = HiveStorage.isLdRole;
 
     final List<ReportItemModel> displayedReports;
-    if (filterExportKind != null && filterExportKind!.isNotEmpty) {
-      final target = filterExportKind!.toLowerCase();
+    if (widget.filterExportKind != null && widget.filterExportKind!.isNotEmpty) {
+      final target = widget.filterExportKind!.toLowerCase();
       final filtered = catalog.reports.where((r) {
         final k = '${r.exportKind} ${r.id} ${r.title}'.toLowerCase();
         return k.contains(target);
@@ -243,73 +441,106 @@ class _ReportsView extends StatelessWidget {
     final content = ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
       children: [
-        // ── Active Scope & Filter summary bar ─────────────────────────────
-        InkWell(
-          onTap: () => _openFilterBottomSheet(context, state),
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _kBorder),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.apartment_rounded, size: 16, color: _kBlue),
-                const SizedBox(width: 8),
-                Text(
-                  '${catalog.scopeSites} Sites in Scope',
-                  style: GoogleFonts.outfit(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    dateRangeLabel,
-                    style: GoogleFonts.outfit(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: _kSlate,
+        // ── Active Scope & Filter summary bar (animated slide-up) ───────────
+        SlideTransition(
+          position: _scopeSlideAnimation,
+          child: FadeTransition(
+            opacity: _scopeFadeAnimation,
+            child: InkWell(
+              onTap: () => _openFilterBottomSheet(context, state),
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _kBorder),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF1E293B).withValues(alpha: 0.03),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                  ),
+                  ],
                 ),
-                const Spacer(),
-                if (activeCount > 0)
-                  InkWell(
-                    onTap: () {
-                      context.read<ReportsBloc>().add(const ResetAllReportFilters());
-                    },
-                    borderRadius: BorderRadius.circular(6),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.apartment_rounded, size: 16, color: _kBlue),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${catalog.scopeSites} Sites in Scope',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       child: Text(
-                        'Clear',
+                        dateRangeLabel,
                         style: GoogleFonts.outfit(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: Colors.redAccent,
+                          color: _kSlate,
                         ),
                       ),
                     ),
-                  ),
-                const SizedBox(width: 4),
-                const Icon(Icons.tune_rounded, size: 15, color: _kSlate),
-              ],
+                    const Spacer(),
+                    if (activeCount > 0)
+                      InkWell(
+                        onTap: () {
+                          context.read<ReportsBloc>().add(const ResetAllReportFilters());
+                        },
+                        borderRadius: BorderRadius.circular(6),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          child: Text(
+                            'Clear',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.redAccent,
+                            ),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: activeCount > 0
+                            ? const Color(0xFFEFF6FF)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Icon(
+                        Icons.tune_rounded,
+                        size: 16,
+                        color: activeCount > 0 ? _kBlue : _kSlate,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
         const SizedBox(height: 14),
 
-        // ── Reports List / Grid (Card spacing is compact & natural) ────────
+        // ── Reports List / Grid (Staggered Entrance Animation) ─────────────
         LayoutBuilder(
           builder: (ctx, constraints) {
             final isWide = constraints.maxWidth >= 720;
@@ -323,7 +554,7 @@ class _ReportsView extends StatelessWidget {
                   final r = displayedReports[idx];
                   final isRunning = state.isRunningReport && state.runningExportKind == r.exportKind;
 
-                  return ReportCardItem(
+                  final card = ReportCardItem(
                     report: r,
                     isRunning: isRunning,
                     onRun: () {
@@ -335,6 +566,8 @@ class _ReportsView extends StatelessWidget {
                           );
                     },
                   );
+
+                  return _buildAnimatedCardItem(idx, displayedReports.length, card);
                 },
               );
             }
@@ -346,14 +579,14 @@ class _ReportsView extends StatelessWidget {
                 crossAxisCount: 2,
                 crossAxisSpacing: 14,
                 mainAxisSpacing: 14,
-                mainAxisExtent: 156,
+                mainAxisExtent: 168,
               ),
               itemCount: displayedReports.length,
               itemBuilder: (ctx, idx) {
                 final r = displayedReports[idx];
                 final isRunning = state.isRunningReport && state.runningExportKind == r.exportKind;
 
-                return ReportCardItem(
+                final card = ReportCardItem(
                   report: r,
                   isRunning: isRunning,
                   onRun: () {
@@ -365,6 +598,8 @@ class _ReportsView extends StatelessWidget {
                         );
                   },
                 );
+
+                return _buildAnimatedCardItem(idx, displayedReports.length, card);
               },
             );
           },

@@ -253,6 +253,38 @@ DIGIDE_0001,Digi-demo2,Digi Client,Bangalore,INACTIVE''';
 
       expect(state.isFiltering, isTrue);
     });
+
+    testWidgets('ReportCardItem renders without error inside unbounded ListView on mobile', (tester) async {
+      const activeReport = ReportItemModel(
+        id: 'sites',
+        title: 'Site Report',
+        unit: 'sites',
+        count: 6,
+        description: 'Site Master, Client Type, Billing PM, Status, Geography, SPOCs.',
+        exportKind: 'sites',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              children: [
+                ReportCardItem(
+                  report: activeReport,
+                  isRunning: false,
+                  onRun: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Site Report'), findsOneWidget);
+      expect(find.text('View Report'), findsOneWidget);
+    });
   });
 }
 

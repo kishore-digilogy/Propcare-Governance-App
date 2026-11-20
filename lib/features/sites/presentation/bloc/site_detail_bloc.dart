@@ -18,12 +18,19 @@ class SiteDetailBloc extends Bloc<SiteDetailEvent, SiteDetailState> {
     LoadSiteDetail event,
     Emitter<SiteDetailState> emit,
   ) async {
-    emit(const SiteDetailLoading());
+    final current = state;
+    // If the site details are already loaded for this site, don't show full-page loading spinner
+    final bool alreadyLoaded = current is SiteDetailLoaded && current.detail.site.id == event.siteId;
+    if (!alreadyLoaded) {
+      emit(const SiteDetailLoading());
+    }
     try {
       final detail = await dataSource.getSiteDetail(event.siteId);
       emit(SiteDetailLoaded(detail: detail));
     } catch (e) {
-      emit(SiteDetailError('Failed to load site details: $e'));
+      if (!alreadyLoaded) {
+        emit(SiteDetailError('Failed to load site details: $e'));
+      }
     }
   }
 

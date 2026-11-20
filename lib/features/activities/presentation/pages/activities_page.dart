@@ -7,6 +7,7 @@ import '../../../../core/models/meta_model.dart';
 import '../../../../core/services/meta_service.dart';
 import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/widgets/custom_dropdown_button2.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../data/datasources/activities_remote_datasource.dart';
 import '../../data/models/activity_site_summary_model.dart';
 import '../../data/models/site_activity_item_model.dart';
@@ -103,9 +104,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
           },
           builder: (context, state) {
             if (state is ActivitiesLoading) {
-              return const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
-              );
+              return const ShimmerListLoading();
             }
 
             if (state is ActivitiesError) {
@@ -236,7 +235,8 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
                             _buildActivitiesSectionHeader(state),
                             const SizedBox(height: 12),
                             _buildActivitiesContent(context, state),
-                            _buildPaginationBar(state),
+                            if (!state.isLoadingActivities)
+                              _buildPaginationBar(state),
                           ],
                         ],
                       ),
@@ -1878,6 +1878,7 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
   }
 
   Widget _buildPaginationBar(ActivitiesLoaded state) {
+    if (state.isLoadingActivities) return const SizedBox.shrink();
     final res = state.activitiesResponse;
     if (res.total <= res.limit) return const SizedBox.shrink();
 

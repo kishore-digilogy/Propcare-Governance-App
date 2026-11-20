@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/services/location_service.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_shimmer.dart';
 import '../../data/datasources/attendance_remote_datasource.dart';
 import '../../data/models/attendance_site_model.dart';
 import '../../data/models/site_activity_model.dart';
@@ -96,9 +97,7 @@ class _AttendanceViewState extends State<_AttendanceView> {
           },
           builder: (context, state) {
             if (state is AttendanceLoading || state is AttendanceInitial) {
-              return const Center(
-                child: CircularProgressIndicator(color: _kBlue),
-              );
+              return const ShimmerListLoading();
             }
 
             if (state is AttendanceError) {
