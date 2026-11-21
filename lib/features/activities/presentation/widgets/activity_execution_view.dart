@@ -9,15 +9,22 @@ import '../bloc/activities_event.dart';
 // ── Blue & White Brand Color System ──────────────────────────────────────────
 const Color _kHeaderDarkBlue = Color(0xFF0A1931); // deep navy
 const Color _kHeaderMidBlue = Color(0xFF1B3A6B); // rich navy-blue
-const Color _kPrimaryBlue = Color(0xFF1A73E8); // primary brand blue
+const Color _kPrimaryBlue = Color(0xFF1769E8); // primary brand blue
 const Color _kPrimaryDarkBlue = Color(0xFF1557B0); // pressed/hover blue
-const Color _kLightBlue = Color(0xFFEFF6FF); // soft blue tint
-const Color _kBorderBlue = Color(0xFFBFDBFE); // light blue border
-const Color _kTextDarkBlue = Color(0xFF1E40AF); // dark blue text
-const Color _kBg = Color(0xFFF8FAFC);
-const Color _kCardBorder = Color(0xFFE2E8F0);
-const Color _kTextDark = Color(0xFF0F172A);
-const Color _kTextSlate = Color(0xFF64748B);
+const Color _kLightBlue = Color(0xFFEDF4FF); // soft blue tint
+const Color _kBorderBlue = Color(0xFFDCE3EC); // light blue border
+const Color _kTextDarkBlue = Color(0xFF1769E8); // dark blue text
+const Color _kBg = Color(0xFFF5F7FA); // Modern minimal light grey bg
+const Color _kCardBorder = Color(0xFFDCE3EC);
+const Color _kTextDark = Color(0xFF17243A);
+const Color _kTextSlate = Color(0xFF718096);
+
+// Modern Minimal – Professional Blue Palette
+const Color _kPrimary = Color(0xFF1769E8);
+const Color _kTextPrimary = Color(0xFF17243A);
+const Color _kTextSecondary = Color(0xFF718096);
+const Color _kBorderColor = Color(0xFFDCE3EC);
+const Color _kLightBlueBg = Color(0xFFEDF4FF);
 
 class ActivityExecutionView extends StatefulWidget {
   final ActivityDetailModel activityDetail;
@@ -60,6 +67,7 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
 
   // CC search filter
   String _ccSearchQuery = '';
+  bool _showAddToInput = false;
 
   @override
   void initState() {
@@ -218,91 +226,94 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
         final isTablet = screenWidth >= 768;
         final isDesktop = screenWidth >= 992;
 
-        return Stack(
-          children: [
-            // Bottom-right organic subtle blue decorative accent
-            Positioned(
-              right: 0,
-              bottom: 0,
-              width: isTablet ? 280 : 180,
-              height: isTablet ? 70 : 45,
-              child: IgnorePointer(
-                child: CustomPaint(painter: _BottomCornerWavePainter()),
+        return Container(
+          color: _kBg,
+          child: Stack(
+            children: [
+              // Bottom-right organic subtle blue decorative accent
+              Positioned(
+                right: 0,
+                bottom: 0,
+                width: isTablet ? 280 : 180,
+                height: isTablet ? 70 : 45,
+                child: IgnorePointer(
+                  child: CustomPaint(painter: _BottomCornerWavePainter()),
+                ),
               ),
-            ),
 
-            SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ── Top Header with App Logo & Blue-White Wave ───────────
-                  _buildHeader(act, site, isTablet),
+              SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ── Top Header with App Logo & Blue-White Wave ───────────
+                    _buildHeader(act, site, isTablet),
 
-                  // ── Body Content Container ────────────────────────────────
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxWidth: isDesktop
-                            ? 1160
-                            : (isTablet ? 780 : double.infinity),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isTablet ? 24 : 14,
-                          vertical: isTablet ? 18 : 12,
+                    // ── Body Content Container ────────────────────────────────
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: isDesktop
+                              ? 1160
+                              : (isTablet ? 780 : double.infinity),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // ── Two-Step Horizontal Stepper Bar ──────────────
-                            _buildStepper(act, isTablet),
-                            const SizedBox(height: 16),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isTablet ? 24 : 14,
+                            vertical: isTablet ? 18 : 12,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // ── Two-Step Horizontal Stepper Bar ──────────────
+                              _buildStepper(act, isTablet),
+                              const SizedBox(height: 16),
 
-                            // ── Main Content: 2-column on desktop, 1-column on mobile/tablet ──
-                            if (isDesktop) ...[
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    flex: 62,
-                                    child: _buildActiveStepForm(
-                                      act,
-                                      site,
-                                      isTablet,
+                              // ── Main Content: 2-column on desktop, 1-column on mobile/tablet ──
+                              if (isDesktop) ...[
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      flex: 62,
+                                      child: _buildActiveStepForm(
+                                        act,
+                                        site,
+                                        isTablet,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 20),
-                                  Expanded(
-                                    flex: 38,
-                                    child: _buildSidebarCards(
-                                      act,
-                                      site,
-                                      isTablet,
+                                    const SizedBox(width: 20),
+                                    Expanded(
+                                      flex: 38,
+                                      child: _buildSidebarCards(
+                                        act,
+                                        site,
+                                        isTablet,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ] else ...[
-                              _buildActiveStepForm(act, site, isTablet),
-                              const SizedBox(height: 18),
-                              _buildCollapsibleActivityMasterCard(
-                                act,
-                                site,
-                                isTablet,
-                              ),
-                              const SizedBox(height: 14),
-                              _buildExecutionFlowCard(isTablet),
+                                  ],
+                                ),
+                              ] else ...[
+                                _buildActiveStepForm(act, site, isTablet),
+                                const SizedBox(height: 18),
+                                _buildCollapsibleActivityMasterCard(
+                                  act,
+                                  site,
+                                  isTablet,
+                                ),
+                                const SizedBox(height: 14),
+                                _buildExecutionFlowCard(isTablet),
+                              ],
+                              const SizedBox(height: 48),
                             ],
-                            const SizedBox(height: 48),
-                          ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -554,175 +565,196 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
     );
   }
 
-  // ── Two-Step Horizontal Stepper Bar (Blue & White) ──────────────────────────
+  // ── Two-Step Horizontal Stepper Bar (Legacy stub kept for compatibility) ──
   Widget _buildStepper(ActivityItemDetailModel act, bool isTablet) {
+    return const SizedBox.shrink();
+  }
+
+  // ── Card Stepper embedded inside Visit Report / MOM Card ────────────────────
+  Widget _buildCardStepper(ActivityItemDetailModel act, bool isTablet) {
     final step1Completed = act.isCompleted;
     final step2Completed = act.isMomSent;
 
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: isTablet ? 22 : 16,
-        vertical: 11,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: _kCardBorder),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Step 1: Visit details
-          InkWell(
-            onTap: () => setState(() => _currentStep = 0),
-            borderRadius: BorderRadius.circular(20),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: step1Completed
-                        ? _kPrimaryBlue
-                        : (_currentStep == 0
-                              ? _kPrimaryBlue
-                              : const Color(0xFFE2E8F0)),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: step1Completed
-                        ? const Icon(Icons.check, size: 15, color: Colors.white)
-                        : Text(
-                            '1',
-                            style: GoogleFonts.outfit(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: _currentStep == 0
-                                  ? Colors.white
-                                  : _kTextSlate,
-                            ),
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Visit details',
-                  style: GoogleFonts.outfit(
-                    fontSize: isTablet ? 13.5 : 12.5,
-                    fontWeight: (_currentStep == 0 || step1Completed)
-                        ? FontWeight.w700
-                        : FontWeight.w500,
-                    color: (_currentStep == 0 || step1Completed)
-                        ? _kPrimaryBlue
-                        : _kTextSlate,
-                    decoration: _currentStep == 0
-                        ? TextDecoration.underline
-                        : TextDecoration.none,
-                    decorationColor: _kPrimaryBlue,
-                    decorationThickness: 2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Connecting Line
-          Expanded(
-            child: Container(
-              height: 2.5,
-              margin: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: step1Completed ? _kPrimaryBlue : const Color(0xFFE2E8F0),
-                borderRadius: BorderRadius.circular(2),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Top Row: "Visit report" title + "Step 1 of 2" pill badge
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Visit report',
+              style: GoogleFonts.outfit(
+                fontSize: isTablet ? 17 : 15.5,
+                fontWeight: FontWeight.w700,
+                color: _kTextPrimary,
               ),
             ),
-          ),
-
-          // Step 2: MOM
-          InkWell(
-            onTap: () {
-              if (!step1Completed) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Please submit visit details first before proceeding to MOM.',
-                    ),
-                    backgroundColor: Color(0xFFD97706),
-                    duration: Duration(seconds: 3),
-                  ),
-                );
-                return;
-              }
-              setState(() => _currentStep = 1);
-            },
-            borderRadius: BorderRadius.circular(20),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: step2Completed
-                        ? _kPrimaryBlue
-                        : (!step1Completed
-                              ? const Color(0xFFE2E8F0)
-                              : (_currentStep == 1
-                                    ? _kPrimaryBlue
-                                    : const Color(0xFFF1F5F9))),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: step2Completed
-                        ? const Icon(Icons.check, size: 15, color: Colors.white)
-                        : Text(
-                            '2',
-                            style: GoogleFonts.outfit(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: !step1Completed
-                                  ? const Color(0xFF94A3B8)
-                                  : (_currentStep == 1
-                                        ? Colors.white
-                                        : _kTextSlate),
-                            ),
-                          ),
-                  ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _kLightBlueBg,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _currentStep == 0 ? 'Step 1 of 2' : 'Step 2 of 2',
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _kPrimary,
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  _currentStep == 1 ? 'MOM & Email' : 'MOM',
-                  style: GoogleFonts.outfit(
-                    fontSize: isTablet ? 13.5 : 12.5,
-                    fontWeight: _currentStep == 1
-                        ? FontWeight.w700
-                        : FontWeight.w500,
-                    color: step2Completed
-                        ? _kPrimaryBlue
-                        : (!step1Completed
-                              ? const Color(0xFF94A3B8)
-                              : (_currentStep == 1
-                                    ? _kPrimaryBlue
-                                    : _kTextSlate)),
-                    decoration: _currentStep == 1
-                        ? TextDecoration.underline
-                        : TextDecoration.none,
-                    decorationColor: _kPrimaryBlue,
-                    decorationThickness: 2,
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        // Stepper Progress Row: (1) Visit details ───── (2) MOM
+        Row(
+          children: [
+            // Step 1: Visit details
+            InkWell(
+              onTap: () => setState(() => _currentStep = 0),
+              borderRadius: BorderRadius.circular(20),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: step1Completed
+                          ? const Color(0xFF16A34A)
+                          : (_currentStep == 0
+                                ? _kPrimary
+                                : const Color(0xFFE2E8F0)),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: step1Completed
+                          ? const Icon(
+                              Icons.check,
+                              size: 16,
+                              color: Colors.white,
+                            )
+                          : Text(
+                              '1',
+                              style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: _currentStep == 0
+                                    ? Colors.white
+                                    : _kTextSecondary,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Visit details',
+                    style: GoogleFonts.outfit(
+                      fontSize: isTablet ? 13.5 : 12.5,
+                      fontWeight: (_currentStep == 0 || step1Completed)
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      color: (_currentStep == 0 || step1Completed)
+                          ? _kTextPrimary
+                          : _kTextSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Thin connecting progress line
+            Expanded(
+              child: Container(
+                height: 2,
+                margin: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: step1Completed
+                      ? const Color(0xFF16A34A)
+                      : _kBorderColor,
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+            ),
+
+            // Step 2: MOM
+            InkWell(
+              onTap: () {
+                if (!step1Completed) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Please submit visit details first before proceeding to MOM.',
+                      ),
+                      backgroundColor: Color(0xFFD97706),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                  return;
+                }
+                setState(() => _currentStep = 1);
+              },
+              borderRadius: BorderRadius.circular(20),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: step2Completed
+                          ? const Color(0xFF16A34A)
+                          : (_currentStep == 1
+                                ? _kPrimary
+                                : const Color(0xFFF1F5F9)),
+                      border: Border.all(
+                        color: step2Completed
+                            ? const Color(0xFF16A34A)
+                            : (_currentStep == 1 ? _kPrimary : _kBorderColor),
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: step2Completed
+                          ? const Icon(
+                              Icons.check,
+                              size: 16,
+                              color: Colors.white,
+                            )
+                          : Text(
+                              '2',
+                              style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: _currentStep == 1
+                                    ? Colors.white
+                                    : _kTextSecondary,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'MOM',
+                    style: GoogleFonts.outfit(
+                      fontSize: isTablet ? 13.5 : 12.5,
+                      fontWeight: _currentStep == 1
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      color: step2Completed
+                          ? const Color(0xFF16A34A)
+                          : (_currentStep == 1 ? _kPrimary : _kTextSecondary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -740,17 +772,17 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
   }
 
   // ═════════════════════════════════════════════════════════════════════════════
-  // STEP 1: VISIT DETAILS (Blue & White)
+  // STEP 1: VISIT DETAILS (Modern Minimal – Professional Blue)
   // ═════════════════════════════════════════════════════════════════════════════
   Widget _buildStep1VisitDetails(ActivityItemDetailModel act, bool isTablet) {
     final isCompleted = act.isCompleted;
 
     return Container(
-      padding: EdgeInsets.all(isTablet ? 24 : 16),
+      padding: EdgeInsets.all(isTablet ? 24 : 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kCardBorder),
+        border: Border.all(color: _kBorderColor),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF0F172A).withValues(alpha: 0.03),
@@ -762,56 +794,73 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section Header: Blue Square Icon + Title + Status Badge
+          // Embedded Stepper inside card
+          _buildCardStepper(act, isTablet),
+          const SizedBox(height: 22),
+
+          // Section Title & Subtitle + Optional completed badge
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: _kLightBlue,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.calendar_today_outlined,
-                  size: 18,
-                  color: _kPrimaryBlue,
-                ),
-              ),
-              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  '1. Visit details',
-                  style: GoogleFonts.outfit(
-                    fontSize: isTablet ? 17 : 15.5,
-                    fontWeight: FontWeight.w700,
-                    color: _kTextDark,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Visit details',
+                      style: GoogleFonts.outfit(
+                        fontSize: isTablet ? 19 : 17,
+                        fontWeight: FontWeight.w700,
+                        color: _kTextPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Provide your visit information below.',
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        color: _kTextSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: _kLightBlue,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _kBorderBlue),
-                ),
-                child: Text(
-                  isCompleted
-                      ? 'Visit completed'
-                      : 'Visit date required · Note optional',
-                  style: GoogleFonts.outfit(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: _kTextDarkBlue,
+              if (isCompleted)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDCFCE7),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF86EFAC)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.check,
+                        size: 14,
+                        color: Color(0xFF16A34A),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Visit completed',
+                        style: GoogleFonts.outfit(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF16A34A),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
             ],
           ),
+          const SizedBox(height: 16),
+          const Divider(height: 1, thickness: 1, color: _kBorderColor),
           const SizedBox(height: 20),
 
           // Field 1: Visit date *
@@ -820,10 +869,10 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
             style: GoogleFonts.outfit(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFF334155),
+              color: _kTextPrimary,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 7),
           InkWell(
             onTap: isCompleted
                 ? null
@@ -838,44 +887,43 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                       setState(() => _visitDate = picked);
                     }
                   },
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                color: isCompleted ? const Color(0xFFF8FAFC) : Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFCBD5E1)),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _kBorderColor),
               ),
               child: Row(
                 children: [
                   Icon(
                     Icons.calendar_today_outlined,
                     size: 16,
-                    color: isCompleted
-                        ? const Color(0xFF94A3B8)
-                        : _kPrimaryBlue,
+                    color: isCompleted ? _kTextSecondary : _kPrimary,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      _formatDateWithWeekday(_visitDate),
+                      _formatDateShort(_visitDate),
                       style: GoogleFonts.outfit(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w600,
-                        color: isCompleted ? _kTextSlate : _kTextDark,
+                        color: _kTextPrimary,
                       ),
                     ),
                   ),
-                  Icon(
-                    Icons.calendar_month_outlined,
-                    size: 18,
-                    color: isCompleted ? const Color(0xFF94A3B8) : _kTextSlate,
+                  const Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 20,
+                    color: _kTextSecondary,
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
 
           // Field 2: Client met *
           Text(
@@ -883,10 +931,10 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
             style: GoogleFonts.outfit(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFF334155),
+              color: _kTextPrimary,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 7),
           Row(
             children: [
               _buildChoiceButton(
@@ -908,43 +956,46 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
 
-          // Field 3: Note (optional)
-          Text(
-            'Note (optional)',
-            style: GoogleFonts.outfit(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF334155),
-            ),
+          // Field 3: Visit notes (Optional)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Visit notes',
+                style: GoogleFonts.outfit(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _kTextPrimary,
+                ),
+              ),
+              Text(
+                'Optional',
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                  color: _kTextSecondary,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 7),
           Container(
+            width: double.infinity,
             decoration: BoxDecoration(
-              color: isCompleted ? const Color(0xFFF8FAFC) : Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFCBD5E1)),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _kBorderColor),
             ),
             padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.only(top: 2, right: 8),
-                      child: Icon(
-                        Icons.edit_outlined,
-                        size: 16,
-                        color: Color(0xFF94A3B8),
-                      ),
-                    ),
-                    Expanded(
-                      child: TextField(
+            child: isCompleted
+                ? _buildCompletedNotesContent()
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextField(
                         controller: _visitNoteController,
-                        enabled: !isCompleted,
                         maxLines: 3,
                         maxLength: 500,
                         buildCounter:
@@ -956,97 +1007,111 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                             }) => const SizedBox.shrink(),
                         style: GoogleFonts.outfit(
                           fontSize: 13,
-                          color: _kTextDark,
+                          color: _kTextPrimary,
                         ),
                         decoration: InputDecoration(
                           hintText:
-                              'Optional — visit notes, discussion points, client feedback...',
+                              'Add discussion points or client feedback...',
                           hintStyle: GoogleFonts.outfit(
                             fontSize: 13,
-                            color: const Color(0xFF94A3B8),
+                            color: _kTextSecondary.withValues(alpha: 0.65),
                           ),
                           isDense: true,
+                          filled: false,
+                          fillColor: Colors.transparent,
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
                           contentPadding: EdgeInsets.zero,
                         ),
+                      ),
+                      Align(
+                        alignment: Alignment.bottomRight,
+                        child: Text(
+                          '${_visitNoteController.text.length} / 500',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11.5,
+                            color: _kTextSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+          const SizedBox(height: 16),
+
+          // Field 4: Visit summary
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              color: _kLightBlueBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFD0E1FD)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 16,
+                      color: _kPrimary,
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      'Visit summary',
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _kPrimary,
                       ),
                     ),
                   ],
                 ),
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: Text(
-                    '${_visitNoteController.text.length} / 500',
-                    style: GoogleFonts.outfit(
-                      fontSize: 11,
-                      color: const Color(0xFF94A3B8),
-                    ),
+                const SizedBox(height: 5),
+                Text(
+                  isCompleted
+                      ? (act.isMomSent
+                            ? '${_formatDateShort(_visitDate)} · Client ${_clientMet == true ? "met" : "not met"} · MOM completed'
+                            : '${_formatDateShort(_visitDate)} · Client ${_clientMet == true ? "met" : "not met"}')
+                      : '${_formatDateShort(_visitDate)} · Client ${_clientMet == null ? "status pending" : (_clientMet! ? "met" : "not met")}',
+                  style: GoogleFonts.outfit(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: _kTextSecondary,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
 
-          // Summary Pill: 📍 Visit 20 Nov 2026 · Client met: No (Blue Tint)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: _kLightBlue,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _kBorderBlue),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.location_on_rounded,
-                  size: 16,
-                  color: _kPrimaryBlue,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    isCompleted
-                        ? (act.isMomSent
-                              ? 'Visit completed on ${_formatDateShort(_visitDate)} · Client met ${_clientMet == true ? "Yes" : "No"} · MOM completed'
-                              : 'Visit completed on ${_formatDateShort(_visitDate)} · Client met ${_clientMet == true ? "Yes" : "No"}')
-                        : 'Visit ${_formatDateShort(_visitDate)} · Client met: ${_clientMet == null ? "—" : (_clientMet! ? "Yes" : "No")}',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: _kTextDarkBlue,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Full-width Bottom Action Button: ✈ Submit Visit (Primary Blue)
+          // Field 5: Submit visit button (Full width, 46px height, rounded 12px)
           SizedBox(
             width: double.infinity,
+            height: 46,
             child: isCompleted
                 ? (!act.isMomSent
-                      ? ElevatedButton.icon(
+                      ? ElevatedButton(
                           onPressed: () => setState(() => _currentStep = 1),
-                          //icon: const Icon(Icons.arrow_forward_rounded, size: 16, color: Colors.white),
-                          label: Text(
-                            'Proceed to MOM  →',
-                            style: GoogleFonts.outfit(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _kPrimaryBlue,
-                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            backgroundColor: _kPrimary,
+                            foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             elevation: 0,
+                          ),
+                          child: Text(
+                            'Proceed to MOM  →',
+                            style: GoogleFonts.outfit(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
                           ),
                         )
                       : const SizedBox.shrink())
@@ -1055,14 +1120,14 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                     icon: widget.isSubmittingVisit
                         ? const SizedBox.shrink()
                         : const Icon(
-                            Icons.near_me_rounded,
-                            size: 16,
+                            Icons.near_me_outlined,
+                            size: 18,
                             color: Colors.white,
                           ),
                     label: widget.isSubmittingVisit
                         ? const SizedBox(
-                            width: 16,
-                            height: 16,
+                            width: 18,
+                            height: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: Colors.white,
@@ -1071,17 +1136,17 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                         : Text(
                             'Submit visit',
                             style: GoogleFonts.outfit(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
                               color: Colors.white,
                             ),
                           ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _kPrimaryBlue,
+                      backgroundColor: _kPrimary,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      disabledBackgroundColor: _kPrimary.withValues(alpha: 0.6),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       elevation: 0,
                     ),
@@ -1092,48 +1157,132 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
     );
   }
 
-  // Choice toggle button (Yes / No in Blue)
+  // Attractive formatted notes for completed visit (Heading vs Answer styled distinctly)
+  Widget _buildCompletedNotesContent() {
+    final text = _visitNoteController.text.trim();
+    if (text.isEmpty) {
+      return Text(
+        'No notes provided.',
+        style: GoogleFonts.outfit(
+          fontSize: 12.5,
+          color: _kTextSecondary,
+          fontStyle: FontStyle.italic,
+        ),
+      );
+    }
+
+    final lines = text.split('\n');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: lines.map((rawLine) {
+        final line = rawLine.trim();
+        if (line.isEmpty) return const SizedBox.shrink();
+
+        final colonIndex = line.indexOf(':');
+        if (colonIndex != -1) {
+          final heading = line.substring(0, colonIndex).trim();
+          final answer = line.substring(colonIndex + 1).trim();
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3.5),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 95,
+                  child: Text(
+                    heading,
+                    style: GoogleFonts.outfit(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: _kTextSecondary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    answer,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _kTextPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        } else {
+          return Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+              decoration: BoxDecoration(
+                color: _kLightBlueBg,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFD0E1FD)),
+              ),
+              child: Text(
+                line,
+                style: GoogleFonts.outfit(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: _kPrimary,
+                ),
+              ),
+            ),
+          );
+        }
+      }).toList(),
+    );
+  }
+
+  // Choice toggle button (Yes / No in Modern Minimal Blue)
   Widget _buildChoiceButton({
     required String label,
     required bool isSelected,
     required bool isDisabled,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: isDisabled ? null : onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? _kPrimaryBlue : Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? _kPrimaryBlue : const Color(0xFFCBD5E1),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isSelected) ...[
-              const Icon(Icons.check, size: 14, color: Colors.white),
-              const SizedBox(width: 5),
-            ],
-            Text(
-              label,
-              style: GoogleFonts.outfit(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                color: isSelected ? Colors.white : const Color(0xFF334155),
-              ),
+    return Expanded(
+      child: InkWell(
+        onTap: isDisabled ? null : onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 44,
+          decoration: BoxDecoration(
+            color: isSelected ? _kLightBlueBg : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? _kPrimary : _kBorderColor,
+              width: isSelected ? 1.5 : 1.0,
             ),
-          ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (isSelected) ...[
+                const Icon(Icons.check, size: 15, color: _kPrimary),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: GoogleFonts.outfit(
+                  fontSize: 13.5,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected ? _kPrimary : _kTextPrimary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   // ═════════════════════════════════════════════════════════════════════════════
-  // STEP 2: MOM & EMAIL FORM (Blue & White)
+  // STEP 2: MOM & EMAIL FORM (Modern Email Composer – Professional Blue)
   // ═════════════════════════════════════════════════════════════════════════════
   Widget _buildStep2MomForm(
     ActivityItemDetailModel act,
@@ -1141,11 +1290,11 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
     bool isTablet,
   ) {
     return Container(
-      padding: EdgeInsets.all(isTablet ? 24 : 16),
+      padding: EdgeInsets.all(isTablet ? 24 : 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kCardBorder),
+        border: Border.all(color: _kBorderColor),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF0F172A).withValues(alpha: 0.03),
@@ -1157,69 +1306,90 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section Header: Title + Badge
+          // Embedded Stepper inside card
+          _buildCardStepper(act, isTablet),
+          const SizedBox(height: 22),
+
+          // Header: Title + Subtitle on left, Draft/Sent badge on right
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '2. MOM & Email',
-                style: GoogleFonts.outfit(
-                  fontSize: isTablet ? 17 : 15.5,
-                  fontWeight: FontWeight.w700,
-                  color: _kTextDark,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '2. MOM & Email',
+                      style: GoogleFonts.outfit(
+                        fontSize: isTablet ? 19 : 17,
+                        fontWeight: FontWeight.w700,
+                        color: _kTextPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Prepare and send the minutes of meeting email.',
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        color: _kTextSecondary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
-                  vertical: 3.5,
+                  vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: act.isMomSent ? _kLightBlue : const Color(0xFFFEF3C7),
+                  color: act.isMomSent
+                      ? _kLightBlueBg
+                      : const Color(0xFFFEF3C7),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: act.isMomSent
-                        ? _kBorderBlue
+                        ? const Color(0xFFD0E1FD)
                         : const Color(0xFFFDE68A),
                   ),
                 ),
                 child: Text(
                   act.isMomSent ? 'Sent' : 'Draft',
                   style: GoogleFonts.outfit(
-                    fontSize: 11,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w600,
-                    color: act.isMomSent
-                        ? _kPrimaryBlue
-                        : const Color(0xFFD97706),
+                    color: act.isMomSent ? _kPrimary : const Color(0xFFD97706),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
 
-          // Informational callout banner
+          // Compact light-blue informational strip
           Container(
-            padding: const EdgeInsets.all(12),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: _kLightBlue,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _kBorderBlue),
+              color: _kLightBlueBg,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFD0E1FD)),
             ),
             child: Row(
               children: [
                 const Icon(
                   Icons.info_outline_rounded,
-                  size: 16,
-                  color: _kPrimaryBlue,
+                  size: 15,
+                  color: _kPrimary,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Minutes of meeting — ${site.name} · Client ${site.clientName}, ${_formatDateShort(_visitDate)}. Prepared after the visit is submitted.',
+                    'Minutes of meeting — ${site.name} · Client ${site.clientName}, ${_formatDateShort(_visitDate)}',
                     style: GoogleFonts.outfit(
                       fontSize: 12,
-                      color: _kTextDarkBlue,
+                      color: _kPrimary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -1227,28 +1397,11 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
+          const Divider(height: 1, thickness: 1, color: _kBorderColor),
+          const SizedBox(height: 16),
 
-          // Field: To *
-          Row(
-            children: [
-              const Icon(
-                Icons.people_outline_rounded,
-                size: 15,
-                color: _kTextSlate,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                'To *',
-                style: GoogleFonts.outfit(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF334155),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
+          // Field: To (Modern Email Composer)
           _buildRecipientSelector(
             isReadonly: act.isMomSent,
             currentList: _toList,
@@ -1268,83 +1421,57 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
             },
             onRemove: (val) => setState(() => _toList.remove(val)),
             customController: _addToController,
-            hint:
-                'Defaults to site contact person. Use Add email for additional To recipients.',
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
+          const Divider(height: 1, thickness: 1, color: _kBorderColor),
+          const SizedBox(height: 16),
 
-          // Field: Cc
-          Row(
-            children: [
-              const Icon(
-                Icons.people_outline_rounded,
-                size: 15,
-                color: _kTextSlate,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                'Cc',
-                style: GoogleFonts.outfit(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF334155),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
+          // Field: Cc (Redesigned with employee search, name chips & checkboxes)
           _buildCcRecipientSelector(site, isReadonly: act.isMomSent),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
+          const Divider(height: 1, thickness: 1, color: _kBorderColor),
+          const SizedBox(height: 16),
 
           // Field: Subject *
-          Row(
-            children: [
-              const Icon(
-                Icons.mail_outline_rounded,
-                size: 15,
-                color: _kTextSlate,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                'Subject *',
-                style: GoogleFonts.outfit(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF334155),
-                ),
-              ),
-            ],
+          Text(
+            'Subject *',
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: _kTextPrimary,
+            ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 7),
           TextField(
             controller: _subjectController,
             readOnly: act.isMomSent,
             style: GoogleFonts.outfit(
-              fontSize: 13,
-              color: act.isMomSent ? const Color(0xFF334155) : _kTextDark,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w500,
+              color: act.isMomSent ? _kTextSecondary : _kTextPrimary,
             ),
             decoration: InputDecoration(
-              filled: act.isMomSent,
-              fillColor: act.isMomSent ? const Color(0xFFF8FAFC) : Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(
-                  color: act.isMomSent
-                      ? const Color(0xFFE2E8F0)
-                      : const Color(0xFFCBD5E1),
-                ),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(
-                  color: act.isMomSent
-                      ? const Color(0xFFE2E8F0)
-                      : const Color(0xFFCBD5E1),
-                ),
-              ),
+              filled: true,
+              fillColor: Colors.white,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 14,
-                vertical: 11,
+                vertical: 10,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kBorderColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kBorderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kPrimary, width: 1.5),
+              ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kBorderColor),
               ),
             ),
           ),
@@ -1354,24 +1481,14 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.format_list_bulleted_rounded,
-                    size: 15,
-                    color: _kTextSlate,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'MAJOR POINTS',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF475569),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
+              Text(
+                'MAJOR POINTS',
+                style: GoogleFonts.outfit(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: _kTextPrimary,
+                  letterSpacing: 0.5,
+                ),
               ),
               if (!act.isMomSent)
                 InkWell(
@@ -1390,25 +1507,25 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
+                      horizontal: 12,
+                      vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: _kLightBlue,
+                      color: _kLightBlueBg,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: _kBorderBlue),
+                      border: Border.all(color: const Color(0xFFD0E1FD)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.add, size: 13, color: _kPrimaryBlue),
-                        const SizedBox(width: 3),
+                        const Icon(Icons.add, size: 14, color: _kPrimary),
+                        const SizedBox(width: 4),
                         Text(
                           'Add point',
                           style: GoogleFonts.outfit(
-                            fontSize: 11.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: _kPrimaryBlue,
+                            color: _kPrimary,
                           ),
                         ),
                       ],
@@ -1417,127 +1534,166 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _buildPointsTable(isReadonly: act.isMomSent),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
 
-          // Field: Email Closing Text
-          Row(
-            children: [
-              const Icon(
-                Icons.chat_bubble_outline_rounded,
-                size: 15,
-                color: _kTextSlate,
-              ),
-              const SizedBox(width: 5),
-              Text(
-                'Email',
-                style: GoogleFonts.outfit(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF334155),
-                ),
-              ),
-            ],
+          // Field: Email closing / content
+          Text(
+            'Email',
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: _kTextPrimary,
+            ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 7),
           TextField(
             controller: _closingController,
             readOnly: act.isMomSent,
             maxLines: 4,
             style: GoogleFonts.outfit(
-              fontSize: 13,
-              color: act.isMomSent ? const Color(0xFF334155) : _kTextDark,
+              fontSize: 13.5,
+              color: act.isMomSent ? _kTextSecondary : _kTextPrimary,
             ),
             decoration: InputDecoration(
-              filled: act.isMomSent,
-              fillColor: act.isMomSent ? const Color(0xFFF8FAFC) : Colors.white,
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.all(12),
+              hintText: 'Enter closing text or notes for the email...',
+              hintStyle: GoogleFonts.outfit(
+                fontSize: 13,
+                color: _kTextSecondary.withValues(alpha: 0.6),
+              ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(
-                  color: act.isMomSent
-                      ? const Color(0xFFE2E8F0)
-                      : const Color(0xFFCBD5E1),
-                ),
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kBorderColor),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(
-                  color: act.isMomSent
-                      ? const Color(0xFFE2E8F0)
-                      : const Color(0xFFCBD5E1),
-                ),
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kBorderColor),
               ),
-              contentPadding: const EdgeInsets.all(12),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kPrimary, width: 1.5),
+              ),
+              disabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kBorderColor),
+              ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
 
-          // Bottom Action: Send MOM (Primary Blue)
-          SizedBox(
-            width: double.infinity,
-            child: act.isMomSent
-                ? Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                      color: _kLightBlue,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: _kBorderBlue),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'MOM saved',
+          // Bottom Actions: [Save draft] [Send MOM]
+          if (act.isMomSent)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: _kLightBlueBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFD0E1FD)),
+              ),
+              child: Center(
+                child: Text(
+                  'MOM saved',
+                  style: GoogleFonts.outfit(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: _kPrimary,
+                  ),
+                ),
+              ),
+            )
+          else
+            Row(
+              children: [
+                // Save draft (Secondary outlined button)
+                Expanded(
+                  child: SizedBox(
+                    height: 46,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Draft saved locally')),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.description_outlined,
+                        size: 16,
+                        color: _kPrimary,
+                      ),
+                      label: Text(
+                        'Save draft',
                         style: GoogleFonts.outfit(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: _kPrimaryBlue,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: _kPrimary,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: _kPrimary),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                     ),
-                  )
-                : ElevatedButton.icon(
-                    onPressed: widget.isSendingMom ? null : _sendMom,
-                    icon: widget.isSendingMom
-                        ? const SizedBox.shrink()
-                        : const Icon(
-                            Icons.near_me_rounded,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                    label: widget.isSendingMom
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Send MOM (Primary blue button)
+                Expanded(
+                  child: SizedBox(
+                    height: 46,
+                    child: ElevatedButton.icon(
+                      onPressed: widget.isSendingMom ? null : _sendMom,
+                      icon: widget.isSendingMom
+                          ? const SizedBox.shrink()
+                          : const Icon(
+                              Icons.near_me_outlined,
+                              size: 18,
                               color: Colors.white,
                             ),
-                          )
-                        : Text(
-                            'Send MOM',
-                            style: GoogleFonts.outfit(
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                      label: widget.isSendingMom
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              'Send MOM',
+                              style: GoogleFonts.outfit(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _kPrimaryBlue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _kPrimary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: _kPrimary.withValues(
+                          alpha: 0.6,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
                       ),
-                      elevation: 0,
                     ),
                   ),
-          ),
+                ),
+              ],
+            ),
         ],
       ),
     );
   }
 
-  // ── Recipient Selector for TO List (Blue) ───────────────────────────────────
+  // ── Recipient Selector for TO List (Modern Email Composer) ───────────────────
   Widget _buildRecipientSelector({
     required bool isReadonly,
     required List<String> currentList,
@@ -1545,126 +1701,144 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
     required Function(String) onAdd,
     required Function(String) onRemove,
     required TextEditingController customController,
-    required String hint,
   }) {
     final unaddedOptions = options
         .where((opt) => !currentList.contains(opt.value))
         .toList();
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isReadonly ? const Color(0xFFF8FAFC) : Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFCBD5E1)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Selected chips
-          if (currentList.isNotEmpty)
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: currentList.map((email) {
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4.5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _kLightBlue,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _kBorderBlue),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          email,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            color: _kTextDarkBlue,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      if (!isReadonly) ...[
-                        const SizedBox(width: 5),
-                        InkWell(
-                          onTap: () => onRemove(email),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            size: 14,
-                            color: _kTextDarkBlue,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              }).toList(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Top row: "To" label + "Add recipient +"
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'To',
+              style: GoogleFonts.outfit(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: _kTextPrimary,
+              ),
             ),
-
-          if (!isReadonly) ...[
-            if (currentList.isNotEmpty) const SizedBox(height: 10),
-
-            // Inline input row for adding new email
-            Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 38,
-                    child: TextField(
-                      controller: customController,
-                      style: GoogleFonts.outfit(
-                        fontSize: 12.5,
-                        color: _kTextDark,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Enter email address...',
-                        hintStyle: GoogleFonts.outfit(
-                          fontSize: 12,
-                          color: const Color(0xFF94A3B8),
-                        ),
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFE2E8F0),
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFE2E8F0),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(color: _kPrimaryBlue),
-                        ),
-                      ),
-                      onSubmitted: (txt) {
-                        final val = txt.trim();
-                        if (val.isNotEmpty && !currentList.contains(val)) {
-                          onAdd(val);
-                          customController.clear();
-                        }
-                      },
+            if (!isReadonly)
+              InkWell(
+                onTap: () => setState(() => _showAddToInput = !_showAddToInput),
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  child: Text(
+                    'Add recipient +',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _kPrimary,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // Selected chips
+        if (currentList.isNotEmpty)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: currentList.map((email) {
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _kLightBlueBg,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFD0E1FD)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        email,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.outfit(
+                          fontSize: 13,
+                          color: _kPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (!isReadonly) ...[
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: () => onRemove(email),
+                        borderRadius: BorderRadius.circular(10),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          size: 14,
+                          color: _kPrimary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+
+        // Add recipient input field (when toggled or empty)
+        if (!isReadonly && (_showAddToInput || currentList.isEmpty)) ...[
+          const SizedBox(height: 12),
+          Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _kBorderColor),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: customController,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      color: _kTextPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Enter recipient email address...',
+                      hintStyle: GoogleFonts.outfit(
+                        fontSize: 12.5,
+                        color: _kTextSecondary.withValues(alpha: 0.7),
+                      ),
+                      isDense: true,
+                      filled: false,
+                      fillColor: Colors.transparent,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                    ),
+                    onSubmitted: (txt) {
+                      final val = txt.trim();
+                      if (val.isNotEmpty && !currentList.contains(val)) {
+                        onAdd(val);
+                        customController.clear();
+                      }
+                    },
+                  ),
+                ),
+                TextButton(
                   onPressed: () {
                     final txt = customController.text.trim();
                     if (txt.isNotEmpty && !currentList.contains(txt)) {
@@ -1672,101 +1846,80 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                       customController.clear();
                     }
                   },
-                  icon: const Icon(
-                    Icons.person_add_alt_outlined,
-                    size: 14,
-                    color: _kPrimaryBlue,
-                  ),
-                  label: Text(
-                    'Add email',
+                  child: Text(
+                    'Add',
                     style: GoogleFonts.outfit(
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: _kPrimaryBlue,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFFCBD5E1)),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      color: _kPrimary,
                     ),
                   ),
                 ),
               ],
             ),
+          ),
 
-            // Quick suggestion chips for unadded site contacts (if any)
-            if (unaddedOptions.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    'Site contact: ',
-                    style: GoogleFonts.outfit(
-                      fontSize: 11.5,
-                      color: const Color(0xFF64748B),
-                      fontWeight: FontWeight.w500,
-                    ),
+          // Quick suggestions for unadded site contacts
+          if (unaddedOptions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  'Suggested: ',
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    color: _kTextSecondary,
+                    fontWeight: FontWeight.w500,
                   ),
-                  Expanded(
-                    child: Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: unaddedOptions.map((opt) {
-                        return InkWell(
-                          onTap: () => onAdd(opt.value),
-                          borderRadius: BorderRadius.circular(4),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: const Color(0xFFE2E8F0),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.add,
-                                  size: 12,
-                                  color: _kPrimaryBlue,
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  opt.value,
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 11.5,
-                                    color: _kPrimaryBlue,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
+                ),
+                Expanded(
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: unaddedOptions.map((opt) {
+                      return InkWell(
+                        onTap: () => onAdd(opt.value),
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
                           ),
-                        );
-                      }).toList(),
-                    ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.add, size: 12, color: _kPrimary),
+                              const SizedBox(width: 3),
+                              Text(
+                                opt.value,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11.5,
+                                  color: _kPrimary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ],
         ],
-      ),
+      ],
     );
   }
 
-  // ── Recipient Selector for CC List ──────────────────────────────────────────
+  // ── Recipient Selector for CC List (Modern Email Composer) ──────────────────
   Widget _buildCcRecipientSelector(
     ActivitySiteDetailModel site, {
     required bool isReadonly,
@@ -1807,234 +1960,369 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
               )
               .toList();
 
+    final allFilteredSelected =
+        filteredOptions.isNotEmpty &&
+        filteredOptions.every((opt) => _ccList.contains(opt.value));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: isReadonly ? const Color(0xFFF8FAFC) : Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFCBD5E1)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Selected chips
-              if (_ccList.isNotEmpty)
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: _ccList.map((email) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4.5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _kLightBlue,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: _kBorderBlue),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              email,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.outfit(
-                                fontSize: 12,
-                                color: _kTextDarkBlue,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          if (!isReadonly) ...[
-                            const SizedBox(width: 5),
-                            InkWell(
-                              onTap: () =>
-                                  setState(() => _ccList.remove(email)),
-                              child: const Icon(
-                                Icons.close_rounded,
-                                size: 14,
-                                color: _kTextDarkBlue,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    );
-                  }).toList(),
+        // Top Row: "Cc" label on left + "X selected" on right
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Cc',
+              style: GoogleFonts.outfit(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: _kTextPrimary,
+              ),
+            ),
+            Text(
+              '${_ccList.length} selected',
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _kPrimary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // Selected CC chips (preferring employee names!)
+        if (_ccList.isNotEmpty) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _ccList.map((email) {
+              final match = ccOptions.firstWhere(
+                (c) => c.value.toLowerCase() == email.toLowerCase(),
+                orElse: () => EmailRecipientModel(
+                  value: email,
+                  label: email,
+                  name: '',
+                  role: '',
                 ),
+              );
+              final displayName = match.name.isNotEmpty ? match.name : email;
 
-              if (!isReadonly) ...[
-                const SizedBox(height: 10),
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        displayName,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.outfit(
+                          fontSize: 12.5,
+                          color: _kTextPrimary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    if (!isReadonly) ...[
+                      const SizedBox(width: 5),
+                      InkWell(
+                        onTap: () => setState(() => _ccList.remove(email)),
+                        borderRadius: BorderRadius.circular(10),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          size: 14,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 14),
+        ],
 
-                // Search field for CC list
-                SizedBox(
-                  height: 36,
-                  child: TextField(
-                    style: GoogleFonts.outfit(fontSize: 12),
-                    onChanged: (val) => setState(() => _ccSearchQuery = val),
-                    decoration: InputDecoration(
-                      prefixIcon: const Icon(
-                        Icons.search,
+        // Clean Search Field for employees or emails
+        if (!isReadonly) ...[
+          TextField(
+            style: GoogleFonts.outfit(fontSize: 13.5, color: _kTextPrimary),
+            onChanged: (val) => setState(() => _ccSearchQuery = val),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
+              isDense: true,
+              prefixIcon: const Icon(
+                Icons.search,
+                size: 20,
+                color: _kTextSecondary,
+              ),
+              suffixIcon: _ccSearchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(
+                        Icons.clear,
                         size: 16,
-                        color: Color(0xFF94A3B8),
+                        color: _kTextSecondary,
                       ),
-                      hintText: 'Search name or role in zone...',
-                      hintStyle: GoogleFonts.outfit(
-                        fontSize: 12,
-                        color: const Color(0xFF94A3B8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                      ),
+                      onPressed: () => setState(() => _ccSearchQuery = ''),
+                    )
+                  : null,
+              hintText: 'Search employees or email...',
+              hintStyle: GoogleFonts.outfit(
+                fontSize: 13,
+                color: _kTextSecondary.withValues(alpha: 0.7),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 10,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kBorderColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kBorderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _kPrimary, width: 1.5),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Select recipients header + Select all / Clear all
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Select recipients',
+                style: GoogleFonts.outfit(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: _kTextPrimary,
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    if (allFilteredSelected) {
+                      for (final opt in filteredOptions) {
+                        _ccList.remove(opt.value);
+                      }
+                    } else {
+                      for (final opt in filteredOptions) {
+                        if (!_ccList.contains(opt.value)) {
+                          _ccList.add(opt.value);
+                        }
+                      }
+                    }
+                  });
+                },
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  child: Text(
+                    allFilteredSelected ? 'Clear all' : 'Select all',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _kPrimary,
                     ),
                   ),
                 ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
 
-                const SizedBox(height: 8),
+          // Scrollable Employee Rows with circular checkbox (no fixed height clipping!)
+          if (filteredOptions.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'No employees match "$_ccSearchQuery"',
+                style: GoogleFonts.outfit(fontSize: 13, color: _kTextSecondary),
+              ),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: filteredOptions.length,
+              itemBuilder: (ctx, i) {
+                final opt = filteredOptions[i];
+                final isSelected = _ccList.contains(opt.value);
 
-                // Checkbox items list
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 140),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: filteredOptions.length,
-                    itemBuilder: (ctx, i) {
-                      final opt = filteredOptions[i];
-                      final isSelected = _ccList.contains(opt.value);
-                      return InkWell(
-                        onTap: () {
-                          setState(() {
-                            if (isSelected) {
-                              _ccList.remove(opt.value);
-                            } else {
-                              _ccList.add(opt.value);
-                            }
-                          });
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 4,
-                            horizontal: 4,
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      if (isSelected) {
+                        _ccList.remove(opt.value);
+                      } else {
+                        _ccList.add(opt.value);
+                      }
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFFF8FAFC)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        // Circular checkbox
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: isSelected ? _kPrimary : Colors.transparent,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected
+                                  ? _kPrimary
+                                  : const Color(0xFFCBD5E1),
+                              width: 1.5,
+                            ),
                           ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                isSelected
-                                    ? Icons.check_box
-                                    : Icons.check_box_outline_blank,
-                                size: 18,
-                                color: isSelected
-                                    ? _kPrimaryBlue
-                                    : const Color(0xFF94A3B8),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  opt.label,
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 12,
-                                    color: const Color(0xFF1E293B),
+                          child: isSelected
+                              ? const Center(
+                                  child: Icon(
+                                    Icons.check,
+                                    size: 13,
+                                    color: Colors.white,
                                   ),
-                                  overflow: TextOverflow.ellipsis,
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        // Employee Name, Role, & Email
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                opt.name.isNotEmpty ? opt.name : opt.value,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: _kTextPrimary,
                                 ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${opt.role.isNotEmpty ? opt.role : "Staff"} · ${opt.value}',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 12,
+                                  color: _kTextSecondary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
                         ),
-                      );
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          const SizedBox(height: 12),
+
+          // Add custom CC email row
+          Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _kBorderColor),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _addCcController,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      color: _kTextPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Add new Cc email address...',
+                      hintStyle: GoogleFonts.outfit(
+                        fontSize: 12.5,
+                        color: _kTextSecondary.withValues(alpha: 0.7),
+                      ),
+                      isDense: true,
+                      filled: false,
+                      fillColor: Colors.transparent,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                    ),
+                    onSubmitted: (txt) {
+                      final val = txt.trim();
+                      if (val.isNotEmpty && !_ccList.contains(val)) {
+                        setState(() {
+                          _ccList.add(val);
+                          _addCcController.clear();
+                        });
+                      }
                     },
                   ),
                 ),
-              ],
-            ],
-          ),
-        ),
-        if (!isReadonly) ...[
-          const SizedBox(height: 8),
-
-          // Custom CC Add row
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 38,
-                  child: TextField(
-                    controller: _addCcController,
-                    style: GoogleFonts.outfit(fontSize: 12.5),
-                    decoration: InputDecoration(
-                      hintText: 'Add new Cc email',
-                      hintStyle: GoogleFonts.outfit(
-                        fontSize: 12,
-                        color: const Color(0xFF94A3B8),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                      ),
+                TextButton(
+                  onPressed: () {
+                    final txt = _addCcController.text.trim();
+                    if (txt.isNotEmpty && !_ccList.contains(txt)) {
+                      setState(() {
+                        _ccList.add(txt);
+                        _addCcController.clear();
+                      });
+                    }
+                  },
+                  child: Text(
+                    'Add',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _kPrimary,
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton(
-                onPressed: () {
-                  final txt = _addCcController.text.trim();
-                  if (txt.isNotEmpty && !_ccList.contains(txt)) {
-                    setState(() {
-                      _ccList.add(txt);
-                      _addCcController.clear();
-                    });
-                  }
-                },
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  side: const BorderSide(color: Color(0xFFCBD5E1)),
-                ),
-                child: Text(
-                  'Add',
-                  style: GoogleFonts.outfit(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: _kPrimaryBlue,
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             'Filtered for current zone (${site.zoneId ?? "all"}). Defaults to site allocation + HR / EHS / Machine.',
-            style: GoogleFonts.outfit(
-              fontSize: 11,
-              color: const Color(0xFF94A3B8),
-            ),
+            style: GoogleFonts.outfit(fontSize: 11, color: _kTextSecondary),
           ),
         ],
       ],
@@ -2048,9 +2336,9 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _kBorderColor),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -2058,15 +2346,12 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
             const Icon(
               Icons.assignment_outlined,
               size: 18,
-              color: Color(0xFF94A3B8),
+              color: _kTextSecondary,
             ),
             const SizedBox(width: 8),
             Text(
               'No major points yet — click Add point.',
-              style: GoogleFonts.outfit(
-                fontSize: 12.5,
-                color: const Color(0xFF64748B),
-              ),
+              style: GoogleFonts.outfit(fontSize: 12.5, color: _kTextSecondary),
             ),
           ],
         ),
@@ -2076,17 +2361,17 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kBorderColor),
       ),
       child: Column(
         children: [
           // Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: const BoxDecoration(
-              color: Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
             ),
             child: Row(
               children: [
@@ -2147,8 +2432,16 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                             style: GoogleFonts.outfit(fontSize: 12.5),
                             decoration: const InputDecoration(
                               isDense: true,
-                              contentPadding: EdgeInsets.symmetric(vertical: 4),
+                              filled: false,
+                              fillColor: Colors.transparent,
                               border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                vertical: 6,
+                                horizontal: 4,
+                              ),
                               hintText: 'Enter observation / action point...',
                             ),
                           ),
