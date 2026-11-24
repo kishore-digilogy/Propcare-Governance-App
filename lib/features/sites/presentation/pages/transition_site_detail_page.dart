@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -65,6 +66,10 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
   final Map<String, TextEditingController> _remarksControllers = {};
   final Map<String, String?> _selectedOwnerIds = {};
 
+  bool _hasAttemptedContinue = false;
+  TextEditingController? _manpowerDeployedController;
+  int? _lastSyncedManpowerDeployed;
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +81,7 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
 
   @override
   void dispose() {
+    _manpowerDeployedController?.dispose();
     for (final c in _issueControllers.values) {
       c.dispose();
     }
@@ -138,6 +144,14 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
             }
 
             if (state is TransitionDetailLoaded) {
+              if (_manpowerDeployedController == null ||
+                  _lastSyncedManpowerDeployed != state.response.site.manpowerDeployed) {
+                _lastSyncedManpowerDeployed = state.response.site.manpowerDeployed;
+                _manpowerDeployedController?.dispose();
+                _manpowerDeployedController = TextEditingController(
+                  text: '${state.response.site.manpowerDeployed}',
+                );
+              }
               return _buildLoadedContent(context, state);
             }
 
@@ -627,13 +641,13 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
       case 1:
         return _buildStep1SiteCreation(context, state);
       case 2:
-        return _buildStep2InternalChecklist(context, state);
+        return _buildStep2InternalChecklist(context, state, isDesktop);
       case 3:
         return _buildStep3LdTransitionChecklist(context, state);
       case 4:
         return _buildStep4StabilityVerify(context, state);
       default:
-        return _buildStep2InternalChecklist(context, state);
+        return _buildStep2InternalChecklist(context, state, isDesktop);
     }
   }
 
@@ -780,10 +794,11 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
     );
   }
 
-  // ── Step 2: Internal Checklist (Client Kick-Off + Internal Items) ───────────
+  // ── Step 2: Internal Checklist (Client Kick-Off + Manpower + Internal Items) ───────────
   Widget _buildStep2InternalChecklist(
     BuildContext context,
     TransitionDetailLoaded state,
+    bool isDesktop,
   ) {
     final preview = state.response.ldPreview;
     final kickoff = preview.kickoff;
@@ -848,6 +863,11 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                     label: 'Kick-Off With Client',
                     isYes: kickoff.isWithClientYes,
                     onChanged: (yes) {
+                      if (!yes && _hasAttemptedContinue) {
+                        setState(() {
+                          _hasAttemptedContinue = false;
+                        });
+                      }
                       context.read<TransitionDetailBloc>().add(
                             UpdateKickoffField(withClient: yes ? 'YES' : 'NO'),
                           );
@@ -857,8 +877,16 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                     context: context,
                     label: 'Kick-Off Date *',
                     currentDate: kickoff.date,
+                    isMandatoryMissing: _hasAttemptedContinue &&
+                        kickoff.isWithClientYes &&
+                        kickoff.date.trim().isEmpty,
                     subtitle: 'Mandatory when kick-off = Yes',
                     onDateSelected: (newDate) {
+                      if (_hasAttemptedContinue) {
+                        setState(() {
+                          _hasAttemptedContinue = false;
+                        });
+                      }
                       context.read<TransitionDetailBloc>().add(
                             UpdateKickoffField(date: newDate),
                           );
@@ -883,7 +911,7 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                 isYes: kickoff.isPreTransitionMeetingYes,
                 onChanged: (yes) {
                   context.read<TransitionDetailBloc>().add(
-                        UpdateKickoffField(meeting: yes ? 'COMPLETED' : 'NO'),
+                        UpdateKickoffField(meeting: yes ? 'COMPLETED' : 'PENDING'),
                       );
                 },
               ),
@@ -892,7 +920,11 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
         ),
         const SizedBox(height: 16),
 
-        // ── Card 2: Internal Checklist Table (Matching Image 1 & 4) ──
+        // ── Card 2: Manpower (Matching Web Images) ──
+        _buildManpowerCard(context, state.response.site, isDesktop),
+        const SizedBox(height: 16),
+
+        // ── Card 3: Internal Checklist Table (Matching Image 1 & 4) ──
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -920,15 +952,15 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                     decoration: BoxDecoration(
-                      color: _kAmberBg,
+                      color: items.isEmpty ? const Color(0xFFE8F5E9) : _kAmberBg,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${items.length} items · $openCount open',
+                      items.isEmpty ? 'No Items' : '${items.length} items · $openCount open',
                       style: GoogleFonts.outfit(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: _kAmber,
+                        color: items.isEmpty ? _kGreen : _kAmber,
                       ),
                     ),
                   ),
@@ -936,7 +968,23 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
               ),
               const SizedBox(height: 16),
 
-              ...items.map((item) => _buildChecklistItemRow(context, item, zoneUsers)),
+              if (items.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text(
+                      'No Checklist Items With Start And Target Dates From Create Site.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        color: _kSlate,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ...items.map((item) => _buildChecklistItemRow(context, item, zoneUsers)),
             ],
           ),
         ),
@@ -958,6 +1006,37 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                 padding: const EdgeInsets.symmetric(horizontal: 22),
               ),
               onPressed: () {
+                if (kickoff.isWithClientYes && kickoff.date.trim().isEmpty) {
+                  setState(() {
+                    _hasAttemptedContinue = true;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Kick-Off Date is mandatory when Kick-Off with Client is Yes.',
+                              style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: const Color(0xFFDC2626),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      duration: const Duration(seconds: 4),
+                    ),
+                  );
+                  return;
+                }
                 context.read<TransitionDetailBloc>().add(
                       SaveTransitionActionEvent(
                         siteId: widget.siteId,
@@ -977,6 +1056,268 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  // ── Card 2: Manpower (Matching Web Images) ───────────────────────────
+  Widget _buildManpowerCard(
+    BuildContext context,
+    TransitionSiteInfoModel site,
+    bool isDesktop,
+  ) {
+    final enteredDeployed = int.tryParse(_manpowerDeployedController?.text.trim() ?? '') ?? site.manpowerDeployed;
+    final liveShortage = (site.manpowerRequired - enteredDeployed).clamp(0, site.manpowerRequired);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Manpower',
+            style: GoogleFonts.outfit(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: _kDark,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1, thickness: 1, color: _kBorder),
+          const SizedBox(height: 18),
+
+          // 3 Columns: Required, Deployed, Shortage
+          if (isDesktop)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _buildManpowerRequiredField(site.manpowerRequired)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildManpowerDeployedField()),
+                const SizedBox(width: 16),
+                Expanded(child: _buildManpowerShortageField(liveShortage)),
+              ],
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildManpowerRequiredField(site.manpowerRequired),
+                const SizedBox(height: 14),
+                _buildManpowerDeployedField(),
+                const SizedBox(height: 14),
+                _buildManpowerShortageField(liveShortage),
+              ],
+            ),
+
+          const SizedBox(height: 20),
+
+          // Update Manpower Button
+          Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              height: 40,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kBlue,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () {
+                  final text = _manpowerDeployedController?.text.trim() ?? '';
+                  final deployed = int.tryParse(text) ?? 0;
+                  if (deployed < 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Manpower Deployed cannot be negative',
+                          style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+                        ),
+                        backgroundColor: const Color(0xFFDC2626),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
+                  if (deployed > site.manpowerRequired) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Cannot exceed Manpower Required (${site.manpowerRequired})',
+                          style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
+                        ),
+                        backgroundColor: const Color(0xFFDC2626),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
+                  context.read<TransitionDetailBloc>().add(
+                        UpdateManpowerEvent(
+                          siteId: widget.siteId,
+                          manpowerRequired: site.manpowerRequired,
+                          manpowerDeployed: deployed,
+                        ),
+                      );
+                },
+                child: Text(
+                  'Update Manpower',
+                  style: GoogleFonts.outfit(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManpowerRequiredField(int required) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Manpower Required',
+          style: GoogleFonts.outfit(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: _kSlate,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          height: 44,
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.centerLeft,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _kBorder),
+          ),
+          child: Text(
+            '$required',
+            style: GoogleFonts.outfit(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: _kDark,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'From Create Site',
+          style: GoogleFonts.outfit(
+            fontSize: 11,
+            color: _kSlate,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildManpowerDeployedField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Manpower Deployed',
+          style: GoogleFonts.outfit(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: _kSlate,
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 44,
+          child: TextField(
+            controller: _manpowerDeployedController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            onChanged: (_) => setState(() {}),
+            style: GoogleFonts.outfit(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: _kDark,
+            ),
+            decoration: InputDecoration(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: _kBorder),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: _kBorder),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: _kBlue, width: 1.5),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Cannot Exceed Manpower Required',
+          style: GoogleFonts.outfit(
+            fontSize: 11,
+            color: _kSlate,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildManpowerShortageField(int shortage) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Manpower Shortage (Auto)',
+          style: GoogleFonts.outfit(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: _kSlate,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          height: 44,
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.centerLeft,
+          decoration: BoxDecoration(
+            color: _kAmberBg,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFFDE68A)),
+          ),
+          child: Text(
+            '$shortage Members Short',
+            style: GoogleFonts.outfit(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFFB45309),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        const SizedBox(height: 15),
       ],
     );
   }
@@ -1021,15 +1362,15 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                     decoration: BoxDecoration(
-                      color: _kAmberBg,
+                      color: items.isEmpty ? const Color(0xFFE8F5E9) : _kAmberBg,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '${items.length} items · $openCount open',
+                      items.isEmpty ? 'No Items' : '${items.length} items · $openCount open',
                       style: GoogleFonts.outfit(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: _kAmber,
+                        color: items.isEmpty ? _kGreen : _kAmber,
                       ),
                     ),
                   ),
@@ -1037,7 +1378,23 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
               ),
               const SizedBox(height: 16),
 
-              ...items.map((item) => _buildChecklistItemRow(context, item, zoneUsers)),
+              if (items.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: Text(
+                      'No Checklist Items With Start And Target Dates From Create Site.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        color: _kSlate,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ...items.map((item) => _buildChecklistItemRow(context, item, zoneUsers)),
             ],
           ),
         ),
@@ -1598,6 +1955,7 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            menuMaxHeight: 260,
                             initialValue: _selectedOwnerIds[item.key],
                             style: GoogleFonts.outfit(fontSize: 12, color: _kDark),
                             decoration: InputDecoration(
@@ -1669,6 +2027,7 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                         ),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
+                          menuMaxHeight: 260,
                           initialValue: _selectedOwnerIds[item.key],
                           style: GoogleFonts.outfit(fontSize: 12, color: _kDark),
                           decoration: InputDecoration(
@@ -1973,23 +2332,40 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
               ],
               PopupMenuButton<String>(
                 tooltip: 'Select participant',
+                constraints: BoxConstraints(
+                  maxHeight: 260,
+                  minWidth: MediaQuery.of(context).size.width * 0.78,
+                  maxWidth: MediaQuery.of(context).size.width * 0.90,
+                ),
+                elevation: 4,
+                color: Colors.white,
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: const BorderSide(color: Color(0xFFDCE3EC)),
+                ),
                 onSelected: (selectedId) {
-                  if (!kickoff.participants.contains(selectedId)) {
-                    final updated = List<String>.from(kickoff.participants)..add(selectedId);
-                    context.read<TransitionDetailBloc>().add(
-                          UpdateKickoffField(participants: updated),
-                        );
+                  final updated = List<String>.from(kickoff.participants);
+                  if (updated.contains(selectedId)) {
+                    updated.remove(selectedId);
+                  } else {
+                    updated.add(selectedId);
                   }
+                  context.read<TransitionDetailBloc>().add(
+                        UpdateKickoffField(participants: updated),
+                      );
                 },
                 itemBuilder: (context) {
                   return availableUsers.map((u) {
                     final isAlreadySelected = kickoff.participants.contains(u.id);
                     return PopupMenuItem<String>(
                       value: u.id,
+                      height: 38,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       child: Row(
                         children: [
                           Icon(
-                            isAlreadySelected ? Icons.check_box : Icons.check_box_outline_blank,
+                            isAlreadySelected ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
                             size: 18,
                             color: isAlreadySelected ? _kBlue : _kSlate,
                           ),
@@ -2001,8 +2377,9 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                                 fontSize: 13,
                                 fontWeight:
                                     isAlreadySelected ? FontWeight.w600 : FontWeight.w400,
-                                color: _kDark,
+                                color: isAlreadySelected ? _kBlue : _kDark,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
@@ -2048,6 +2425,7 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
     required String label,
     required String currentDate,
     required String subtitle,
+    bool isMandatoryMissing = false,
     required ValueChanged<String> onDateSelected,
     required VoidCallback onClear,
   }) {
@@ -2057,13 +2435,36 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.outfit(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: _kSlate,
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.outfit(
+                fontSize: 12,
+                fontWeight: isMandatoryMissing ? FontWeight.w600 : FontWeight.w500,
+                color: isMandatoryMissing ? const Color(0xFFDC2626) : _kSlate,
+              ),
+            ),
+            if (isMandatoryMissing) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'Required',
+                  style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFDC2626),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 6),
         InkWell(
@@ -2087,19 +2488,30 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _kBorder),
+              border: Border.all(
+                color: isMandatoryMissing ? const Color(0xFFEF4444) : _kBorder,
+                width: isMandatoryMissing ? 1.5 : 1,
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.calendar_today_outlined, size: 16, color: _kBlue),
+                Icon(
+                  Icons.calendar_today_outlined,
+                  size: 16,
+                  color: isMandatoryMissing ? const Color(0xFFDC2626) : _kBlue,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   display,
                   style: GoogleFonts.outfit(
                     fontSize: 13,
                     fontWeight: hasDate ? FontWeight.w600 : FontWeight.w400,
-                    color: hasDate ? _kDark : const Color(0xFF94A3B8),
+                    color: hasDate
+                        ? _kDark
+                        : (isMandatoryMissing
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF94A3B8)),
                   ),
                 ),
                 if (hasDate) ...[
@@ -2116,7 +2528,11 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
         const SizedBox(height: 4),
         Text(
           subtitle,
-          style: GoogleFonts.outfit(fontSize: 11, color: _kSlate),
+          style: GoogleFonts.outfit(
+            fontSize: 11,
+            color: isMandatoryMissing ? const Color(0xFFDC2626) : _kSlate,
+            fontWeight: isMandatoryMissing ? FontWeight.w500 : FontWeight.w400,
+          ),
         ),
       ],
     );

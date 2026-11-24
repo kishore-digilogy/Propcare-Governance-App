@@ -61,7 +61,10 @@ class PlaceholderPageView extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFEFF6FF),
                   borderRadius: BorderRadius.circular(16),
@@ -91,8 +94,8 @@ class PlaceholderPageView extends StatelessWidget {
               Text(
                 parentTitle.isNotEmpty
                     ? (parentTitle.contains(' ')
-                        ? parentTitle
-                        : 'Section under $parentTitle')
+                          ? parentTitle
+                          : 'Section under $parentTitle')
                     : 'This module is currently under development.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.outfit(

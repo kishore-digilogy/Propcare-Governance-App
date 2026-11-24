@@ -68,6 +68,12 @@ abstract class SitesRemoteDataSource {
     required String action,
     required String reason,
   });
+
+  Future<void> updateManpower(
+    String siteId, {
+    required int manpowerRequired,
+    required int manpowerDeployed,
+  });
 }
 
 class SitesRemoteDataSourceImpl implements SitesRemoteDataSource {
@@ -354,6 +360,23 @@ class SitesRemoteDataSourceImpl implements SitesRemoteDataSource {
     final response = await _dio.post(path, data: payload);
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception('Failed to update lifecycle (HTTP ${response.statusCode})');
+    }
+  }
+
+  @override
+  Future<void> updateManpower(
+    String siteId, {
+    required int manpowerRequired,
+    required int manpowerDeployed,
+  }) async {
+    final path = '/sites/$siteId/manpower';
+    final payload = {
+      'manpowerRequired': manpowerRequired,
+      'manpowerDeployed': manpowerDeployed,
+    };
+    final response = await _dio.patch(path, data: payload);
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('Failed to update manpower (HTTP ${response.statusCode})');
     }
   }
 }

@@ -80,6 +80,21 @@ class SaveTransitionActionEvent extends TransitionDetailEvent {
   List<Object?> get props => [siteId, action];
 }
 
+class UpdateManpowerEvent extends TransitionDetailEvent {
+  final String siteId;
+  final int manpowerRequired;
+  final int manpowerDeployed;
+
+  const UpdateManpowerEvent({
+    required this.siteId,
+    required this.manpowerRequired,
+    required this.manpowerDeployed,
+  });
+
+  @override
+  List<Object?> get props => [siteId, manpowerRequired, manpowerDeployed];
+}
+
 class RaiseTransitionIssueEvent extends TransitionDetailEvent {
   final String siteId;
   final String phase;

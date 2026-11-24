@@ -127,6 +127,80 @@ class TransitionSiteInfoModel extends Equatable {
   String get formattedStartDate => TransitionDateHelper.formatDate(contractStartDate);
   String get formattedEndDate => TransitionDateHelper.formatDate(contractEndDate);
 
+  int get computedShortage {
+    if (shortage > 0) return shortage;
+    final diff = manpowerRequired - manpowerDeployed;
+    return diff > 0 ? diff : 0;
+  }
+
+  TransitionSiteInfoModel copyWith({
+    String? id,
+    String? name,
+    String? code,
+    String? clientName,
+    String? clientEmail,
+    String? contactPersonName,
+    String? contactPhone,
+    String? city,
+    String? state,
+    String? zoneName,
+    String? clusterName,
+    String? groupName,
+    String? serviceName,
+    String? billingPm,
+    String? clientType,
+    String? contractAwardDate,
+    String? contractStartDate,
+    String? contractEndDate,
+    String? mode,
+    String? status,
+    int? manpowerRequired,
+    int? manpowerDeployed,
+    int? shortage,
+    String? ldStatus,
+    bool? ldTransitionComplete,
+    String? ldVerifiedAt,
+    String? zonalHead,
+    String? groupClusterHead,
+    String? clusterHead,
+    String? clusterLead,
+    String? fieldExecutive,
+  }) {
+    return TransitionSiteInfoModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      code: code ?? this.code,
+      clientName: clientName ?? this.clientName,
+      clientEmail: clientEmail ?? this.clientEmail,
+      contactPersonName: contactPersonName ?? this.contactPersonName,
+      contactPhone: contactPhone ?? this.contactPhone,
+      city: city ?? this.city,
+      state: state ?? this.state,
+      zoneName: zoneName ?? this.zoneName,
+      clusterName: clusterName ?? this.clusterName,
+      groupName: groupName ?? this.groupName,
+      serviceName: serviceName ?? this.serviceName,
+      billingPm: billingPm ?? this.billingPm,
+      clientType: clientType ?? this.clientType,
+      contractAwardDate: contractAwardDate ?? this.contractAwardDate,
+      contractStartDate: contractStartDate ?? this.contractStartDate,
+      contractEndDate: contractEndDate ?? this.contractEndDate,
+      mode: mode ?? this.mode,
+      status: status ?? this.status,
+      manpowerRequired: manpowerRequired ?? this.manpowerRequired,
+      manpowerDeployed: manpowerDeployed ?? this.manpowerDeployed,
+      shortage: shortage ?? this.shortage,
+      ldStatus: ldStatus ?? this.ldStatus,
+      ldTransitionComplete: ldTransitionComplete ?? this.ldTransitionComplete,
+      ldVerifiedAt: ldVerifiedAt ?? this.ldVerifiedAt,
+      zonalHead: zonalHead ?? this.zonalHead,
+      groupClusterHead: groupClusterHead ?? this.groupClusterHead,
+      clusterHead: clusterHead ?? this.clusterHead,
+      clusterLead: clusterLead ?? this.clusterLead,
+      fieldExecutive: fieldExecutive ?? this.fieldExecutive,
+    );
+  }
+
   @override
   List<Object?> get props => [
         id,
@@ -216,7 +290,7 @@ class TransitionKickoffModel extends Equatable {
     this.withClient = 'NO',
     this.date = '',
     this.participants = const [],
-    this.meeting = '',
+    this.meeting = 'PENDING',
     this.contractAwardDate,
     this.contractStartDate,
     this.contractEndDate,
@@ -243,13 +317,10 @@ class TransitionKickoffModel extends Equatable {
   }
 
   Map<String, dynamic> toJson() => {
-        'withClient': withClient,
+        'withClient': withClient.toUpperCase() == 'YES' ? 'YES' : 'NO',
         'date': date,
         'participants': participants,
-        'meeting': meeting,
-        if (contractAwardDate != null) 'contractAwardDate': contractAwardDate,
-        if (contractStartDate != null) 'contractStartDate': contractStartDate,
-        if (contractEndDate != null) 'contractEndDate': contractEndDate,
+        'meeting': meeting.toUpperCase() == 'COMPLETED' ? 'COMPLETED' : 'PENDING',
       };
 
   factory TransitionKickoffModel.fromJson(Map<String, dynamic> json) {
@@ -261,11 +332,14 @@ class TransitionKickoffModel extends Equatable {
       }
     }
 
+    final rawMeeting = json['meeting']?.toString().toUpperCase() ?? '';
+    final meetingVal = (rawMeeting == 'COMPLETED') ? 'COMPLETED' : 'PENDING';
+
     return TransitionKickoffModel(
-      withClient: json['withClient']?.toString() ?? 'NO',
+      withClient: json['withClient']?.toString().toUpperCase() == 'YES' ? 'YES' : 'NO',
       date: json['date']?.toString() ?? '',
       participants: participantsList,
-      meeting: json['meeting']?.toString() ?? '',
+      meeting: meetingVal,
       contractAwardDate: json['contractAwardDate']?.toString(),
       contractStartDate: json['contractStartDate']?.toString(),
       contractEndDate: json['contractEndDate']?.toString(),
@@ -273,8 +347,7 @@ class TransitionKickoffModel extends Equatable {
   }
 
   bool get isWithClientYes => withClient.toUpperCase() == 'YES';
-  bool get isPreTransitionMeetingYes =>
-      meeting.toUpperCase() == 'COMPLETED' || meeting.toUpperCase() == 'YES';
+  bool get isPreTransitionMeetingYes => meeting.toUpperCase() == 'COMPLETED';
 
   String get formattedDate => TransitionDateHelper.formatDate(date);
 

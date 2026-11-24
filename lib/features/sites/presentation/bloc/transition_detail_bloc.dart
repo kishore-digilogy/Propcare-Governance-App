@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/storage/hive_storage.dart';
@@ -15,6 +16,7 @@ class TransitionDetailBloc extends Bloc<TransitionDetailEvent, TransitionDetailS
     on<UpdateChecklistItemEvent>(_onUpdateChecklistItem);
     on<SaveTransitionActionEvent>(_onSaveTransitionAction);
     on<RaiseTransitionIssueEvent>(_onRaiseTransitionIssue);
+    on<UpdateManpowerEvent>(_onUpdateManpower);
   }
 
   Future<void> _onLoadTransitionDetail(
@@ -151,6 +153,15 @@ class TransitionDetailBloc extends Bloc<TransitionDetailEvent, TransitionDetailS
         return;
       }
 
+      if (current.response.ldPreview.kickoff.isWithClientYes &&
+          current.response.ldPreview.kickoff.date.trim().isEmpty) {
+        emit(current.copyWith(
+          errorMessage: 'Kick-Off Date is mandatory when Kick-Off with Client is Yes.',
+          isSaving: false,
+        ));
+        return;
+      }
+
       emit(current.copyWith(isSaving: true));
 
       try {
@@ -195,9 +206,34 @@ class TransitionDetailBloc extends Bloc<TransitionDetailEvent, TransitionDetailS
           actionMessage: message,
         ));
       } catch (e) {
+        String errorMsg = 'Failed to save transition. Please try again.';
+        if (e is DioException) {
+          final res = e.response;
+          if (res?.data != null) {
+            final data = res!.data;
+            if (data is Map) {
+              if (data['details'] is List && (data['details'] as List).isNotEmpty) {
+                final details = (data['details'] as List)
+                    .map((d) => d is Map ? (d['message'] ?? d.toString()) : d.toString())
+                    .join(', ');
+                errorMsg = details;
+              } else {
+                errorMsg = data['message'] ?? data['error'] ?? data['msg'] ?? errorMsg;
+              }
+            } else if (data is String && data.isNotEmpty) {
+              errorMsg = data;
+            }
+          } else if (res?.statusCode == 422) {
+            errorMsg = 'Validation error: Please ensure all required fields are filled (e.g. Kick-Off Date).';
+          } else if (e.message != null && e.message!.isNotEmpty) {
+            errorMsg = e.message!;
+          }
+        } else if (e is Exception) {
+          errorMsg = e.toString().replaceFirst('Exception: ', '');
+        }
         emit(current.copyWith(
           isSaving: false,
-          errorMessage: e.toString(),
+          errorMessage: errorMsg,
         ));
       }
     }
@@ -242,9 +278,86 @@ class TransitionDetailBloc extends Bloc<TransitionDetailEvent, TransitionDetailS
           actionMessage: 'Issue raised successfully for ${event.key}!',
         ));
       } catch (e) {
+        String errorMsg = 'Failed to save transition. Please try again.';
+        if (e is DioException) {
+          final res = e.response;
+          if (res?.data != null) {
+            final data = res!.data;
+            if (data is Map) {
+              if (data['details'] is List && (data['details'] as List).isNotEmpty) {
+                final details = (data['details'] as List)
+                    .map((d) => d is Map ? (d['message'] ?? d.toString()) : d.toString())
+                    .join(', ');
+                errorMsg = details;
+              } else {
+                errorMsg = data['message'] ?? data['error'] ?? data['msg'] ?? errorMsg;
+              }
+            } else if (data is String && data.isNotEmpty) {
+              errorMsg = data;
+            }
+          } else if (res?.statusCode == 422) {
+            errorMsg = 'Validation error: Please ensure all required fields are filled (e.g. Kick-Off Date).';
+          } else if (e.message != null && e.message!.isNotEmpty) {
+            errorMsg = e.message!;
+          }
+        } else if (e is Exception) {
+          errorMsg = e.toString().replaceFirst('Exception: ', '');
+        }
         emit(current.copyWith(
           isSaving: false,
-          errorMessage: e.toString(),
+          errorMessage: errorMsg,
+        ));
+      }
+    }
+  }
+
+  Future<void> _onUpdateManpower(
+    UpdateManpowerEvent event,
+    Emitter<TransitionDetailState> emit,
+  ) async {
+    if (state is TransitionDetailLoaded) {
+      final current = state as TransitionDetailLoaded;
+      emit(current.copyWith(isSaving: true));
+
+      try {
+        await dataSource.updateManpower(
+          event.siteId,
+          manpowerRequired: event.manpowerRequired,
+          manpowerDeployed: event.manpowerDeployed,
+        );
+
+        final newShortage = (event.manpowerRequired - event.manpowerDeployed).clamp(0, event.manpowerRequired);
+        final updatedSite = current.response.site.copyWith(
+          manpowerRequired: event.manpowerRequired,
+          manpowerDeployed: event.manpowerDeployed,
+          shortage: newShortage,
+        );
+
+        emit(current.copyWith(
+          response: current.response.copyWith(site: updatedSite),
+          isSaving: false,
+          actionMessage: 'Manpower updated successfully',
+        ));
+      } catch (e) {
+        String errorMsg = 'Failed to update manpower. Please try again.';
+        if (e is DioException) {
+          final res = e.response;
+          if (res?.data != null) {
+            final data = res!.data;
+            if (data is Map) {
+              errorMsg = data['message'] ?? data['error'] ?? data['msg'] ?? errorMsg;
+            } else if (data is String && data.isNotEmpty) {
+              errorMsg = data;
+            }
+          } else if (e.message != null && e.message!.isNotEmpty) {
+            errorMsg = e.message!;
+          }
+        } else if (e is Exception) {
+          errorMsg = e.toString().replaceFirst('Exception: ', '');
+        }
+        emit(current.copyWith(
+          isSaving: false,
+          errorMessage: errorMsg,
         ));
       }
     }
