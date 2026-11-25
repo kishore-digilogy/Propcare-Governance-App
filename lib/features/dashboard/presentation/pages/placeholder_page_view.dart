@@ -23,6 +23,16 @@ class PlaceholderPageView extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
+        leading: Navigator.of(context).canPop()
+            ? IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: AppColors.secondary,
+                  size: 20,
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : null,
         title: Text(
           title,
           style: GoogleFonts.outfit(

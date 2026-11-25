@@ -20,7 +20,8 @@ class MomLoading extends MomState {
 
 class MomLoaded extends MomState {
   final MomBySiteModel data;
-  final int selectedTabIndex; // 0 = Pending, 1 = Completed
+  final List<MomActivityModel> allActivities;
+  final int selectedTabIndex; // 0 = All, 1 = Pending, 2 = Completed
   final String searchQuery;
 
   // Selected site and activities
@@ -37,6 +38,7 @@ class MomLoaded extends MomState {
 
   const MomLoaded({
     required this.data,
+    this.allActivities = const [],
     this.selectedTabIndex = 0,
     this.searchQuery = '',
     this.selectedSite,
@@ -49,29 +51,65 @@ class MomLoaded extends MomState {
     this.actionError,
   });
 
-  /// Pending count (from root API response or calculated)
-  int get pendingCount => data.pending > 0
-      ? data.pending
-      : data.items.fold(0, (sum, item) => sum + item.pending);
+  /// Total count across all activities
+  int get allCount => allActivities.isNotEmpty
+      ? allActivities.length
+      : data.items.fold(0, (sum, item) => sum + item.total);
 
-  /// Completed count (from root API response or calculated)
-  int get completedCount => data.completed > 0
-      ? data.completed
-      : data.items.fold(0, (sum, item) => sum + item.completed);
+  /// Pending count (where MOM is pending / not sent)
+  int get pendingCount => allActivities.isNotEmpty
+      ? allActivities.where((a) => a.isPending).length
+      : (data.pending > 0
+          ? data.pending
+          : data.items.fold(0, (sum, item) => sum + item.pending));
 
-  /// Items filtered by the active tab and search query
+  /// Completed count (where MOM is sent)
+  int get completedCount => allActivities.isNotEmpty
+      ? allActivities.where((a) => a.isSent).length
+      : (data.completed > 0
+          ? data.completed
+          : data.items.fold(0, (sum, item) => sum + item.completed));
+
+  /// Site roles available for the selected site
+  List<String> get siteRoles {
+    final roles = <String>{};
+    for (final act in siteActivities) {
+      final r = act.role.isNotEmpty ? act.role : act.roleLabel;
+      if (r.isNotEmpty) roles.add(r);
+    }
+    return roles.toList();
+  }
+
+  /// Filtered activities list for the main table (Image 9)
+  List<MomActivityModel> get filteredActivities {
+    final query = searchQuery.trim().toLowerCase();
+
+    return allActivities.where((act) {
+      // 1. Tab filter: 0 = All, 1 = Pending, 2 = Completed
+      if (selectedTabIndex == 1 && !act.isPending) return false;
+      if (selectedTabIndex == 2 && !act.isSent) return false;
+
+      // 2. Search query filter
+      if (query.isEmpty) return true;
+
+      return act.siteName.toLowerCase().contains(query) ||
+          act.siteCode.toLowerCase().contains(query) ||
+          act.title.toLowerCase().contains(query) ||
+          act.role.toLowerCase().contains(query) ||
+          act.roleLabel.toLowerCase().contains(query) ||
+          act.clusterName.toLowerCase().contains(query) ||
+          act.zoneName.toLowerCase().contains(query);
+    }).toList();
+  }
+
+  /// Filtered sites list fallback if activities aren't loaded individually
   List<MomSiteItemModel> get filteredItems {
     final query = searchQuery.trim().toLowerCase();
 
     return data.items.where((item) {
-      // 1. Tab filter
-      final matchesTab = selectedTabIndex == 0
-          ? item.pending > 0
-          : item.completed > 0;
+      if (selectedTabIndex == 1 && item.pending <= 0) return false;
+      if (selectedTabIndex == 2 && item.completed <= 0) return false;
 
-      if (!matchesTab) return false;
-
-      // 2. Search query filter
       if (query.isEmpty) return true;
 
       return item.siteName.toLowerCase().contains(query) ||
@@ -82,17 +120,19 @@ class MomLoaded extends MomState {
     }).toList();
   }
 
-  /// Site activities filtered by current tab (Pending vs Completed)
+  /// Site activities filtered by current tab (or all for the site)
   List<MomActivityModel> get currentTabActivities {
-    if (selectedTabIndex == 0) {
+    if (selectedTabIndex == 1) {
       return siteActivities.where((a) => a.isPending).toList();
-    } else {
+    } else if (selectedTabIndex == 2) {
       return siteActivities.where((a) => a.isSent).toList();
     }
+    return siteActivities;
   }
 
   MomLoaded copyWith({
     MomBySiteModel? data,
+    List<MomActivityModel>? allActivities,
     int? selectedTabIndex,
     String? searchQuery,
     MomSiteItemModel? Function()? selectedSite,
@@ -106,6 +146,7 @@ class MomLoaded extends MomState {
   }) {
     return MomLoaded(
       data: data ?? this.data,
+      allActivities: allActivities ?? this.allActivities,
       selectedTabIndex: selectedTabIndex ?? this.selectedTabIndex,
       searchQuery: searchQuery ?? this.searchQuery,
       selectedSite:
@@ -127,6 +168,7 @@ class MomLoaded extends MomState {
   @override
   List<Object?> get props => [
         data,
+        allActivities,
         selectedTabIndex,
         searchQuery,
         selectedSite,

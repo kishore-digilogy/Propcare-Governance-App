@@ -139,6 +139,15 @@ class MockRrRemoteDataSource implements ActivitiesRemoteDataSource {
   Future<bool> saveChecklistAnswers({required String activityId, required List<Map<String, dynamic>> answers}) async {
     return true;
   }
+
+  @override
+  Future<ActivityItemDetailModel> updateMomPointStatus({
+    required String activityId,
+    required String pointId,
+    required String status,
+  }) async {
+    throw UnimplementedError();
+  }
 }
 
 void main() {

@@ -96,10 +96,14 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
     if (itemIndex == 0) {
       setState(() => _activePageIndex = 0);
     } else if (itemIndex == 1) {
-      setState(() {
-        _menuState = NavMenuState.sites;
-        _activePageIndex = 1;
-      });
+      if (isLd) {
+        setState(() => _activePageIndex = 1);
+      } else {
+        setState(() {
+          _menuState = NavMenuState.sites;
+          _activePageIndex = 1;
+        });
+      }
     } else if (itemIndex == 2) {
       if (isLd) {
         setState(() => _activePageIndex = 4); // Transition
@@ -143,7 +147,7 @@ class _AppShellState extends State<AppShell> with SingleTickerProviderStateMixin
             NavItemData(
               label: 'Sites',
               icon: Icons.apartment_rounded,
-              isSelected: _activePageIndex >= 1 && _activePageIndex <= 5,
+              isSelected: _activePageIndex == 1,
               onTap: () => _onSelectMainItem(1),
             ),
             NavItemData(

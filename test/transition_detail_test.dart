@@ -96,6 +96,13 @@ class MockTransitionDetailRemoteDataSource implements SitesRemoteDataSource {
     required String action,
     required String reason,
   }) async {}
+
+  @override
+  Future<void> updateManpower(
+    String siteId, {
+    required int manpowerRequired,
+    required int manpowerDeployed,
+  }) async {}
 }
 
 void main() {

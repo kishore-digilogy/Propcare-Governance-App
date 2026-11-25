@@ -203,3 +203,18 @@ class SendActivityMomEmail extends ActivitiesEvent {
   List<Object?> get props => [activityId, payload];
 }
 
+class UpdateMomPointStatus extends ActivitiesEvent {
+  final String activityId;
+  final String pointId;
+  final String status;
+
+  const UpdateMomPointStatus({
+    required this.activityId,
+    required this.pointId,
+    required this.status,
+  });
+
+  @override
+  List<Object?> get props => [activityId, pointId, status];
+}
+

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../errors/error_handler.dart';
+
 enum SnackBarType { success, error, warning, info }
 
 /// Modern, adaptive floating SnackBar / Toast system for PropCare Governance.
@@ -36,10 +38,11 @@ class AppSnackBar {
     VoidCallback? onAction,
     String? actionLabel,
   }) {
+    final parsed = AppErrorHandler.parse(message, defaultTitle: title ?? 'Notice');
     show(
       context,
-      message: message,
-      title: title ?? 'Notice',
+      message: parsed.message,
+      title: title ?? parsed.title,
       type: SnackBarType.error,
       duration: duration,
       onAction: onAction,

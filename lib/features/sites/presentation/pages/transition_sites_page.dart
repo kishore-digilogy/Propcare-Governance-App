@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../data/datasources/sites_remote_datasource.dart';
 import '../../data/models/site_model.dart';
 import '../../../../core/widgets/app_shimmer.dart';
+import '../../../../core/widgets/app_error_view.dart';
 import '../bloc/transition_bloc.dart';
 import '../bloc/transition_event.dart';
 import '../bloc/transition_state.dart';
@@ -835,39 +836,12 @@ class _TransitionSitesViewState extends State<_TransitionSitesView> {
   }
 
   Widget _buildErrorView(BuildContext context, String message) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFEF4444)),
-            const SizedBox(height: 12),
-            Text(
-              'Failed to load transition sites',
-              style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.outfit(fontSize: 12, color: _kSlate),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                context.read<TransitionBloc>().add(const LoadTransitionSites());
-              },
-              icon: const Icon(Icons.refresh_rounded, size: 16),
-              label: const Text('Retry'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _kBlue,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return AppErrorView(
+      error: message,
+      customTitle: 'Failed to Load Transition Sites',
+      onRetry: () {
+        context.read<TransitionBloc>().add(const LoadTransitionSites());
+      },
     );
   }
 }

@@ -8,6 +8,8 @@ import '../../../../core/services/meta_service.dart';
 import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/widgets/custom_dropdown_button2.dart';
 import '../../../../core/widgets/app_shimmer.dart';
+import '../../../../core/widgets/app_error_view.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../data/datasources/activities_remote_datasource.dart';
 import '../../data/models/activity_site_summary_model.dart';
 import '../../data/models/site_activity_item_model.dart';
@@ -84,20 +86,14 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
           listener: (context, state) {
             if (state is ActivitiesLoaded) {
               if (state.actionSuccessMessage != null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(state.actionSuccessMessage!),
-                    backgroundColor: const Color(0xFF16A34A),
-                    behavior: SnackBarBehavior.floating,
-                  ),
+                AppSnackBar.success(
+                  context,
+                  message: state.actionSuccessMessage!,
                 );
               } else if (state.actionErrorMessage != null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(state.actionErrorMessage!),
-                    backgroundColor: const Color(0xFFDC2626),
-                    behavior: SnackBarBehavior.floating,
-                  ),
+                AppSnackBar.error(
+                  context,
+                  message: state.actionErrorMessage!,
                 );
               }
             }
@@ -108,48 +104,15 @@ class _ActivitiesPageState extends State<ActivitiesPage> {
             }
 
             if (state is ActivitiesError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.error_outline_rounded, size: 48, color: Color(0xFFDC2626)),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Failed to load activities',
-                        style: GoogleFonts.outfit(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF1E293B),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        state.message,
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.outfit(fontSize: 13, color: const Color(0xFF64748B)),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          _bloc.add(LoadActivitiesBySite(
-                            view: widget.isTeam ? 'below' : 'mine',
-                            isRefresh: true,
-                          ));
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: Text(
-                          'Retry',
-                          style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+              return AppErrorView(
+                error: state.message,
+                customTitle: 'Failed to Load Activities',
+                onRetry: () {
+                  _bloc.add(LoadActivitiesBySite(
+                    view: widget.isTeam ? 'below' : 'mine',
+                    isRefresh: true,
+                  ));
+                },
               );
             }
 

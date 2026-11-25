@@ -74,6 +74,15 @@ class MockActivitiesRemoteDataSource implements ActivitiesRemoteDataSource {
   });
 
   @override
+  Future<ActivityItemDetailModel> updateMomPointStatus({
+    required String activityId,
+    required String pointId,
+    required String status,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<ActivitiesBySiteResponseModel> getActivitiesBySite({
     required String view,
     String? zoneId,
@@ -268,6 +277,15 @@ class DelayActivitiesRemoteDataSource implements ActivitiesRemoteDataSource {
   @override
   Future<bool> saveChecklistAnswers({required String activityId, required List<Map<String, dynamic>> answers}) async {
     return true;
+  }
+
+  @override
+  Future<ActivityItemDetailModel> updateMomPointStatus({
+    required String activityId,
+    required String pointId,
+    required String status,
+  }) async {
+    throw UnimplementedError();
   }
 }
 
@@ -803,41 +821,40 @@ void main() {
 
       // ActivityExecutionView should now be visible
       expect(find.text('Activities > ACT-09006'), findsOneWidget);
-      expect(find.text('Visit details'), findsWidgets);
-      expect(find.text('MOM'), findsWidgets);
-      expect(find.text('Activity master'), findsOneWidget);
-      expect(find.text('Execution flow'), findsOneWidget);
+      expect(find.textContaining('Visit Details'), findsWidgets);
+      expect(find.textContaining('MOM'), findsWidgets);
+      expect(find.text('Activity Master'), findsOneWidget);
+      expect(find.text('Execution Flow'), findsOneWidget);
 
       // Submit visit
-      expect(find.text('Submit visit'), findsWidgets);
-      await tester.tap(find.text('Submit visit').first);
+      expect(find.text('Complete → Send MOM'), findsWidgets);
+      await tester.tap(find.text('Complete → Send MOM').first);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Complete → Send MOM'));
+      await tester.tap(find.text('Complete → Send MOM').last);
       await tester.pumpAndSettle();
 
       // After visit is completed, auto-advances to Step 2: MOM & Email
       expect(find.text('2. MOM & Email'), findsOneWidget);
       expect(find.text('Send MOM'), findsWidgets);
       expect(find.text('prem@gmail.com'), findsWidgets);
-      expect(find.text('MAJOR POINTS'), findsOneWidget);
+      expect(find.text('POINTS DISCUSSED'), findsOneWidget);
 
       // Tap on Step 1 in stepper to verify disabled fields & visit completed status
-      await tester.tap(find.text('Visit details').first);
+      await tester.tap(find.textContaining('Checklist').first);
       await tester.pumpAndSettle();
 
-      expect(find.text('Visit completed'), findsOneWidget);
+      expect(find.textContaining('Visit Details'), findsWidgets);
       expect(find.byIcon(Icons.check), findsWidgets);
 
       // Return to Step 2 MOM and send MOM
-      await tester.tap(find.text('MOM').first);
+      await tester.tap(find.textContaining('MOM').first);
       await tester.pumpAndSettle();
 
       expect(find.text('Send MOM'), findsWidgets);
       await tester.tap(find.text('Send MOM').first);
       await tester.pumpAndSettle();
 
-      // Should show MOM saved green pill and Sent badge
-      expect(find.text('MOM saved'), findsOneWidget);
+      // Automatically transitions to Action Points tab on MOM send, showing Sent badge & Completed metrics
       expect(find.text('Sent'), findsOneWidget);
       expect(find.text('Completed'), findsWidgets);
 
@@ -892,8 +909,8 @@ void main() {
       FlutterError.onError = oldOnError;
 
       expect(find.text('Activities > ACT-09006'), findsOneWidget);
-      expect(find.text('Save draft'), findsOneWidget);
-      expect(find.text('Submit visit'), findsWidgets);
+      expect(find.text('Save Draft'), findsWidgets);
+      expect(find.text('Complete → Send MOM'), findsWidgets);
       expect(caughtDetails, isNull);
 
       // Tapping step 2 without submitting visit details blocks navigation
@@ -901,8 +918,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Please submit visit details first before proceeding to MOM.'), findsOneWidget);
 
-      // Tapping 'Submit visit' opens the confirmation dialog
-      await tester.tap(find.text('Submit visit').first);
+      // Tapping 'Complete → Send MOM' opens the confirmation dialog
+      await tester.tap(find.text('Complete → Send MOM').first);
       await tester.pumpAndSettle();
 
       expect(find.text('Submit Visit'), findsOneWidget);
@@ -910,10 +927,10 @@ void main() {
         find.text('After Submit You Will Move To MOM & Email To Send The Client Communication.'),
         findsOneWidget,
       );
-      expect(find.text('Complete → Send MOM'), findsOneWidget);
+      expect(find.text('Complete → Send MOM'), findsWidgets);
 
-      // Tapping Complete -> Send MOM submits and transitions
-      await tester.tap(find.text('Complete → Send MOM'));
+      // Tapping Complete -> Send MOM in dialog submits and transitions
+      await tester.tap(find.text('Complete → Send MOM').last);
       await tester.pumpAndSettle();
 
       expect(find.text('Submit Visit'), findsNothing);

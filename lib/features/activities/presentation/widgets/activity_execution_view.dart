@@ -1,23 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../../core/services/user_service.dart';
 import '../../data/models/activity_detail_model.dart';
 import '../bloc/activities_bloc.dart';
 import '../bloc/activities_event.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 
 // ── Blue & White Brand Color System ──────────────────────────────────────────
-const Color _kHeaderDarkBlue = Color(0xFF0A1931); // deep navy
-const Color _kHeaderMidBlue = Color(0xFF1B3A6B); // rich navy-blue
-const Color _kPrimaryBlue = Color(0xFF1769E8); // primary brand blue
-const Color _kPrimaryDarkBlue = Color(0xFF1557B0); // pressed/hover blue
 const Color _kLightBlue = Color(0xFFEDF4FF); // soft blue tint
 const Color _kBorderBlue = Color(0xFFDCE3EC); // light blue border
 const Color _kTextDarkBlue = Color(0xFF1769E8); // dark blue text
 const Color _kBg = Color(0xFFF5F7FA); // Modern minimal light grey bg
-const Color _kCardBorder = Color(0xFFDCE3EC);
 const Color _kTextDark = Color(0xFF17243A);
-const Color _kTextSlate = Color(0xFF718096);
 
 // Modern Minimal – Professional Blue Palette
 const Color _kPrimary = Color(0xFF1769E8);
@@ -25,6 +19,15 @@ const Color _kTextPrimary = Color(0xFF17243A);
 const Color _kTextSecondary = Color(0xFF718096);
 const Color _kBorderColor = Color(0xFFDCE3EC);
 const Color _kLightBlueBg = Color(0xFFEDF4FF);
+
+const List<String> _kDepartments = [
+  'Operations',
+  'HR',
+  'EHS',
+  'L&D',
+  'Technical',
+  'Sales',
+];
 
 class ActivityExecutionView extends StatefulWidget {
   final ActivityDetailModel activityDetail;
@@ -47,16 +50,22 @@ class ActivityExecutionView extends StatefulWidget {
 }
 
 class _ActivityExecutionViewState extends State<ActivityExecutionView> {
-  int _currentStep = 0; // 0: Visit details, 1: MOM
-  bool _isMasterExpanded = true;
+  int _currentStep = 0; // 0: Walk Around Checklist & Visit details, 1: MOM
+  int _momSubTab = 0; // 0: MOM, 1: Action Points
+  bool _hasAttemptedSubmit = false;
 
-  // Step 1: Visit details state
+  // Step 1: Visit details & Checklist state
   late DateTime _visitDate;
   bool? _clientMet;
   late final TextEditingController _visitNoteController;
+  final Map<String, String> _checklistStatus = {}; // key -> 'OK' | 'ISSUE' | 'NA'
+  final Map<String, TextEditingController> _remarksControllers = {}; // key -> TextEditingController
 
   // Step 2: MOM & Email state
   late final TextEditingController _subjectController;
+  late final TextEditingController _bodyController;
+  late final TextEditingController _meetingAttendeesController;
+  late final TextEditingController _clientAttendeesController;
   late final TextEditingController _closingController;
   late final TextEditingController _addToController;
   late final TextEditingController _addCcController;
@@ -81,6 +90,7 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
 
     // Default to Step 1 unless already completed
     _currentStep = act.isCompleted ? 1 : 0;
+    _momSubTab = act.isMomSent ? 1 : 0;
 
     // Visit date parsing
     if (act.visitDate != null && act.visitDate!.isNotEmpty) {
@@ -100,6 +110,33 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
     _visitNoteController.addListener(() {
       setState(() {});
     });
+
+    // Populate checklist status & remarks
+    _checklistStatus.clear();
+    for (final c in _remarksControllers.values) {
+      c.dispose();
+    }
+    _remarksControllers.clear();
+
+    final answersMap = {for (final a in act.answers) a.key: a};
+    for (final item in act.template) {
+      final existingAns = answersMap[item.key];
+      if (existingAns != null && existingAns.status.isNotEmpty) {
+        _checklistStatus[item.key] = existingAns.status;
+        final ctrl = TextEditingController(text: existingAns.remarks);
+        ctrl.addListener(() {
+          if (mounted) setState(() {});
+        });
+        _remarksControllers[item.key] = ctrl;
+      } else {
+        _checklistStatus[item.key] = 'OK'; // default to OK ('Yes')
+        final ctrl = TextEditingController(text: '');
+        ctrl.addListener(() {
+          if (mounted) setState(() {});
+        });
+        _remarksControllers[item.key] = ctrl;
+      }
+    }
 
     // Step 2: MOM data
     final mom = act.mom;
@@ -126,8 +163,17 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
     final formattedDate = _formatDateShort(_visitDate);
     final defaultSubject = mom['subject']?.toString().isNotEmpty == true
         ? mom['subject'].toString()
-        : 'Site walkaround MOM — ${site.name} — $formattedDate';
+        : 'Site walkaround MOM - ${site.name} - $formattedDate';
     _subjectController = TextEditingController(text: defaultSubject);
+
+    // Body & Attendees
+    _bodyController = TextEditingController(text: mom['body']?.toString() ?? '');
+    _meetingAttendeesController = TextEditingController(
+      text: mom['meetingAttendees']?.toString() ?? '',
+    );
+    _clientAttendeesController = TextEditingController(
+      text: mom['clientAttendees']?.toString() ?? '',
+    );
 
     // Points
     _points = [];
@@ -136,9 +182,19 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
         if (p is Map) {
           _points.add({
             'point': p['point']?.toString() ?? '',
+            'department': p['department']?.toString() ?? 'Operations',
             'targetDate': p['targetDate']?.toString() ?? '',
           });
         }
+      }
+    }
+    if (_points.isEmpty && act.momPoints.isNotEmpty) {
+      for (final mp in act.momPoints) {
+        _points.add({
+          'point': mp.point,
+          'department': mp.department.isNotEmpty ? mp.department : 'Operations',
+          'targetDate': mp.targetDate,
+        });
       }
     }
 
@@ -155,15 +211,31 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
   @override
   void didUpdateWidget(covariant ActivityExecutionView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.activityDetail.activity.status !=
-            widget.activityDetail.activity.status ||
-        oldWidget.activityDetail.activity.isCompleted !=
-            widget.activityDetail.activity.isCompleted) {
-      if (widget.activityDetail.activity.isCompleted &&
-          !oldWidget.activityDetail.activity.isCompleted) {
+    final oldAct = oldWidget.activityDetail.activity;
+    final newAct = widget.activityDetail.activity;
+
+    if (oldAct.status != newAct.status ||
+        oldAct.isCompleted != newAct.isCompleted ||
+        oldAct.isMomSent != newAct.isMomSent ||
+        oldAct.momPoints != newAct.momPoints) {
+      if (newAct.isCompleted && !oldAct.isCompleted) {
         setState(() {
-          _currentStep = 1; // Auto advance to MOM step upon completion
+          _currentStep = 1;
         });
+      }
+      if (newAct.isMomSent && !oldAct.isMomSent) {
+        setState(() {
+          _momSubTab = 1;
+        });
+      }
+      if (newAct.momPoints.isNotEmpty && _points.isEmpty) {
+        for (final mp in newAct.momPoints) {
+          _points.add({
+            'point': mp.point,
+            'department': mp.department.isNotEmpty ? mp.department : 'Operations',
+            'targetDate': mp.targetDate,
+          });
+        }
       }
     }
   }
@@ -171,7 +243,13 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
   @override
   void dispose() {
     _visitNoteController.dispose();
+    for (final c in _remarksControllers.values) {
+      c.dispose();
+    }
     _subjectController.dispose();
+    _bodyController.dispose();
+    _meetingAttendeesController.dispose();
+    _clientAttendeesController.dispose();
     _closingController.dispose();
     _addToController.dispose();
     _addCcController.dispose();
@@ -212,7 +290,7 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
       'Dec',
     ];
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return '${d.day} ${months[d.month - 1]} ${d.year}, ${days[d.weekday - 1]}';
+    return '${d.day} ${months[d.month - 1]} ${d.year} ${days[d.weekday - 1].toUpperCase()}';
   }
 
   @override
@@ -230,7 +308,7 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
           color: _kBg,
           child: Stack(
             children: [
-              // Bottom-right organic subtle blue decorative accent
+              // Bottom-right subtle accent
               Positioned(
                 right: 0,
                 bottom: 0,
@@ -245,16 +323,15 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // ── Top Header with App Logo & Blue-White Wave ───────────
+                    // Top Header
                     _buildHeader(act, site, isTablet),
 
-                    // ── Body Content Container ────────────────────────────────
                     Center(
                       child: ConstrainedBox(
                         constraints: BoxConstraints(
                           maxWidth: isDesktop
-                              ? 1160
-                              : (isTablet ? 780 : double.infinity),
+                              ? 1180
+                              : (isTablet ? 820 : double.infinity),
                         ),
                         child: Padding(
                           padding: EdgeInsets.symmetric(
@@ -264,17 +341,17 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // ── Two-Step Horizontal Stepper Bar ──────────────
+                              // Stepper (Walk Around Checklist ────── MOM)
                               _buildStepper(act, isTablet),
-                              const SizedBox(height: 16),
+                              const SizedBox(height: 18),
 
-                              // ── Main Content: 2-column on desktop, 1-column on mobile/tablet ──
+                              // Main Form Area
                               if (isDesktop) ...[
                                 Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Expanded(
-                                      flex: 62,
+                                      flex: 64,
                                       child: _buildActiveStepForm(
                                         act,
                                         site,
@@ -283,7 +360,7 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                                     ),
                                     const SizedBox(width: 20),
                                     Expanded(
-                                      flex: 38,
+                                      flex: 36,
                                       child: _buildSidebarCards(
                                         act,
                                         site,
@@ -319,7 +396,7 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
     );
   }
 
-  // ── Top Header with App Logo, Back Breadcrumb, Title & Blue Curves ──────────
+  // ── Header: Modern, Adaptive & Touch-Optimized ────────────────────────────
   Widget _buildHeader(
     ActivityItemDetailModel act,
     ActivitySiteDetailModel site,
@@ -327,434 +404,510 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
   ) {
     final isAllCompleted = act.isMomSent || act.status == 'CLOSED';
 
-    String primaryBtnText = '';
-    VoidCallback? onPrimaryPressed;
-    bool isPrimaryLoading = false;
-
-    if (!act.isCompleted) {
-      primaryBtnText = 'Submit visit';
-      isPrimaryLoading = widget.isSubmittingVisit;
-      onPrimaryPressed = widget.isSubmittingVisit ? null : _submitVisit;
-    } else if (!act.isMomSent) {
-      if (_currentStep == 0) {
-        primaryBtnText = 'Proceed to MOM →';
-        onPrimaryPressed = () => setState(() => _currentStep = 1);
-      } else {
-        primaryBtnText = 'Send MOM';
-        isPrimaryLoading = widget.isSendingMom;
-        onPrimaryPressed = widget.isSendingMom ? null : _sendMom;
-      }
-    }
-
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [_kHeaderDarkBlue, _kHeaderMidBlue],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+      color: Colors.white,
+      padding: EdgeInsets.fromLTRB(
+        isTablet ? 32 : 16,
+        14,
+        isTablet ? 32 : 16,
+        16,
       ),
-      child: Stack(
-        children: [
-          // Curved blue-white translucent wave overlay on right
-          Positioned(
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: isTablet ? 360 : 220,
-            child: IgnorePointer(
-              child: CustomPaint(painter: _TopHeaderWavePainter()),
-            ),
-          ),
-
-          // Header Content
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                isTablet ? 32 : 16,
-                12,
-                isTablet ? 32 : 16,
-                24,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Row: Back button + Breadcrumb (Left) & App Logo (Right)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.center,
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Navigation Bar: Back button on Left, Status Badge on Right
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Back & Breadcrumb
+                Expanded(
+                  child: Row(
                     children: [
-                      // Back Pill & Breadcrumb
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          InkWell(
-                            onTap: widget.onBack,
-                            borderRadius: BorderRadius.circular(24),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
+                      InkWell(
+                        onTap: widget.onBack,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.arrow_back_rounded,
+                                size: 15,
+                                color: _kPrimary,
                               ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.28),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Back',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: _kPrimary,
                                 ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.arrow_back_rounded,
-                                    size: 16,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Back',
-                                    style: GoogleFonts.outfit(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                            ],
                           ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Activities > ${act.code}',
-                            style: GoogleFonts.outfit(
-                              fontSize: isTablet ? 13.5 : 12,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white.withValues(alpha: 0.9),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-
-                      // App Logo in top right
-                      Image.asset(
-                        'assets/icons/gov_icon_white.png',
-                        height: isTablet ? 36 : 28,
-                        fit: BoxFit.contain,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Activities > ${act.code}',
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.outfit(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w500,
+                            color: _kTextSecondary,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 18),
+                ),
+                const SizedBox(width: 8),
 
-                  // Title: e.g. "Field Executive Visit"
-                  Text(
-                    act.title,
-                    style: GoogleFonts.outfit(
-                      fontSize: isTablet ? 26 : 22,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-
-                  // Subtitle: "Mobile Testing · ACT-1016C · Weekly · SPOC Ramajayam"
-                  Text(
-                    '${site.name} · ${act.code} · ${act.frequencyLabel} · SPOC ${act.assignedToName ?? "Unassigned"}',
-                    style: GoogleFonts.outfit(
-                      fontSize: isTablet ? 13.5 : 12,
-                      color: Colors.white.withValues(alpha: 0.8),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Action Buttons Row: [📋 Save Draft] [✈ Submit Visit / Send MOM]
-                  if (!isAllCompleted)
-                    Row(
-                      children: [
-                        // Save Draft Button
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Draft saved locally'),
-                                ),
-                              );
-                            },
-                            icon: const Icon(
-                              Icons.description_outlined,
-                              size: 16,
-                              color: Colors.white,
+                // Top Right: Actions on Desktop/Tablet, Status Pill on Mobile
+                if (isTablet)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!isAllCompleted) ...[
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Draft saved locally'),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.bookmark_border_rounded, size: 15),
+                          label: Text(
+                            'Save Draft',
+                            style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
                             ),
-                            label: Text(
-                              'Save draft',
-                              style: GoogleFonts.outfit(
-                                fontSize: isTablet ? 13.5 : 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFCBD5E1)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
                             ),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.65),
-                              ),
-                              padding: EdgeInsets.symmetric(
-                                vertical: isTablet ? 13 : 11,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              backgroundColor: Colors.white.withValues(
-                                alpha: 0.08,
-                              ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-
-                        // Primary Action Button (Solid White Button with Blue Text)
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: onPrimaryPressed,
-                            icon: isPrimaryLoading
-                                ? const SizedBox.shrink()
-                                : const Icon(
-                                    Icons.near_me_rounded,
-                                    size: 16,
-                                    color: _kHeaderDarkBlue,
+                        const SizedBox(width: 10),
+                      ],
+                      if (_currentStep == 0 && !act.isCompleted)
+                        ElevatedButton.icon(
+                          onPressed: widget.isSubmittingVisit ? null : _submitVisit,
+                          icon: widget.isSubmittingVisit
+                              ? const SizedBox.shrink()
+                              : const Icon(Icons.arrow_forward_rounded, size: 15),
+                          label: widget.isSubmittingVisit
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
                                   ),
-                            label: isPrimaryLoading
+                                )
+                              : Text(
+                                  'Complete → Send MOM',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _kPrimary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        )
+                      else if (_currentStep == 1 && !act.isMomSent)
+                        ElevatedButton.icon(
+                          onPressed: widget.isSendingMom ? null : _sendMom,
+                          icon: widget.isSendingMom
+                              ? const SizedBox.shrink()
+                              : const Icon(Icons.send_rounded, size: 15),
+                          label: widget.isSendingMom
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  'Send MOM',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _kPrimary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                    ],
+                  )
+                else
+                  // Mobile Status Pill
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isAllCompleted
+                          ? const Color(0xFFDCFCE7)
+                          : (act.isCompleted ? _kLightBlueBg : const Color(0xFFFEF3C7)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      isAllCompleted
+                          ? 'Completed'
+                          : (act.isCompleted ? 'MOM Pending' : 'Assigned'),
+                      style: GoogleFonts.outfit(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: isAllCompleted
+                            ? const Color(0xFF16A34A)
+                            : (act.isCompleted ? _kPrimary : const Color(0xFFD97706)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+
+            // Title & Role Badge
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    act.title,
+                    style: GoogleFonts.outfit(
+                      fontSize: isTablet ? 23 : 19,
+                      fontWeight: FontWeight.w700,
+                      color: _kTextPrimary,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEF2FF),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFC7D2FE)),
+                  ),
+                  child: Text(
+                    act.roleLabel,
+                    style: GoogleFonts.outfit(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF4F46E5),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Metadata Chips Wrap
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                _buildHeaderMetaChip(Icons.business_outlined, site.name),
+                _buildHeaderMetaChip(Icons.confirmation_number_outlined, act.code),
+                _buildHeaderMetaChip(Icons.repeat_rounded, act.frequencyLabel),
+                _buildHeaderMetaChip(
+                  Icons.person_outline_rounded,
+                  'SPOC ${act.assignedToName ?? "Unassigned"}',
+                ),
+              ],
+            ),
+
+            // Mobile-Optimized Action Buttons Row (Placed cleanly below metadata on mobile)
+            if (!isTablet && !isAllCompleted) ...[
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Draft saved locally'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        'Save Draft',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: _kTextPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 6,
+                    child: _currentStep == 0 && !act.isCompleted
+                        ? ElevatedButton(
+                            onPressed: widget.isSubmittingVisit ? null : _submitVisit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _kPrimary,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: widget.isSubmittingVisit
                                 ? const SizedBox(
                                     width: 16,
                                     height: 16,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      color: _kHeaderDarkBlue,
+                                      color: Colors.white,
                                     ),
                                   )
                                 : Text(
-                                    primaryBtnText,
+                                    'Complete → Send MOM',
                                     style: GoogleFonts.outfit(
-                                      fontSize: isTablet ? 13.5 : 12.5,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w700,
-                                      color: _kHeaderDarkBlue,
+                                      color: Colors.white,
                                     ),
                                   ),
+                          )
+                        : ElevatedButton(
+                            onPressed: widget.isSendingMom ? null : _sendMom,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
+                              backgroundColor: _kPrimary,
+                              foregroundColor: Colors.white,
                               elevation: 0,
-                              padding: EdgeInsets.symmetric(
-                                vertical: isTablet ? 13 : 11,
-                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                             ),
+                            child: widget.isSendingMom
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(
+                                    'Send MOM',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
                           ),
-                        ),
-                      ],
-                    ),
+                  ),
                 ],
               ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderMetaChip(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12.5, color: _kTextSecondary),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: GoogleFonts.outfit(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w500,
+              color: _kTextPrimary,
             ),
           ),
         ],
       ),
     );
   }
-
-  // ── Two-Step Horizontal Stepper Bar (Legacy stub kept for compatibility) ──
+  // ── Stepper matching Image 1 & 2 ──────────────────────────────────────────
   Widget _buildStepper(ActivityItemDetailModel act, bool isTablet) {
-    return const SizedBox.shrink();
-  }
+    final step1Done = act.isCompleted;
+    final step2Done = act.isMomSent;
 
-  // ── Card Stepper embedded inside Visit Report / MOM Card ────────────────────
-  Widget _buildCardStepper(ActivityItemDetailModel act, bool isTablet) {
-    final step1Completed = act.isCompleted;
-    final step2Completed = act.isMomSent;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Top Row: "Visit report" title + "Step 1 of 2" pill badge
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Visit report',
-              style: GoogleFonts.outfit(
-                fontSize: isTablet ? 17 : 15.5,
-                fontWeight: FontWeight.w700,
-                color: _kTextPrimary,
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: _kLightBlueBg,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                _currentStep == 0 ? 'Step 1 of 2' : 'Step 2 of 2',
-                style: GoogleFonts.outfit(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: _kPrimary,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-
-        // Stepper Progress Row: (1) Visit details ───── (2) MOM
-        Row(
-          children: [
-            // Step 1: Visit details
-            InkWell(
-              onTap: () => setState(() => _currentStep = 0),
-              borderRadius: BorderRadius.circular(20),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: step1Completed
-                          ? const Color(0xFF16A34A)
-                          : (_currentStep == 0
-                                ? _kPrimary
-                                : const Color(0xFFE2E8F0)),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: step1Completed
-                          ? const Icon(
-                              Icons.check,
-                              size: 16,
-                              color: Colors.white,
-                            )
-                          : Text(
-                              '1',
-                              style: GoogleFonts.outfit(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: _currentStep == 0
-                                    ? Colors.white
-                                    : _kTextSecondary,
-                              ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kBorderColor),
+      ),
+      child: Row(
+        children: [
+          // Step 1: Walk Around Checklist
+          InkWell(
+            onTap: () {
+              setState(() => _currentStep = 0);
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: step1Done
+                        ? const Color(0xFF16A34A)
+                        : (_currentStep == 0 ? _kPrimary : const Color(0xFFE2E8F0)),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: step1Done
+                        ? const Icon(Icons.check, size: 16, color: Colors.white)
+                        : Text(
+                            '1',
+                            style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: _currentStep == 0 ? Colors.white : _kTextSecondary,
                             ),
-                    ),
+                          ),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Visit details',
-                    style: GoogleFonts.outfit(
-                      fontSize: isTablet ? 13.5 : 12.5,
-                      fontWeight: (_currentStep == 0 || step1Completed)
-                          ? FontWeight.w600
-                          : FontWeight.w500,
-                      color: (_currentStep == 0 || step1Completed)
-                          ? _kTextPrimary
-                          : _kTextSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Thin connecting progress line
-            Expanded(
-              child: Container(
-                height: 2,
-                margin: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: step1Completed
-                      ? const Color(0xFF16A34A)
-                      : _kBorderColor,
-                  borderRadius: BorderRadius.circular(1),
                 ),
-              ),
+                const SizedBox(width: 10),
+                Text(
+                  isTablet ? 'Walk Around Checklist' : 'Checklist',
+                  style: GoogleFonts.outfit(
+                    fontSize: isTablet ? 14 : 13,
+                    fontWeight: _currentStep == 0 ? FontWeight.w700 : FontWeight.w500,
+                    color: _currentStep == 0 ? _kTextPrimary : _kTextSecondary,
+                  ),
+                ),
+              ],
             ),
-
-            // Step 2: MOM
-            InkWell(
-              onTap: () {
-                if (!step1Completed) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Please submit visit details first before proceeding to MOM.',
-                      ),
-                      backgroundColor: Color(0xFFD97706),
-                      duration: Duration(seconds: 3),
-                    ),
-                  );
-                  return;
-                }
-                setState(() => _currentStep = 1);
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: step2Completed
-                          ? const Color(0xFF16A34A)
-                          : (_currentStep == 1
-                                ? _kPrimary
-                                : const Color(0xFFF1F5F9)),
-                      border: Border.all(
-                        color: step2Completed
-                            ? const Color(0xFF16A34A)
-                            : (_currentStep == 1 ? _kPrimary : _kBorderColor),
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: step2Completed
-                          ? const Icon(
-                              Icons.check,
-                              size: 16,
-                              color: Colors.white,
-                            )
-                          : Text(
-                              '2',
-                              style: GoogleFonts.outfit(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: _currentStep == 1
-                                    ? Colors.white
-                                    : _kTextSecondary,
-                              ),
+          ),
+          const SizedBox(width: 16),
+          // Connector line
+          Expanded(
+            child: Container(
+              height: 2,
+              color: step1Done ? const Color(0xFF86EFAC) : const Color(0xFFE2E8F0),
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Step 2: MOM
+          InkWell(
+            onTap: () {
+              if (!act.isCompleted) {
+                AppSnackBar.warning(
+                  context,
+                  message: 'Please submit visit details first before proceeding to MOM.',
+                );
+                return;
+              }
+              setState(() => _currentStep = 1);
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: step2Done
+                        ? const Color(0xFF16A34A)
+                        : (_currentStep == 1 ? _kPrimary : const Color(0xFFE2E8F0)),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: step2Done
+                        ? const Icon(Icons.check, size: 16, color: Colors.white)
+                        : Text(
+                            '2',
+                            style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: _currentStep == 1 ? Colors.white : _kTextSecondary,
                             ),
-                    ),
+                          ),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'MOM',
-                    style: GoogleFonts.outfit(
-                      fontSize: isTablet ? 13.5 : 12.5,
-                      fontWeight: _currentStep == 1
-                          ? FontWeight.w600
-                          : FontWeight.w500,
-                      color: step2Completed
-                          ? const Color(0xFF16A34A)
-                          : (_currentStep == 1 ? _kPrimary : _kTextSecondary),
-                    ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  isTablet ? 'MOM & Email' : 'MOM',
+                  style: GoogleFonts.outfit(
+                    fontSize: isTablet ? 14 : 13,
+                    fontWeight: _currentStep == 1 ? FontWeight.w700 : FontWeight.w500,
+                    color: _currentStep == 1 ? _kTextPrimary : _kTextSecondary,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -772,517 +925,795 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
   }
 
   // ═════════════════════════════════════════════════════════════════════════════
-  // STEP 1: VISIT DETAILS (Modern Minimal – Professional Blue)
+  // STEP 1: WALK AROUND CHECKLIST & VISIT DETAILS (Matching Image 1)
   // ═════════════════════════════════════════════════════════════════════════════
   Widget _buildStep1VisitDetails(ActivityItemDetailModel act, bool isTablet) {
     final isCompleted = act.isCompleted;
 
-    return Container(
-      padding: EdgeInsets.all(isTablet ? 24 : 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorderColor),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Card 1: 1. Walk Around Checklist · [Role] ──
+        Container(
+          padding: EdgeInsets.all(isTablet ? 22 : 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _kBorderColor),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Embedded Stepper inside card
-          _buildCardStepper(act, isTablet),
-          const SizedBox(height: 22),
-
-          // Section Title & Subtitle + Optional completed badge
-          Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Visit details',
-                      style: GoogleFonts.outfit(
-                        fontSize: isTablet ? 19 : 17,
-                        fontWeight: FontWeight.w700,
-                        color: _kTextPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Provide your visit information below.',
-                      style: GoogleFonts.outfit(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                        color: _kTextSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (isCompleted)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFDCFCE7),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFF86EFAC)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.check,
-                        size: 14,
-                        color: Color(0xFF16A34A),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Visit completed',
-                        style: GoogleFonts.outfit(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF16A34A),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1, thickness: 1, color: _kBorderColor),
-          const SizedBox(height: 20),
-
-          // Field 1: Visit date *
-          Text(
-            'Visit date *',
-            style: GoogleFonts.outfit(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: _kTextPrimary,
-            ),
-          ),
-          const SizedBox(height: 7),
-          InkWell(
-            onTap: isCompleted
-                ? null
-                : () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _visitDate,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2030),
-                    );
-                    if (picked != null) {
-                      setState(() => _visitDate = picked);
-                    }
-                  },
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _kBorderColor),
-              ),
-              child: Row(
+              // Title Row
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.calendar_today_outlined,
-                    size: 16,
-                    color: isCompleted ? _kTextSecondary : _kPrimary,
-                  ),
-                  const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      _formatDateShort(_visitDate),
-                      style: GoogleFonts.outfit(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w600,
-                        color: _kTextPrimary,
-                      ),
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        Text(
+                          '1. Walk Around Checklist · ${act.role}',
+                          style: GoogleFonts.outfit(
+                            fontSize: isTablet ? 16 : 15,
+                            fontWeight: FontWeight.w700,
+                            color: _kTextPrimary,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${act.template.length} Items',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: _kTextSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    size: 20,
-                    color: _kTextSecondary,
                   ),
                 ],
               ),
-            ),
-          ),
-          const SizedBox(height: 16),
+              const SizedBox(height: 4),
+              Text(
+                'Loaded From Master Data · Yes / No / NA · Remarks On No',
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  color: _kTextSecondary,
+                ),
+              ),
+              const SizedBox(height: 18),
 
-          // Field 2: Client met *
-          Text(
-            'Client met *',
-            style: GoogleFonts.outfit(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: _kTextPrimary,
-            ),
-          ),
-          const SizedBox(height: 7),
-          Row(
-            children: [
-              _buildChoiceButton(
-                label: 'Yes',
-                isSelected: _clientMet == true,
-                isDisabled: isCompleted,
-                onTap: () {
-                  if (!isCompleted) setState(() => _clientMet = true);
-                },
-              ),
-              const SizedBox(width: 12),
-              _buildChoiceButton(
-                label: 'No',
-                isSelected: _clientMet == false,
-                isDisabled: isCompleted,
-                onTap: () {
-                  if (!isCompleted) setState(() => _clientMet = false);
-                },
-              ),
+              // Checklist Table
+              if (act.template.isEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  alignment: Alignment.center,
+                  child: Text(
+                    'No checklist items configured for this activity.',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      color: _kTextSecondary,
+                    ),
+                  ),
+                )
+              else
+                _buildChecklistTable(act, isCompleted, isTablet),
             ],
           ),
-          const SizedBox(height: 16),
+        ),
+        const SizedBox(height: 18),
 
-          // Field 3: Visit notes (Optional)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        // ── Card 2: 2. Visit Details ──
+        Container(
+          padding: EdgeInsets.all(isTablet ? 22 : 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _kBorderColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Header
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  Text(
+                    '2. Visit Details',
+                    style: GoogleFonts.outfit(
+                      fontSize: isTablet ? 16 : 15,
+                      fontWeight: FontWeight.w700,
+                      color: _kTextPrimary,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _kLightBlueBg,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Visit Date Required · Note Optional',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: _kPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Visit Date *
               Text(
-                'Visit notes',
+                'Visit Date *',
                 style: GoogleFonts.outfit(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: _kTextPrimary,
                 ),
               ),
+              const SizedBox(height: 6),
+              InkWell(
+                onTap: isCompleted ? null : () => _pickVisitDate(context),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _kBorderColor),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.calendar_today_outlined,
+                        size: 16,
+                        color: _kPrimary,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _formatDateWithWeekday(_visitDate),
+                          style: GoogleFonts.outfit(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: _kTextPrimary,
+                          ),
+                        ),
+                      ),
+                      if (!isCompleted)
+                        const Icon(
+                          Icons.close_rounded,
+                          size: 16,
+                          color: _kTextSecondary,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Client Met *
               Text(
-                'Optional',
+                'Client Met *',
                 style: GoogleFonts.outfit(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w400,
-                  color: _kTextSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _kTextPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _buildOptionChip(
+                    label: 'Yes',
+                    isSelected: _clientMet == true,
+                    onTap: isCompleted
+                        ? null
+                        : () => setState(() => _clientMet = true),
+                  ),
+                  const SizedBox(width: 10),
+                  _buildOptionChip(
+                    label: 'No',
+                    isSelected: _clientMet == false,
+                    onTap: isCompleted
+                        ? null
+                        : () => setState(() => _clientMet = false),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Note (Optional)
+              Text(
+                'Note (Optional)',
+                style: GoogleFonts.outfit(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _kTextPrimary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _visitNoteController,
+                readOnly: isCompleted,
+                maxLines: 3,
+                style: GoogleFonts.outfit(
+                  fontSize: 13.5,
+                  color: _kTextPrimary,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Optional - Visit Notes, Discussion Points, Client Feedback...',
+                  hintStyle: GoogleFonts.outfit(
+                    fontSize: 12.5,
+                    color: _kTextSecondary.withValues(alpha: 0.6),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.all(12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _kBorderColor),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _kBorderColor),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _kPrimary, width: 1.5),
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 7),
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _kBorderColor),
-            ),
-            padding: const EdgeInsets.all(12),
-            child: isCompleted
-                ? _buildCompletedNotesContent()
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TextField(
-                        controller: _visitNoteController,
-                        maxLines: 3,
-                        maxLength: 500,
-                        buildCounter:
-                            (
-                              _, {
-                              required currentLength,
-                              required isFocused,
-                              maxLength,
-                            }) => const SizedBox.shrink(),
-                        style: GoogleFonts.outfit(
-                          fontSize: 13,
-                          color: _kTextPrimary,
-                        ),
-                        decoration: InputDecoration(
-                          hintText:
-                              'Add discussion points or client feedback...',
-                          hintStyle: GoogleFonts.outfit(
-                            fontSize: 13,
-                            color: _kTextSecondary.withValues(alpha: 0.65),
-                          ),
-                          isDense: true,
-                          filled: false,
-                          fillColor: Colors.transparent,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          disabledBorder: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ),
-                      Align(
-                        alignment: Alignment.bottomRight,
-                        child: Text(
-                          '${_visitNoteController.text.length} / 500',
-                          style: GoogleFonts.outfit(
-                            fontSize: 11.5,
-                            color: _kTextSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-          ),
-          const SizedBox(height: 16),
+        ),
+      ],
+    );
+  }
 
-          // Field 4: Visit summary
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+  // ── Checklist Table Widget (Area, Status: Yes/No/NA, Remarks) ─────────────
+  Widget _buildChecklistTable(
+    ActivityItemDetailModel act,
+    bool isCompleted,
+    bool isTablet,
+  ) {
+    // ── MOBILE: Card/Stack Layout (Zero Horizontal Overflow, 100% Responsive) ──
+    if (!isTablet) {
+      return Column(
+        children: List.generate(act.template.length, (idx) {
+          final item = act.template[idx];
+          final status = _checklistStatus[item.key] ?? 'OK';
+          final remarksCtrl = _remarksControllers[item.key]!;
+          final isNo = status == 'ISSUE';
+          final isMissingRemarks = _hasAttemptedSubmit && isNo && remarksCtrl.text.trim().isEmpty;
+
+          return Container(
+            margin: EdgeInsets.only(bottom: idx == act.template.length - 1 ? 0 : 10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _kLightBlueBg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFD0E1FD)),
+              color: isMissingRemarks
+                  ? const Color(0xFFFEF2F2)
+                  : (isNo ? const Color(0xFFFFF7F7) : const Color(0xFFF8FAFC)),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isMissingRemarks
+                    ? const Color(0xFFEF4444)
+                    : (isNo ? const Color(0xFFFCA5A5) : const Color(0xFFE2E8F0)),
+                width: isMissingRemarks ? 1.5 : 1,
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Area Title Row with index badge
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      size: 16,
-                      color: _kPrimary,
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isMissingRemarks
+                            ? const Color(0xFFFEE2E2)
+                            : const Color(0xFFEEF2FF),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '#${idx + 1}',
+                        style: GoogleFonts.outfit(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isMissingRemarks ? const Color(0xFFDC2626) : _kPrimary,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 7),
-                    Text(
-                      'Visit summary',
-                      style: GoogleFonts.outfit(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _kPrimary,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item.title,
+                        style: GoogleFonts.outfit(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: _kTextPrimary,
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  isCompleted
-                      ? (act.isMomSent
-                            ? '${_formatDateShort(_visitDate)} · Client ${_clientMet == true ? "met" : "not met"} · MOM completed'
-                            : '${_formatDateShort(_visitDate)} · Client ${_clientMet == true ? "met" : "not met"}')
-                      : '${_formatDateShort(_visitDate)} · Client ${_clientMet == null ? "status pending" : (_clientMet! ? "met" : "not met")}',
-                  style: GoogleFonts.outfit(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                    color: _kTextSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
+                const SizedBox(height: 10),
 
-          // Field 5: Submit visit button (Full width, 46px height, rounded 12px)
-          SizedBox(
-            width: double.infinity,
-            height: 46,
-            child: isCompleted
-                ? (!act.isMomSent
-                      ? ElevatedButton(
-                          onPressed: () => setState(() => _currentStep = 1),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _kPrimary,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                          ),
-                          child: Text(
-                            'Proceed to MOM  →',
-                            style: GoogleFonts.outfit(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink())
-                : ElevatedButton.icon(
-                    onPressed: widget.isSubmittingVisit ? null : _submitVisit,
-                    icon: widget.isSubmittingVisit
-                        ? const SizedBox.shrink()
-                        : const Icon(
-                            Icons.near_me_outlined,
-                            size: 18,
-                            color: Colors.white,
-                          ),
-                    label: widget.isSubmittingVisit
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(
-                            'Submit visit',
-                            style: GoogleFonts.outfit(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _kPrimary,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: _kPrimary.withValues(alpha: 0.6),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                // Bottom Row: Status choices on left, Remarks input on right
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Segmented Choices: Yes / No / NA
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isMissingRemarks
+                              ? const Color(0xFFFCA5A5)
+                              : const Color(0xFFCBD5E1),
+                        ),
                       ),
-                      elevation: 0,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildCompactSegmentChip(
+                            label: 'Yes',
+                            isSelected: status == 'OK',
+                            activeColor: const Color(0xFF16A34A),
+                            onTap: isCompleted
+                                ? null
+                                : () => setState(() => _checklistStatus[item.key] = 'OK'),
+                          ),
+                          _buildCompactSegmentChip(
+                            label: 'No',
+                            isSelected: status == 'ISSUE',
+                            activeColor: const Color(0xFFDC2626),
+                            onTap: isCompleted
+                                ? null
+                                : () => setState(() => _checklistStatus[item.key] = 'ISSUE'),
+                          ),
+                          _buildCompactSegmentChip(
+                            label: 'NA',
+                            isSelected: status == 'NA',
+                            activeColor: const Color(0xFF64748B),
+                            onTap: isCompleted
+                                ? null
+                                : () => setState(() => _checklistStatus[item.key] = 'NA'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Remarks field
+                    Expanded(
+                      child: TextField(
+                        controller: remarksCtrl,
+                        readOnly: isCompleted,
+                        style: GoogleFonts.outfit(fontSize: 12),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          hintText: isMissingRemarks
+                              ? 'Remarks mandatory *'
+                              : (isNo ? 'Remarks required *' : 'Optional remarks'),
+                          hintStyle: GoogleFonts.outfit(
+                            fontSize: 11.5,
+                            fontWeight: isMissingRemarks ? FontWeight.w600 : FontWeight.w400,
+                            color: isMissingRemarks
+                                ? const Color(0xFFDC2626)
+                                : _kTextSecondary.withValues(alpha: 0.6),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: isMissingRemarks
+                                  ? const Color(0xFFEF4444)
+                                  : const Color(0xFFCBD5E1),
+                              width: isMissingRemarks ? 1.5 : 1,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: isMissingRemarks
+                                  ? const Color(0xFFEF4444)
+                                  : (isNo ? const Color(0xFFFCA5A5) : const Color(0xFFCBD5E1)),
+                              width: isMissingRemarks ? 1.5 : 1,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: isMissingRemarks ? const Color(0xFFDC2626) : _kPrimary,
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Inline Error Message if missing remarks
+                if (isMissingRemarks)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          size: 13,
+                          color: Color(0xFFDC2626),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Remarks are mandatory when marked as "No"',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFFDC2626),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Attractive formatted notes for completed visit (Heading vs Answer styled distinctly)
-  Widget _buildCompletedNotesContent() {
-    final text = _visitNoteController.text.trim();
-    if (text.isEmpty) {
-      return Text(
-        'No notes provided.',
-        style: GoogleFonts.outfit(
-          fontSize: 12.5,
-          color: _kTextSecondary,
-          fontStyle: FontStyle.italic,
-        ),
+              ],
+            ),
+          );
+        }),
       );
     }
 
-    final lines = text.split('\n');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: lines.map((rawLine) {
-        final line = rawLine.trim();
-        if (line.isEmpty) return const SizedBox.shrink();
-
-        final colonIndex = line.indexOf(':');
-        if (colonIndex != -1) {
-          final heading = line.substring(0, colonIndex).trim();
-          final answer = line.substring(colonIndex + 1).trim();
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 3.5),
+    // ── TABLET / DESKTOP: 3-Column Table ─────────────────────────────────────
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _kBorderColor),
+      ),
+      child: Column(
+        children: [
+          // Table Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(9)),
+            ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
-                  width: 95,
+                Expanded(
+                  flex: 5,
                   child: Text(
-                    heading,
+                    'AREA',
                     style: GoogleFonts.outfit(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
                       color: _kTextSecondary,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
+                  flex: 4,
                   child: Text(
-                    answer,
+                    'STATUS',
                     style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _kTextPrimary,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: _kTextSecondary,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'REMARKS',
+                    style: GoogleFonts.outfit(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: _kTextSecondary,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
               ],
             ),
-          );
-        } else {
-          return Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+          ),
+          const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+
+          // Rows
+          ...List.generate(act.template.length, (idx) {
+            final item = act.template[idx];
+            final status = _checklistStatus[item.key] ?? 'OK';
+            final remarksCtrl = _remarksControllers[item.key]!;
+            final isNo = status == 'ISSUE';
+            final isMissingRemarks = _hasAttemptedSubmit && isNo && remarksCtrl.text.trim().isEmpty;
+
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: _kLightBlueBg,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFFD0E1FD)),
-              ),
-              child: Text(
-                line,
-                style: GoogleFonts.outfit(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: _kPrimary,
+                color: isMissingRemarks ? const Color(0xFFFEF2F2) : Colors.transparent,
+                border: Border(
+                  top: idx > 0
+                      ? BorderSide(
+                          color: isMissingRemarks
+                              ? const Color(0xFFFCA5A5)
+                              : const Color(0xFFF1F5F9),
+                        )
+                      : BorderSide.none,
                 ),
               ),
-            ),
-          );
-        }
-      }).toList(),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    flex: 5,
+                    child: Text(
+                      item.title,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: _kTextPrimary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 4,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildStatusSegmentChip(
+                          label: 'Yes',
+                          isSelected: status == 'OK',
+                          activeColor: const Color(0xFF16A34A),
+                          onTap: isCompleted
+                              ? null
+                              : () => setState(() => _checklistStatus[item.key] = 'OK'),
+                        ),
+                        const SizedBox(width: 4),
+                        _buildStatusSegmentChip(
+                          label: 'No',
+                          isSelected: status == 'ISSUE',
+                          activeColor: const Color(0xFFDC2626),
+                          onTap: isCompleted
+                              ? null
+                              : () => setState(() => _checklistStatus[item.key] = 'ISSUE'),
+                        ),
+                        const SizedBox(width: 4),
+                        _buildStatusSegmentChip(
+                          label: 'NA',
+                          isSelected: status == 'NA',
+                          activeColor: const Color(0xFF64748B),
+                          onTap: isCompleted
+                              ? null
+                              : () => setState(() => _checklistStatus[item.key] = 'NA'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 4,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          controller: remarksCtrl,
+                          readOnly: isCompleted,
+                          style: GoogleFonts.outfit(
+                            fontSize: 12.5,
+                            color: _kTextPrimary,
+                          ),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            hintText: isMissingRemarks
+                                ? 'Remarks mandatory *'
+                                : (isNo ? 'Remarks required *' : 'Optional'),
+                            hintStyle: GoogleFonts.outfit(
+                              fontSize: 12,
+                              fontWeight: isMissingRemarks ? FontWeight.w600 : FontWeight.w400,
+                              color: isMissingRemarks
+                                  ? const Color(0xFFDC2626)
+                                  : _kTextSecondary.withValues(alpha: 0.6),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: isMissingRemarks
+                                    ? const Color(0xFFEF4444)
+                                    : const Color(0xFFE2E8F0),
+                                width: isMissingRemarks ? 1.5 : 1,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: isMissingRemarks
+                                    ? const Color(0xFFEF4444)
+                                    : (isNo ? const Color(0xFFFCA5A5) : const Color(0xFFE2E8F0)),
+                                width: isMissingRemarks ? 1.5 : 1,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: isMissingRemarks ? const Color(0xFFDC2626) : _kPrimary,
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (isMissingRemarks)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Text(
+                              'Remarks required for "No"',
+                              style: GoogleFonts.outfit(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFFDC2626),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 
-  // Choice toggle button (Yes / No in Modern Minimal Blue)
-  Widget _buildChoiceButton({
+  Widget _buildCompactSegmentChip({
     required String label,
     required bool isSelected,
-    required bool isDisabled,
-    required VoidCallback onTap,
+    required Color activeColor,
+    required VoidCallback? onTap,
   }) {
-    return Expanded(
-      child: InkWell(
-        onTap: isDisabled ? null : onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          height: 44,
-          decoration: BoxDecoration(
-            color: isSelected ? _kLightBlueBg : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isSelected ? _kPrimary : _kBorderColor,
-              width: isSelected ? 1.5 : 1.0,
-            ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? activeColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.outfit(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? Colors.white : _kTextSecondary,
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (isSelected) ...[
-                const Icon(Icons.check, size: 15, color: _kPrimary),
-                const SizedBox(width: 6),
-              ],
-              Text(
-                label,
-                style: GoogleFonts.outfit(
-                  fontSize: 13.5,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected ? _kPrimary : _kTextPrimary,
-                ),
-              ),
-            ],
+        ),
+      ),
+    );
+  }
+  Widget _buildStatusSegmentChip({
+    required String label,
+    required bool isSelected,
+    required Color activeColor,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? activeColor.withValues(alpha: 0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: isSelected ? activeColor : const Color(0xFFE2E8F0),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.outfit(
+            fontSize: 11.5,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? activeColor : _kTextSecondary,
           ),
         ),
       ),
     );
   }
 
+  Widget _buildOptionChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? _kLightBlueBg : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? _kPrimary : const Color(0xFFCBD5E1),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.outfit(
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? _kPrimary : _kTextPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickVisitDate(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _visitDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+    );
+    if (picked != null) {
+      setState(() {
+        _visitDate = picked;
+      });
+    }
+  }
+
   // ═════════════════════════════════════════════════════════════════════════════
-  // STEP 2: MOM & EMAIL FORM (Modern Email Composer – Professional Blue)
+  // STEP 2: MOM & EMAIL & ACTION POINTS (Matching Images 2, 3, 4, 5)
   // ═════════════════════════════════════════════════════════════════════════════
   Widget _buildStep2MomForm(
     ActivityItemDetailModel act,
@@ -1290,1054 +1721,1296 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
     bool isTablet,
   ) {
     return Container(
-      padding: EdgeInsets.all(isTablet ? 24 : 20),
+      padding: EdgeInsets.all(isTablet ? 24 : 18),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _kBorderColor),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Embedded Stepper inside card
-          _buildCardStepper(act, isTablet),
-          const SizedBox(height: 22),
-
-          // Header: Title + Subtitle on left, Draft/Sent badge on right
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // Header: "2. MOM & Email" + "Draft" or "Sent" badge
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '2. MOM & Email',
-                      style: GoogleFonts.outfit(
-                        fontSize: isTablet ? 19 : 17,
-                        fontWeight: FontWeight.w700,
-                        color: _kTextPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Prepare and send the minutes of meeting email.',
-                      style: GoogleFonts.outfit(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                        color: _kTextSecondary,
-                      ),
-                    ),
-                  ],
+              Text(
+                '2. MOM & Email',
+                style: GoogleFonts.outfit(
+                  fontSize: isTablet ? 17 : 16,
+                  fontWeight: FontWeight.w700,
+                  color: _kTextPrimary,
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: act.isMomSent
-                      ? _kLightBlueBg
-                      : const Color(0xFFFEF3C7),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: act.isMomSent
-                        ? const Color(0xFFD0E1FD)
-                        : const Color(0xFFFDE68A),
-                  ),
+                      ? const Color(0xFFDCFCE7)
+                      : _kLightBlueBg,
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   act.isMomSent ? 'Sent' : 'Draft',
                   style: GoogleFonts.outfit(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
-                    color: act.isMomSent ? _kPrimary : const Color(0xFFD97706),
+                    color: act.isMomSent ? const Color(0xFF16A34A) : _kPrimary,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
 
-          // Compact light-blue informational strip
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: _kLightBlueBg,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFD0E1FD)),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.info_outline_rounded,
-                  size: 15,
-                  color: _kPrimary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Minutes of meeting — ${site.name} · Client ${site.clientName}, ${_formatDateShort(_visitDate)}',
-                    style: GoogleFonts.outfit(
-                      fontSize: 12,
-                      color: _kPrimary,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1, thickness: 1, color: _kBorderColor),
-          const SizedBox(height: 16),
-
-          // Field: To (Modern Email Composer)
-          _buildRecipientSelector(
-            isReadonly: act.isMomSent,
-            currentList: _toList,
-            options: site.contactEmails.isNotEmpty
-                ? site.contactEmails
-                : [
-                    EmailRecipientModel(
-                      value: site.clientEmail ?? 'client@example.com',
-                      label:
-                          '${site.contactPersonName ?? site.clientName} · ${site.clientEmail}',
-                      name: site.contactPersonName ?? '',
-                      role: 'CLIENT',
-                    ),
-                  ],
-            onAdd: (val) {
-              if (!_toList.contains(val)) setState(() => _toList.add(val));
-            },
-            onRemove: (val) => setState(() => _toList.remove(val)),
-            customController: _addToController,
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1, thickness: 1, color: _kBorderColor),
-          const SizedBox(height: 16),
-
-          // Field: Cc (Redesigned with employee search, name chips & checkboxes)
-          _buildCcRecipientSelector(site, isReadonly: act.isMomSent),
-          const SizedBox(height: 16),
-          const Divider(height: 1, thickness: 1, color: _kBorderColor),
-          const SizedBox(height: 16),
-
-          // Field: Subject *
+          // Subtitle
           Text(
-            'Subject *',
+            'Minutes Of Meeting - ${site.name} · Client ${site.clientName}, ${_formatDateShort(_visitDate)}. Prepared After The Visit Is Submitted.',
             style: GoogleFonts.outfit(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: _kTextPrimary,
+              fontSize: 12,
+              color: _kTextSecondary,
             ),
           ),
-          const SizedBox(height: 7),
-          TextField(
-            controller: _subjectController,
-            readOnly: act.isMomSent,
-            style: GoogleFonts.outfit(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w500,
-              color: act.isMomSent ? _kTextSecondary : _kTextPrimary,
-            ),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: Colors.white,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 10,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _kBorderColor),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _kBorderColor),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _kPrimary, width: 1.5),
-              ),
-              disabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _kBorderColor),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
-          // Field: Major Points Header & Table
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'MAJOR POINTS',
-                style: GoogleFonts.outfit(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: _kTextPrimary,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              if (!act.isMomSent)
-                InkWell(
-                  onTap: () {
-                    setState(() {
-                      _points.add({
-                        'point': '',
-                        'targetDate': DateTime.now()
-                            .add(const Duration(days: 7))
-                            .toIso8601String()
-                            .split('T')
-                            .first,
-                      });
-                    });
-                  },
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _kLightBlueBg,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFD0E1FD)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.add, size: 14, color: _kPrimary),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Add point',
-                          style: GoogleFonts.outfit(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _kPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _buildPointsTable(isReadonly: act.isMomSent),
-          const SizedBox(height: 20),
-
-          // Field: Email closing / content
-          Text(
-            'Email',
-            style: GoogleFonts.outfit(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: _kTextPrimary,
-            ),
-          ),
-          const SizedBox(height: 7),
-          TextField(
-            controller: _closingController,
-            readOnly: act.isMomSent,
-            maxLines: 4,
-            style: GoogleFonts.outfit(
-              fontSize: 13.5,
-              color: act.isMomSent ? _kTextSecondary : _kTextPrimary,
-            ),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: Colors.white,
-              contentPadding: const EdgeInsets.all(12),
-              hintText: 'Enter closing text or notes for the email...',
-              hintStyle: GoogleFonts.outfit(
-                fontSize: 13,
-                color: _kTextSecondary.withValues(alpha: 0.6),
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _kBorderColor),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _kBorderColor),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _kPrimary, width: 1.5),
-              ),
-              disabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _kBorderColor),
-              ),
-            ),
-          ),
-          const SizedBox(height: 22),
-
-          // Bottom Actions: [Save draft] [Send MOM]
-          if (act.isMomSent)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+          // Sub-tabs: [ MOM ] and [ Action Points 1/2 ]
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Container(
+              padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
-                color: _kLightBlueBg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFD0E1FD)),
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Center(
-                child: Text(
-                  'MOM saved',
-                  style: GoogleFonts.outfit(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
-                    color: _kPrimary,
-                  ),
-                ),
-              ),
-            )
-          else
-            Row(
-              children: [
-                // Save draft (Secondary outlined button)
-                Expanded(
-                  child: SizedBox(
-                    height: 46,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Draft saved locally')),
-                        );
-                      },
-                      icon: const Icon(
-                        Icons.description_outlined,
-                        size: 16,
-                        color: _kPrimary,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    onTap: () => setState(() => _momSubTab = 0),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
                       ),
-                      label: Text(
-                        'Save draft',
+                      decoration: BoxDecoration(
+                        color: _momSubTab == 0 ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: _momSubTab == 0
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Text(
+                        isTablet ? 'MOM & Email' : 'MOM',
                         style: GoogleFonts.outfit(
-                          fontSize: 14,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w600,
-                          color: _kPrimary,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: _kPrimary),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          color: _momSubTab == 0 ? _kPrimary : _kTextSecondary,
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                // Send MOM (Primary blue button)
-                Expanded(
-                  child: SizedBox(
-                    height: 46,
-                    child: ElevatedButton.icon(
-                      onPressed: widget.isSendingMom ? null : _sendMom,
-                      icon: widget.isSendingMom
-                          ? const SizedBox.shrink()
-                          : const Icon(
-                              Icons.near_me_outlined,
-                              size: 18,
-                              color: Colors.white,
-                            ),
-                      label: widget.isSendingMom
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Text(
-                              'Send MOM',
-                              style: GoogleFonts.outfit(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _kPrimary,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: _kPrimary.withValues(
-                          alpha: 0.6,
+                  const SizedBox(width: 4),
+                  InkWell(
+                    onTap: () => setState(() => _momSubTab = 1),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _momSubTab == 1 ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: _momSubTab == 1
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Text(
+                        'Action Points ${act.completedPoints}/${act.totalPoints}',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: _momSubTab == 1 ? _kPrimary : _kTextSecondary,
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+          ),
+          const SizedBox(height: 20),
+
+          // Content based on sub-tab
+          if (_momSubTab == 0)
+            _buildMomTabContent(act, site, isTablet)
+          else
+            _buildActionPointsTabContent(act, isTablet),
         ],
       ),
     );
   }
 
-  // ── Recipient Selector for TO List (Modern Email Composer) ───────────────────
-  Widget _buildRecipientSelector({
-    required bool isReadonly,
-    required List<String> currentList,
-    required List<EmailRecipientModel> options,
-    required Function(String) onAdd,
-    required Function(String) onRemove,
-    required TextEditingController customController,
-  }) {
-    final unaddedOptions = options
-        .where((opt) => !currentList.contains(opt.value))
-        .toList();
-
+  // ── MOM Sub-tab Content (To, Cc, Subject, Body, Attendees, Points, Closing) ──
+  Widget _buildMomTabContent(
+    ActivityItemDetailModel act,
+    ActivitySiteDetailModel site,
+    bool isTablet,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Top row: "To" label + "Add recipient +"
+        // Field: To *
+        _buildRecipientSelector(
+          isReadonly: act.isMomSent,
+          currentList: _toList,
+          options: site.contactEmails.isNotEmpty
+              ? site.contactEmails
+              : [
+                  EmailRecipientModel(
+                    value: site.clientEmail ?? 'client@example.com',
+                    label:
+                        '${site.contactPersonName ?? site.clientName} · ${site.clientEmail}',
+                    name: site.contactPersonName ?? '',
+                    role: 'CLIENT',
+                  ),
+                ],
+          onAdd: (val) {
+            if (!_toList.contains(val)) setState(() => _toList.add(val));
+          },
+          onRemove: (val) => setState(() => _toList.remove(val)),
+          customController: _addToController,
+        ),
+        const SizedBox(height: 16),
+        const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+        const SizedBox(height: 16),
+
+        // Field: Cc
+        _buildCcRecipientSelector(site, isReadonly: act.isMomSent),
+        const SizedBox(height: 16),
+        const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+        const SizedBox(height: 16),
+
+        // Field: Subject *
+        Text(
+          'Subject *',
+          style: GoogleFonts.outfit(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: _kTextPrimary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _subjectController,
+          readOnly: act.isMomSent,
+          style: GoogleFonts.outfit(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w500,
+            color: _kTextPrimary,
+          ),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 10,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kBorderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kBorderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kPrimary, width: 1.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Field: Body
+        Text(
+          'Body',
+          style: GoogleFonts.outfit(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: _kTextPrimary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _bodyController,
+          readOnly: act.isMomSent,
+          maxLines: 3,
+          style: GoogleFonts.outfit(
+            fontSize: 13,
+            color: _kTextPrimary,
+          ),
+          decoration: InputDecoration(
+            hintText: 'E.G. Dear HR / L&D,',
+            hintStyle: GoogleFonts.outfit(
+              fontSize: 12.5,
+              color: _kTextSecondary.withValues(alpha: 0.6),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.all(12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kBorderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kBorderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kPrimary, width: 1.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Meeting Attendees
+        Text(
+          'Meeting Attendees',
+          style: GoogleFonts.outfit(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: _kTextPrimary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _meetingAttendeesController,
+          readOnly: act.isMomSent,
+          style: GoogleFonts.outfit(fontSize: 13, color: _kTextPrimary),
+          decoration: InputDecoration(
+            hintText: 'Names Of People Who Attended This Meeting',
+            hintStyle: GoogleFonts.outfit(
+              fontSize: 12.5,
+              color: _kTextSecondary.withValues(alpha: 0.6),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 10,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kBorderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kBorderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kPrimary, width: 1.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Client Attendees
+        Text(
+          'Client Attendees',
+          style: GoogleFonts.outfit(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: _kTextPrimary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _clientAttendeesController,
+          readOnly: act.isMomSent,
+          style: GoogleFonts.outfit(fontSize: 13, color: _kTextPrimary),
+          decoration: InputDecoration(
+            hintText: 'Client Attendees...',
+            hintStyle: GoogleFonts.outfit(
+              fontSize: 12.5,
+              color: _kTextSecondary.withValues(alpha: 0.6),
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 10,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kBorderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kBorderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kPrimary, width: 1.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Points Discussed Header & Table (Images 4 & 5)
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'To',
-              style: GoogleFonts.outfit(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: _kTextPrimary,
+            Expanded(
+              child: Text(
+                'POINTS DISCUSSED',
+                style: GoogleFonts.outfit(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: _kTextPrimary,
+                  letterSpacing: 0.5,
+                ),
               ),
             ),
-            if (!isReadonly)
+            const SizedBox(width: 8),
+            if (!act.isMomSent)
               InkWell(
-                onTap: () => setState(() => _showAddToInput = !_showAddToInput),
-                borderRadius: BorderRadius.circular(4),
-                child: Padding(
+                onTap: () {
+                  setState(() {
+                    _points.add({
+                      'point': '',
+                      'department': 'Operations',
+                      'targetDate': DateTime.now()
+                          .add(const Duration(days: 7))
+                          .toIso8601String()
+                          .split('T')
+                          .first,
+                    });
+                  });
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 2,
+                    horizontal: 12,
+                    vertical: 5,
                   ),
-                  child: Text(
-                    'Add recipient +',
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _kPrimary,
-                    ),
+                  decoration: BoxDecoration(
+                    color: _kLightBlueBg,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFD0E1FD)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.add, size: 14, color: _kPrimary),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Add Point',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _kPrimary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
           ],
         ),
         const SizedBox(height: 10),
+        _buildPointsTable(isReadonly: act.isMomSent, isTablet: isTablet),
+        const SizedBox(height: 20),
 
-        // Selected chips
-        if (currentList.isNotEmpty)
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: currentList.map((email) {
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+        // Closing Remarks
+        Text(
+          'Closing Remarks',
+          style: GoogleFonts.outfit(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: _kTextPrimary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _closingController,
+          readOnly: act.isMomSent,
+          maxLines: 3,
+          style: GoogleFonts.outfit(
+            fontSize: 13,
+            color: _kTextPrimary,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Closing text for MOM email...',
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.all(12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kBorderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kBorderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: _kPrimary, width: 1.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Bottom Action Row: [ Save Draft ]  [ Send MOM ]
+        if (act.isMomSent)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFDCFCE7),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF86EFAC)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  size: 18,
+                  color: Color(0xFF16A34A),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'MOM Email Sent to Recipients',
+                  style: GoogleFonts.outfit(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF16A34A),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Draft saved locally')),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: Text(
+                    'Save Draft',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: _kTextPrimary,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: widget.isSendingMom ? null : _sendMom,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kPrimary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: widget.isSendingMom
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          'Send MOM',
+                          style: GoogleFonts.outfit(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  // ── Action Points Sub-tab (Image 3: Metric Cards + Status Toggle Table) ────
+  Widget _buildActionPointsTabContent(
+    ActivityItemDetailModel act,
+    bool isTablet,
+  ) {
+    final points = act.momPoints;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 3 Metric Cards Row (All, Pending, Completed)
+        Row(
+          children: [
+            // All
+            Expanded(
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isTablet ? 14 : 10,
+                  vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: _kLightBlueBg,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFD0E1FD)),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _kBorderColor),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Flexible(
-                      child: Text(
-                        email,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.outfit(
-                          fontSize: 13,
-                          color: _kPrimary,
-                          fontWeight: FontWeight.w500,
-                        ),
+                    Text(
+                      'All',
+                      style: GoogleFonts.outfit(
+                        fontSize: isTablet ? 12 : 11,
+                        fontWeight: FontWeight.w500,
+                        color: _kTextSecondary,
                       ),
                     ),
-                    if (!isReadonly) ...[
-                      const SizedBox(width: 6),
-                      InkWell(
-                        onTap: () => onRemove(email),
-                        borderRadius: BorderRadius.circular(10),
-                        child: const Icon(
-                          Icons.close_rounded,
-                          size: 14,
-                          color: _kPrimary,
-                        ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${act.totalPoints}',
+                      style: GoogleFonts.outfit(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: _kTextPrimary,
                       ),
-                    ],
+                    ),
                   ],
                 ),
-              );
-            }).toList(),
-          ),
+              ),
+            ),
+            SizedBox(width: isTablet ? 10 : 8),
 
-        // Add recipient input field (when toggled or empty)
-        if (!isReadonly && (_showAddToInput || currentList.isEmpty)) ...[
-          const SizedBox(height: 12),
+            // Pending (Amber)
+            Expanded(
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isTablet ? 14 : 10,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Pending',
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(
+                              fontSize: isTablet ? 12 : 11,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFFD97706),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        const Icon(
+                          Icons.access_time_rounded,
+                          size: 13,
+                          color: Color(0xFFD97706),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${act.pendingPoints}',
+                      style: GoogleFonts.outfit(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFFD97706),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(width: isTablet ? 10 : 8),
+
+            // Completed (Green)
+            Expanded(
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isTablet ? 14 : 10,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0FDF4),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFBBF7D0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Completed',
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.outfit(
+                              fontSize: isTablet ? 12 : 11,
+                              fontWeight: FontWeight.w500,
+                              color: const Color(0xFF16A34A),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        const Icon(
+                          Icons.check_circle_outline_rounded,
+                          size: 13,
+                          color: Color(0xFF16A34A),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${act.completedPoints}',
+                      style: GoogleFonts.outfit(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF16A34A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+
+        // Action Points Table
+        if (points.isEmpty)
           Container(
-            height: 44,
+            padding: const EdgeInsets.symmetric(vertical: 28),
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: _kBorderColor),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: customController,
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      color: _kTextPrimary,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Enter recipient email address...',
-                      hintStyle: GoogleFonts.outfit(
-                        fontSize: 12.5,
-                        color: _kTextSecondary.withValues(alpha: 0.7),
-                      ),
-                      isDense: true,
-                      filled: false,
-                      fillColor: Colors.transparent,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      disabledBorder: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                    ),
-                    onSubmitted: (txt) {
-                      final val = txt.trim();
-                      if (val.isNotEmpty && !currentList.contains(val)) {
-                        onAdd(val);
-                        customController.clear();
-                      }
-                    },
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    final txt = customController.text.trim();
-                    if (txt.isNotEmpty && !currentList.contains(txt)) {
-                      onAdd(txt);
-                      customController.clear();
-                    }
-                  },
-                  child: Text(
-                    'Add',
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _kPrimary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Quick suggestions for unadded site contacts
-          if (unaddedOptions.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Text(
-                  'Suggested: ',
-                  style: GoogleFonts.outfit(
-                    fontSize: 12,
-                    color: _kTextSecondary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Expanded(
-                  child: Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: unaddedOptions.map((opt) {
-                      return InkWell(
-                        onTap: () => onAdd(opt.value),
-                        borderRadius: BorderRadius.circular(14),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.add, size: 12, color: _kPrimary),
-                              const SizedBox(width: 3),
-                              Text(
-                                opt.value,
-                                style: GoogleFonts.outfit(
-                                  fontSize: 11.5,
-                                  color: _kPrimary,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ],
-    );
-  }
-
-  // ── Recipient Selector for CC List (Modern Email Composer) ──────────────────
-  Widget _buildCcRecipientSelector(
-    ActivitySiteDetailModel site, {
-    required bool isReadonly,
-  }) {
-    final ccOptions = <EmailRecipientModel>[...site.ccEmails];
-
-    final users = site.zoneId != null && site.zoneId!.isNotEmpty
-        ? UserService.instance.getUsersByZone(site.zoneId!)
-        : UserService.instance.users;
-
-    for (final u in users) {
-      if (u.email.isNotEmpty &&
-          !ccOptions.any(
-            (c) => c.value.toLowerCase() == u.email.toLowerCase(),
-          )) {
-        ccOptions.add(
-          EmailRecipientModel(
-            value: u.email,
-            label: '${u.name} · ${u.roleLabel} · ${u.email}',
-            name: u.name,
-            role: u.role,
-          ),
-        );
-      }
-    }
-
-    final filteredOptions = _ccSearchQuery.isEmpty
-        ? ccOptions
-        : ccOptions
-              .where(
-                (c) =>
-                    c.label.toLowerCase().contains(
-                      _ccSearchQuery.toLowerCase(),
-                    ) ||
-                    c.value.toLowerCase().contains(
-                      _ccSearchQuery.toLowerCase(),
-                    ),
-              )
-              .toList();
-
-    final allFilteredSelected =
-        filteredOptions.isNotEmpty &&
-        filteredOptions.every((opt) => _ccList.contains(opt.value));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Top Row: "Cc" label on left + "X selected" on right
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Cc',
-              style: GoogleFonts.outfit(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: _kTextPrimary,
-              ),
-            ),
-            Text(
-              '${_ccList.length} selected',
+            child: Text(
+              'No Action Points recorded yet.',
               style: GoogleFonts.outfit(
                 fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: _kPrimary,
+                color: _kTextSecondary,
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 10),
-
-        // Selected CC chips (preferring employee names!)
-        if (_ccList.isNotEmpty) ...[
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _ccList.map((email) {
-              final match = ccOptions.firstWhere(
-                (c) => c.value.toLowerCase() == email.toLowerCase(),
-                orElse: () => EmailRecipientModel(
-                  value: email,
-                  label: email,
-                  name: '',
-                  role: '',
-                ),
-              );
-              final displayName = match.name.isNotEmpty ? match.name : email;
+          )
+        else if (!isTablet)
+          // MOBILE: Modern Card Layout (Zero crash, Zero overflow, Clean UX)
+          Column(
+            children: List.generate(points.length, (idx) {
+              final p = points[idx];
+              final isDone = p.isDone;
 
               return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
-                ),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isDone ? const Color(0xFFBBF7D0) : const Color(0xFFE2E8F0),
+                    width: isDone ? 1.5 : 1,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x08000000),
+                      blurRadius: 6,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Flexible(
-                      child: Text(
-                        displayName,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.outfit(
-                          fontSize: 12.5,
-                          color: _kTextPrimary,
-                          fontWeight: FontWeight.w500,
+                    // Header row: #Index + Department badge + Target Date
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '#${idx + 1}',
+                            style: GoogleFonts.outfit(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: _kPrimary,
+                            ),
+                          ),
                         ),
+                        const SizedBox(width: 8),
+                        if (p.department.isNotEmpty) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEEF2FF),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              p.department,
+                              style: GoogleFonts.outfit(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF4F46E5),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        const Spacer(),
+                        if (p.targetDate.isNotEmpty) ...[
+                          const Icon(
+                            Icons.event_outlined,
+                            size: 13,
+                            color: _kTextSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            p.targetDate,
+                            style: GoogleFonts.outfit(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              color: _kTextSecondary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Action Point Text
+                    Text(
+                      p.point,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w600,
+                        color: _kTextPrimary,
+                        height: 1.35,
                       ),
                     ),
-                    if (!isReadonly) ...[
-                      const SizedBox(width: 5),
-                      InkWell(
-                        onTap: () => setState(() => _ccList.remove(email)),
-                        borderRadius: BorderRadius.circular(10),
-                        child: const Icon(
-                          Icons.close_rounded,
-                          size: 14,
-                          color: Color(0xFF64748B),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                    const SizedBox(height: 10),
+
+                    // Status Actions: Pending / Completed toggle
+                    Row(
+                      children: [
+                        Text(
+                          'Status:',
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _kTextSecondary,
+                          ),
                         ),
-                      ),
-                    ],
+                        const Spacer(),
+                        // Pending Button
+                        InkWell(
+                          onTap: isDone
+                              ? () {
+                                  widget.bloc.add(
+                                    UpdateMomPointStatus(
+                                      activityId: act.id,
+                                      pointId: p.id,
+                                      status: 'OPEN',
+                                    ),
+                                  );
+                                }
+                              : null,
+                          borderRadius: BorderRadius.circular(8),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: !isDone
+                                  ? const Color(0xFFFEF3C7)
+                                  : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: !isDone
+                                    ? const Color(0xFFD97706)
+                                    : const Color(0xFFE2E8F0),
+                                width: !isDone ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.access_time_rounded,
+                                  size: 13,
+                                  color: !isDone
+                                      ? const Color(0xFFD97706)
+                                      : _kTextSecondary,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'Pending',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 11.5,
+                                    fontWeight: !isDone
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: !isDone
+                                        ? const Color(0xFFD97706)
+                                        : _kTextSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Completed Button
+                        InkWell(
+                          onTap: !isDone
+                              ? () {
+                                  widget.bloc.add(
+                                    UpdateMomPointStatus(
+                                      activityId: act.id,
+                                      pointId: p.id,
+                                      status: 'DONE',
+                                    ),
+                                  );
+                                }
+                              : null,
+                          borderRadius: BorderRadius.circular(8),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDone
+                                  ? const Color(0xFFDCFCE7)
+                                  : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isDone
+                                    ? const Color(0xFF16A34A)
+                                    : const Color(0xFFE2E8F0),
+                                width: isDone ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 13,
+                                  color: isDone
+                                      ? const Color(0xFF16A34A)
+                                      : _kTextSecondary,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'Completed',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 11.5,
+                                    fontWeight: isDone
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: isDone
+                                        ? const Color(0xFF16A34A)
+                                        : _kTextSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               );
-            }).toList(),
-          ),
-          const SizedBox(height: 14),
-        ],
-
-        // Clean Search Field for employees or emails
-        if (!isReadonly) ...[
-          TextField(
-            style: GoogleFonts.outfit(fontSize: 13.5, color: _kTextPrimary),
-            onChanged: (val) => setState(() => _ccSearchQuery = val),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: Colors.white,
-              isDense: true,
-              prefixIcon: const Icon(
-                Icons.search,
-                size: 20,
-                color: _kTextSecondary,
-              ),
-              suffixIcon: _ccSearchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(
-                        Icons.clear,
-                        size: 16,
-                        color: _kTextSecondary,
-                      ),
-                      onPressed: () => setState(() => _ccSearchQuery = ''),
-                    )
-                  : null,
-              hintText: 'Search employees or email...',
-              hintStyle: GoogleFonts.outfit(
-                fontSize: 13,
-                color: _kTextSecondary.withValues(alpha: 0.7),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 10,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _kBorderColor),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _kBorderColor),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: _kPrimary, width: 1.5),
-              ),
+            }),
+          )
+        else
+          // TABLET / DESKTOP: Clean Bounded Table
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: _kBorderColor),
             ),
-          ),
-          const SizedBox(height: 16),
-
-          // Select recipients header + Select all / Clear all
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Select recipients',
-                style: GoogleFonts.outfit(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: _kTextPrimary,
-                ),
-              ),
-              InkWell(
-                onTap: () {
-                  setState(() {
-                    if (allFilteredSelected) {
-                      for (final opt in filteredOptions) {
-                        _ccList.remove(opt.value);
-                      }
-                    } else {
-                      for (final opt in filteredOptions) {
-                        if (!_ccList.contains(opt.value)) {
-                          _ccList.add(opt.value);
-                        }
-                      }
-                    }
-                  });
-                },
-                borderRadius: BorderRadius.circular(4),
-                child: Padding(
+            child: Column(
+              children: [
+                // Header
+                Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 2,
+                    horizontal: 14,
+                    vertical: 10,
                   ),
-                  child: Text(
-                    allFilteredSelected ? 'Clear all' : 'Select all',
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _kPrimary,
-                    ),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(9)),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 44,
+                        child: Text(
+                          'S.No',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: _kTextSecondary,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 6,
+                        child: Text(
+                          'Action Point',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: _kTextSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 3,
+                        child: Text(
+                          'Department',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: _kTextSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 3,
+                        child: Text(
+                          'Target',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: _kTextSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        width: 190,
+                        child: Text(
+                          'Status',
+                          style: GoogleFonts.outfit(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: _kTextSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
+                const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
 
-          // Scrollable Employee Rows with circular checkbox (no fixed height clipping!)
-          if (filteredOptions.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Text(
-                'No employees match "$_ccSearchQuery"',
-                style: GoogleFonts.outfit(fontSize: 13, color: _kTextSecondary),
-              ),
-            )
-          else
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: filteredOptions.length,
-              itemBuilder: (ctx, i) {
-                final opt = filteredOptions[i];
-                final isSelected = _ccList.contains(opt.value);
+                // Rows
+                ...List.generate(points.length, (idx) {
+                  final p = points[idx];
+                  final isDone = p.isDone;
 
-                return InkWell(
-                  onTap: () {
-                    setState(() {
-                      if (isSelected) {
-                        _ccList.remove(opt.value);
-                      } else {
-                        _ccList.add(opt.value);
-                      }
-                    });
-                  },
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 2),
+                  return Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
+                      horizontal: 14,
+                      vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: isSelected
-                          ? const Color(0xFFF8FAFC)
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
+                      border: Border(
+                        top: idx > 0
+                            ? const BorderSide(color: Color(0xFFF1F5F9))
+                            : BorderSide.none,
+                      ),
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Circular checkbox
-                        Container(
-                          width: 20,
-                          height: 20,
-                          decoration: BoxDecoration(
-                            color: isSelected ? _kPrimary : Colors.transparent,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected
-                                  ? _kPrimary
-                                  : const Color(0xFFCBD5E1),
-                              width: 1.5,
+                        // S.No
+                        SizedBox(
+                          width: 44,
+                          child: Text(
+                            '${idx + 1}',
+                            style: GoogleFonts.outfit(
+                              fontSize: 12.5,
+                              color: _kTextSecondary,
                             ),
                           ),
-                          child: isSelected
-                              ? const Center(
-                                  child: Icon(
-                                    Icons.check,
-                                    size: 13,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : null,
                         ),
-                        const SizedBox(width: 12),
-                        // Employee Name, Role, & Email
+
+                        // Action Point
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                opt.name.isNotEmpty ? opt.name : opt.value,
+                          flex: 6,
+                          child: Text(
+                            p.point,
+                            style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: _kTextPrimary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+
+                        // Department Pill
+                        Expanded(
+                          flex: 3,
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEEF2FF),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                p.department.isNotEmpty ? p.department : '—',
                                 style: GoogleFonts.outfit(
-                                  fontSize: 14,
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.w600,
-                                  color: _kTextPrimary,
+                                  color: const Color(0xFF4F46E5),
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${opt.role.isNotEmpty ? opt.role : "Staff"} · ${opt.value}',
-                                style: GoogleFonts.outfit(
-                                  fontSize: 12,
-                                  color: _kTextSecondary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+
+                        // Target Date
+                        Expanded(
+                          flex: 3,
+                          child: Text(
+                            p.targetDate.isNotEmpty ? p.targetDate : '—',
+                            style: GoogleFonts.outfit(
+                              fontSize: 12.5,
+                              color: _kTextSecondary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+
+                        // Status Toggle Buttons: [ Pending ]  [ Completed ]
+                        SizedBox(
+                          width: 190,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Pending Button
+                              InkWell(
+                                onTap: isDone
+                                    ? () {
+                                        widget.bloc.add(
+                                          UpdateMomPointStatus(
+                                            activityId: act.id,
+                                            pointId: p.id,
+                                            status: 'OPEN',
+                                          ),
+                                        );
+                                      }
+                                    : null,
+                                borderRadius: BorderRadius.circular(6),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: !isDone
+                                        ? const Color(0xFFFEF3C7)
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: !isDone
+                                          ? const Color(0xFFD97706)
+                                          : const Color(0xFFE2E8F0),
+                                      width: !isDone ? 1.5 : 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.access_time_rounded,
+                                        size: 12,
+                                        color: !isDone
+                                            ? const Color(0xFFD97706)
+                                            : _kTextSecondary,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Pending',
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 11,
+                                          fontWeight: !isDone
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                          color: !isDone
+                                              ? const Color(0xFFD97706)
+                                              : _kTextSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(width: 8),
+
+                              // Completed Button
+                              InkWell(
+                                onTap: !isDone
+                                    ? () {
+                                        widget.bloc.add(
+                                          UpdateMomPointStatus(
+                                            activityId: act.id,
+                                            pointId: p.id,
+                                            status: 'DONE',
+                                          ),
+                                        );
+                                      }
+                                    : null,
+                                borderRadius: BorderRadius.circular(6),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isDone
+                                        ? const Color(0xFFDCFCE7)
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: isDone
+                                          ? const Color(0xFF16A34A)
+                                          : const Color(0xFFE2E8F0),
+                                      width: isDone ? 1.5 : 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle_rounded,
+                                        size: 12,
+                                        color: isDone
+                                            ? const Color(0xFF16A34A)
+                                            : _kTextSecondary,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Completed',
+                                        style: GoogleFonts.outfit(
+                                          fontSize: 11,
+                                          fontWeight: isDone
+                                              ? FontWeight.w700
+                                              : FontWeight.w500,
+                                          color: isDone
+                                              ? const Color(0xFF16A34A)
+                                              : _kTextSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ],
                           ),
                         ),
                       ],
                     ),
-                  ),
-                );
-              },
-            ),
-          const SizedBox(height: 12),
-
-          // Add custom CC email row
-          Container(
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _kBorderColor),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _addCcController,
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      color: _kTextPrimary,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Add new Cc email address...',
-                      hintStyle: GoogleFonts.outfit(
-                        fontSize: 12.5,
-                        color: _kTextSecondary.withValues(alpha: 0.7),
-                      ),
-                      isDense: true,
-                      filled: false,
-                      fillColor: Colors.transparent,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      disabledBorder: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                    ),
-                    onSubmitted: (txt) {
-                      final val = txt.trim();
-                      if (val.isNotEmpty && !_ccList.contains(val)) {
-                        setState(() {
-                          _ccList.add(val);
-                          _addCcController.clear();
-                        });
-                      }
-                    },
-                  ),
-                ),
-                TextButton(
-                  onPressed: () {
-                    final txt = _addCcController.text.trim();
-                    if (txt.isNotEmpty && !_ccList.contains(txt)) {
-                      setState(() {
-                        _ccList.add(txt);
-                        _addCcController.clear();
-                      });
-                    }
-                  },
-                  child: Text(
-                    'Add',
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _kPrimary,
-                    ),
-                  ),
-                ),
+                  );
+                }),
               ],
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Filtered for current zone (${site.zoneId ?? "all"}). Defaults to site allocation + HR / EHS / Machine.',
-            style: GoogleFonts.outfit(fontSize: 11, color: _kTextSecondary),
-          ),
-        ],
       ],
     );
   }
 
-  // ── Major Points Table ──────────────────────────────────────────────────────
-  Widget _buildPointsTable({required bool isReadonly}) {
+  // ── Points Discussed Table (Image 4 & 5: Point, Department, Target Date, Delete) ──
+  Widget _buildPointsTable({required bool isReadonly, bool isTablet = true}) {
     if (_points.isEmpty) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: _kBorderColor),
         ),
         child: Row(
@@ -2345,23 +3018,219 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
           children: [
             const Icon(
               Icons.assignment_outlined,
-              size: 18,
+              size: 16,
               color: _kTextSecondary,
             ),
             const SizedBox(width: 8),
-            Text(
-              'No major points yet — click Add point.',
-              style: GoogleFonts.outfit(fontSize: 12.5, color: _kTextSecondary),
+            Flexible(
+              child: Text(
+                'No points yet — click Add Point.',
+                style: GoogleFonts.outfit(
+                  fontSize: 12.5,
+                  color: _kTextSecondary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
       );
     }
 
+    // ── MOBILE: Card/Stack layout for Points (Zero Horizontal Overflow) ──
+    if (!isTablet) {
+      return Column(
+        children: List.generate(_points.length, (idx) {
+          final p = _points[idx];
+          final targetDateParsed = DateTime.tryParse(p['targetDate'] ?? '');
+          final targetDateDisplay = targetDateParsed != null
+              ? _formatDateShort(targetDateParsed)
+              : (p['targetDate'] ?? '');
+          final dept = p['department'] ?? 'Operations';
+
+          return Container(
+            margin: EdgeInsets.only(bottom: idx == _points.length - 1 ? 0 : 10),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Row 1: Point TextField + Delete button
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF2FF),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '#${idx + 1}',
+                        style: GoogleFonts.outfit(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: _kPrimary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: isReadonly
+                          ? Text(
+                              p['point'] ?? '',
+                              style: GoogleFonts.outfit(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: _kTextPrimary,
+                              ),
+                            )
+                          : TextFormField(
+                              initialValue: p['point'],
+                              onChanged: (val) => p['point'] = val,
+                              style: GoogleFonts.outfit(fontSize: 13),
+                              decoration: const InputDecoration(
+                                isDense: true,
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.symmetric(
+                                  vertical: 4,
+                                  horizontal: 2,
+                                ),
+                                hintText: 'Observation / action point...',
+                              ),
+                            ),
+                    ),
+                    if (!isReadonly)
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                          color: Color(0xFFEF4444),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _points.removeAt(idx);
+                          });
+                        },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+
+                // Row 2: Department selector + Target date picker
+                Row(
+                  children: [
+                    // Department
+                    Expanded(
+                      child: isReadonly
+                          ? Text(dept, style: GoogleFonts.outfit(fontSize: 12))
+                          : InkWell(
+                              onTap: () => _showDepartmentSelector(idx),
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      dept,
+                                      style: GoogleFonts.outfit(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.arrow_drop_down,
+                                      size: 16,
+                                      color: _kTextSecondary,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // Target Date
+                    Expanded(
+                      child: isReadonly
+                          ? Text(targetDateDisplay, style: GoogleFonts.outfit(fontSize: 12))
+                          : InkWell(
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: targetDateParsed ??
+                                      DateTime.now().add(const Duration(days: 7)),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(2035),
+                                );
+                                if (picked != null) {
+                                  setState(() {
+                                    p['targetDate'] = picked
+                                        .toIso8601String()
+                                        .split('T')
+                                        .first;
+                                  });
+                                }
+                              },
+                              borderRadius: BorderRadius.circular(6),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      targetDateDisplay.isNotEmpty
+                                          ? targetDateDisplay
+                                          : 'Select Date',
+                                      style: GoogleFonts.outfit(fontSize: 11.5),
+                                    ),
+                                    const Icon(
+                                      Icons.calendar_today_outlined,
+                                      size: 13,
+                                      color: _kTextSecondary,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }),
+      );
+    }
+
+    // ── TABLET / DESKTOP: 4-Column Table ─────────────────────────────────────
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: _kBorderColor),
       ),
       child: Column(
@@ -2370,74 +3239,93 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              color: Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(9)),
             ),
             child: Row(
               children: [
                 Expanded(
                   flex: 6,
                   child: Text(
-                    'Point',
+                    'POINT',
                     style: GoogleFonts.outfit(
                       fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
+                      color: _kTextSecondary,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 Expanded(
-                  flex: 3,
+                  flex: 4,
                   child: Text(
-                    'Target date',
+                    'DEPARTMENT',
                     style: GoogleFonts.outfit(
                       fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
+                      color: _kTextSecondary,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
-                if (!isReadonly) const SizedBox(width: 32),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 4,
+                  child: Text(
+                    'TARGET DATE',
+                    style: GoogleFonts.outfit(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: _kTextSecondary,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                if (!isReadonly) const SizedBox(width: 36),
               ],
             ),
           ),
+          const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+
+          // Rows
           ...List.generate(_points.length, (idx) {
             final p = _points[idx];
             final targetDateParsed = DateTime.tryParse(p['targetDate'] ?? '');
             final targetDateDisplay = targetDateParsed != null
                 ? _formatDateShort(targetDateParsed)
                 : (p['targetDate'] ?? '');
+            final dept = p['department'] ?? 'Operations';
 
             return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: idx > 0
+                      ? const BorderSide(color: Color(0xFFF1F5F9))
+                      : BorderSide.none,
+                ),
               ),
               child: Row(
                 children: [
+                  // Point TextField
                   Expanded(
                     flex: 6,
                     child: isReadonly
                         ? Text(
                             p['point'] ?? '',
                             style: GoogleFonts.outfit(
-                              fontSize: 12.5,
-                              color: _kTextDark,
+                              fontSize: 13,
+                              color: _kTextPrimary,
                             ),
                           )
-                        : TextField(
-                            controller: TextEditingController(text: p['point'])
-                              ..selection = TextSelection.collapsed(
-                                offset: (p['point'] ?? '').length,
-                              ),
+                        : TextFormField(
+                            initialValue: p['point'],
                             onChanged: (val) => p['point'] = val,
-                            style: GoogleFonts.outfit(fontSize: 12.5),
+                            style: GoogleFonts.outfit(fontSize: 13),
                             decoration: const InputDecoration(
                               isDense: true,
-                              filled: false,
-                              fillColor: Colors.transparent,
                               border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              disabledBorder: InputBorder.none,
                               contentPadding: EdgeInsets.symmetric(
                                 vertical: 6,
                                 horizontal: 4,
@@ -2447,26 +3335,74 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                           ),
                   ),
                   const SizedBox(width: 8),
+
+                  // Department Dropdown (Image 5 Modal)
                   Expanded(
-                    flex: 3,
+                    flex: 4,
+                    child: isReadonly
+                        ? Text(
+                            dept,
+                            style: GoogleFonts.outfit(
+                              fontSize: 12.5,
+                              color: _kTextPrimary,
+                            ),
+                          )
+                        : InkWell(
+                            onTap: () => _showDepartmentSelector(idx),
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    dept,
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: _kTextPrimary,
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.arrow_drop_down,
+                                    size: 16,
+                                    color: _kTextSecondary,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Target Date Picker
+                  Expanded(
+                    flex: 4,
                     child: isReadonly
                         ? Text(
                             targetDateDisplay,
                             style: GoogleFonts.outfit(
-                              fontSize: 12,
-                              color: _kTextDark,
+                              fontSize: 12.5,
+                              color: _kTextPrimary,
                             ),
                           )
                         : InkWell(
                             onTap: () async {
-                              final cur =
-                                  DateTime.tryParse(p['targetDate'] ?? '') ??
-                                  DateTime.now();
                               final picked = await showDatePicker(
                                 context: context,
-                                initialDate: cur,
+                                initialDate: targetDateParsed ??
+                                    DateTime.now().add(const Duration(days: 7)),
                                 firstDate: DateTime(2020),
-                                lastDate: DateTime(2030),
+                                lastDate: DateTime(2035),
                               );
                               if (picked != null) {
                                 setState(() {
@@ -2477,26 +3413,54 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                                 });
                               }
                             },
-                            child: Text(
-                              p['targetDate']?.isNotEmpty == true
-                                  ? p['targetDate']!
-                                  : 'Pick date',
-                              style: GoogleFonts.outfit(
-                                fontSize: 12,
-                                color: _kPrimaryBlue,
-                                fontWeight: FontWeight.w600,
+                            borderRadius: BorderRadius.circular(6),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    targetDateDisplay.isNotEmpty
+                                        ? targetDateDisplay
+                                        : 'Select Date',
+                                    style: GoogleFonts.outfit(
+                                      fontSize: 12,
+                                      color: _kTextPrimary,
+                                    ),
+                                  ),
+                                  const Icon(
+                                    Icons.calendar_today_outlined,
+                                    size: 14,
+                                    color: _kTextSecondary,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                   ),
+
+                  // Delete Point Button
                   if (!isReadonly)
                     IconButton(
                       icon: const Icon(
-                        Icons.delete_outline,
-                        size: 16,
+                        Icons.delete_outline_rounded,
+                        size: 18,
                         color: Color(0xFFEF4444),
                       ),
-                      onPressed: () => setState(() => _points.removeAt(idx)),
+                      onPressed: () {
+                        setState(() {
+                          _points.removeAt(idx);
+                        });
+                      },
                     ),
                 ],
               ),
@@ -2507,9 +3471,522 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
     );
   }
 
-  // ═════════════════════════════════════════════════════════════════════════════
-  // ACTIVITY MASTER & EXECUTION FLOW (Mobile & Tablet)
-  // ═════════════════════════════════════════════════════════════════════════════
+  // ── Department Selector Dialog (Matching Image 5) ─────────────────────────
+  void _showDepartmentSelector(int pointIndex) {
+    String searchQuery = '';
+    final currentDept = _points[pointIndex]['department'] ?? 'Operations';
+
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filteredDepts = _kDepartments
+                .where((d) => d.toLowerCase().contains(searchQuery.toLowerCase()))
+                .toList();
+
+            return Dialog(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Select Department',
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: _kTextPrimary,
+                            ),
+                          ),
+                          InkWell(
+                            onTap: () => Navigator.of(dialogCtx).pop(),
+                            borderRadius: BorderRadius.circular(20),
+                            child: const Padding(
+                              padding: EdgeInsets.all(4),
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: _kTextSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Search Input
+                      TextField(
+                        onChanged: (val) {
+                          setModalState(() {
+                            searchQuery = val;
+                          });
+                        },
+                        style: GoogleFonts.outfit(fontSize: 13),
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            size: 18,
+                            color: _kTextSecondary,
+                          ),
+                          hintText: 'Search name or role...',
+                          hintStyle: GoogleFonts.outfit(
+                            fontSize: 12.5,
+                            color: _kTextSecondary.withValues(alpha: 0.6),
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFF8FAFC),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // List
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 250),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: filteredDepts.length,
+                          separatorBuilder: (_, __) => const Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: Color(0xFFF1F5F9),
+                          ),
+                          itemBuilder: (context, i) {
+                            final dept = filteredDepts[i];
+                            final isSelected = dept == currentDept;
+
+                            return ListTile(
+                              dense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              title: Text(
+                                dept,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13.5,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: isSelected ? _kPrimary : _kTextPrimary,
+                                ),
+                              ),
+                              trailing: isSelected
+                                  ? const Icon(
+                                      Icons.check_rounded,
+                                      size: 18,
+                                      color: _kPrimary,
+                                    )
+                                  : null,
+                              onTap: () {
+                                setState(() {
+                                  _points[pointIndex]['department'] = dept;
+                                });
+                                Navigator.of(dialogCtx).pop();
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ── Recipient Selector for TO ─────────────────────────────────────────────
+  Widget _buildRecipientSelector({
+    required bool isReadonly,
+    required List<String> currentList,
+    required List<EmailRecipientModel> options,
+    required ValueChanged<String> onAdd,
+    required ValueChanged<String> onRemove,
+    required TextEditingController customController,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'To *',
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _kTextPrimary,
+              ),
+            ),
+            if (!isReadonly)
+              InkWell(
+                onTap: () => setState(() => _showAddToInput = !_showAddToInput),
+                child: Text(
+                  _showAddToInput ? 'Cancel' : '+ Add custom email',
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _kPrimary,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Defaults To Site Contact Person. Use Add Email For Additional To Recipients.',
+          style: GoogleFonts.outfit(fontSize: 11.5, color: _kTextSecondary),
+        ),
+        const SizedBox(height: 8),
+
+        // Display current chips
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: currentList.map((email) {
+            return Chip(
+              backgroundColor: _kLightBlueBg,
+              side: const BorderSide(color: Color(0xFFD0E1FD)),
+              labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+              label: Text(
+                email,
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: _kPrimary,
+                ),
+              ),
+              deleteIcon: isReadonly
+                  ? null
+                  : const Icon(Icons.close_rounded, size: 14, color: _kPrimary),
+              onDeleted: isReadonly ? null : () => onRemove(email),
+            );
+          }).toList(),
+        ),
+
+        // Add custom email input field
+        if (_showAddToInput && !isReadonly) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: customController,
+                  style: GoogleFonts.outfit(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Add New To Email',
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 9,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: _kBorderColor),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () {
+                  final text = customController.text.trim();
+                  if (text.isNotEmpty) {
+                    onAdd(text);
+                    customController.clear();
+                    setState(() => _showAddToInput = false);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kPrimary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 9,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text('Add Email', style: GoogleFonts.outfit(fontSize: 12)),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  // ── CC Recipient Selector ─────────────────────────────────────────────────
+  Widget _buildCcRecipientSelector(
+    ActivitySiteDetailModel site, {
+    required bool isReadonly,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Cc',
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _kTextPrimary,
+              ),
+            ),
+            if (!isReadonly)
+              InkWell(
+                onTap: () => _showCcSelectionModal(site),
+                child: Text(
+                  'Select CC',
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _kPrimary,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Defaults To Site Allocation + HR / EHS / Machine. Use Add For Extra Cc Emails.',
+          style: GoogleFonts.outfit(fontSize: 11.5, color: _kTextSecondary),
+        ),
+        const SizedBox(height: 8),
+
+        // CC Chips
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: _ccList.map((email) {
+            return Chip(
+              backgroundColor: const Color(0xFFF1F5F9),
+              side: const BorderSide(color: Color(0xFFE2E8F0)),
+              labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+              label: Text(
+                email,
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: _kTextPrimary,
+                ),
+              ),
+              deleteIcon: isReadonly
+                  ? null
+                  : const Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: _kTextSecondary,
+                    ),
+              onDeleted: isReadonly
+                  ? null
+                  : () {
+                      setState(() {
+                        _ccList.remove(email);
+                      });
+                    },
+            );
+          }).toList(),
+        ),
+
+        if (!isReadonly) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _addCcController,
+                  style: GoogleFonts.outfit(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Add New Cc Email',
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 9,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: _kBorderColor),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () {
+                  final text = _addCcController.text.trim();
+                  if (text.isNotEmpty) {
+                    if (!_ccList.contains(text)) {
+                      setState(() => _ccList.add(text));
+                    }
+                    _addCcController.clear();
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kPrimary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 9,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
+                child: Text('Add', style: GoogleFonts.outfit(fontSize: 12)),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _showCcSelectionModal(ActivitySiteDetailModel site) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filtered = site.ccEmails.where((c) {
+              final q = _ccSearchQuery.toLowerCase();
+              return c.label.toLowerCase().contains(q) ||
+                  c.value.toLowerCase().contains(q);
+            }).toList();
+
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.6,
+              maxChildSize: 0.85,
+              builder: (_, controller) {
+                return Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Select CC Recipients',
+                            style: GoogleFonts.outfit(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        onChanged: (val) {
+                          setModalState(() => _ccSearchQuery = val);
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Search people or email...',
+                          prefixIcon: const Icon(Icons.search),
+                          isDense: true,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: ListView.builder(
+                          controller: controller,
+                          itemCount: filtered.length,
+                          itemBuilder: (context, idx) {
+                            final item = filtered[idx];
+                            final isChecked = _ccList.contains(item.value);
+
+                            return CheckboxListTile(
+                              value: isChecked,
+                              title: Text(item.name.isNotEmpty ? item.name : item.label),
+                              subtitle: Text(item.value),
+                              onChanged: (val) {
+                                setModalState(() {
+                                  if (val == true) {
+                                    _ccList.add(item.value);
+                                  } else {
+                                    _ccList.remove(item.value);
+                                  }
+                                });
+                                setState(() {});
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ── Sidebar Cards: Activity Master & Execution Flow ───────────────────────
+  Widget _buildSidebarCards(
+    ActivityItemDetailModel act,
+    ActivitySiteDetailModel site,
+    bool isTablet,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildCollapsibleActivityMasterCard(act, site, isTablet),
+        const SizedBox(height: 16),
+        _buildExecutionFlowCard(isTablet),
+      ],
+    );
+  }
+
   Widget _buildCollapsibleActivityMasterCard(
     ActivityItemDetailModel act,
     ActivitySiteDetailModel site,
@@ -2518,124 +3995,105 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kCardBorder),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kBorderColor),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Activity Master',
+              style: GoogleFonts.outfit(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: _kTextPrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+            const SizedBox(height: 14),
+
+            _buildMasterRow('Activity ID', act.code),
+            _buildMasterRow('Site', site.name),
+            _buildMasterRow('Category / Function', act.functionLabel),
+            _buildMasterRow('Role', act.roleLabel),
+            _buildMasterRow('SPOC', act.assignedToName ?? '—'),
+            _buildMasterRow('Client Type', act.clientType.isNotEmpty ? act.clientType : '—'),
+            _buildMasterRow('Frequency', act.frequencyLabel),
+            _buildMasterRow('Scheduled', act.scheduledDate ?? '—'),
+            _buildMasterRow('Due', act.dueDate ?? '—'),
+            _buildMasterRow('Attendance', 'See Attendance'),
+            _buildMasterRow(
+              'Current Step',
+              _currentStep == 0
+                  ? (isTablet ? 'Walk Around Checklist' : 'Checklist')
+                  : (isTablet ? 'MOM & Email' : 'MOM'),
+            ),
+            _buildMasterRow('Status', act.statusLabel, isStatus: true),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMasterRow(
+    String label,
+    String value, {
+    bool isStatus = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Collapsible Header
-          InkWell(
-            onTap: () => setState(() => _isMasterExpanded = !_isMasterExpanded),
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.layers_outlined,
-                    size: 20,
-                    color: _kPrimaryBlue,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Activity master',
-                      style: GoogleFonts.outfit(
-                        fontSize: isTablet ? 16 : 14.5,
-                        fontWeight: FontWeight.w700,
-                        color: _kPrimaryBlue,
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    _isMasterExpanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    size: 22,
-                    color: _kTextSlate,
-                  ),
-                ],
+          Expanded(
+            flex: 5,
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.outfit(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: _kTextSecondary,
               ),
             ),
           ),
-
-          // Collapsible Body
-          if (_isMasterExpanded) ...[
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                children: [
-                  _buildMasterRow('Activity ID', act.code),
-                  _buildMasterRow('Site', site.name),
-                  _buildMasterRow('Category / function', act.functionLabel),
-                  _buildMasterRow('Role', act.roleLabel),
-                  _buildMasterRow('SPOC', act.assignedToName ?? 'Unassigned'),
-                  _buildMasterRow('Client type', act.clientType),
-                  _buildMasterRow('Frequency', act.frequencyLabel),
-                  _buildMasterRow('Scheduled', act.scheduledDate ?? '—'),
-                  _buildMasterRow('Due', act.dueDate ?? '—'),
-                  _buildMasterRow(
-                    'Attendance',
-                    'See Attendance',
-                    isLink: true,
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 5,
+            child: value == 'See Attendance'
+                ? InkWell(
                     onTap: () {
-                      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              const Icon(
-                                Icons.info_outline,
-                                color: Colors.white,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  'Attendance is under progress',
-                                  style: GoogleFonts.outfit(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          backgroundColor: const Color(0xFF1E293B),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          duration: const Duration(seconds: 2),
-                        ),
+                      AppSnackBar.info(
+                        context,
+                        message: 'Attendance is under progress',
                       );
                     },
+                    child: Text(
+                      value,
+                      textAlign: TextAlign.end,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _kPrimary,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  )
+                : Text(
+                    value,
+                    textAlign: TextAlign.end,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: isStatus ? FontWeight.w700 : FontWeight.w600,
+                      color: isStatus ? _kPrimary : _kTextPrimary,
+                    ),
                   ),
-                  _buildMasterRow(
-                    'Current step',
-                    _currentStep == 0 ? 'Visit details' : 'MOM',
-                  ),
-                  _buildMasterRow(
-                    'Status',
-                    act.isMomSent ? 'Completed' : act.statusLabel,
-                    statusColor: (act.isCompleted || act.isMomSent)
-                        ? const Color(0xFF16A34A)
-                        : const Color(0xFFD97706),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ],
       ),
     );
@@ -2645,107 +4103,80 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: _kLightBlueBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _kCardBorder),
+        border: Border.all(color: const Color(0xFFD0E1FD)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Execution flow',
+            'Execution Flow',
             style: GoogleFonts.outfit(
-              fontSize: 14,
+              fontSize: 13.5,
               fontWeight: FontWeight.w700,
-              color: _kTextDark,
+              color: _kPrimary,
             ),
           ),
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: _kLightBlue,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              '1. Visit details and 2. MOM can be opened independently. Attendance is marked under Attendance.',
-              style: GoogleFonts.outfit(
-                fontSize: 12,
-                color: _kTextDarkBlue,
-                height: 1.4,
-              ),
+          Text(
+            '1. Walk Around Checklist → 2. Visit Details → 3. MOM. Attendance Is Marked Under Attendance.',
+            style: GoogleFonts.outfit(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+              color: _kTextDarkBlue,
+              height: 1.4,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  // Sidebar cards on wide desktop screens
-  Widget _buildSidebarCards(
-    ActivityItemDetailModel act,
-    ActivitySiteDetailModel site,
-    bool isTablet,
-  ) {
-    return Column(
-      children: [
-        _buildCollapsibleActivityMasterCard(act, site, isTablet),
-        const SizedBox(height: 16),
-        _buildExecutionFlowCard(isTablet),
-      ],
-    );
-  }
-
-  Widget _buildMasterRow(
-    String label,
-    String value, {
-    bool isLink = false,
-    Color? statusColor,
-    VoidCallback? onTap,
-  }) {
-    final textStyle = GoogleFonts.outfit(
-      fontSize: 12.5,
-      fontWeight: FontWeight.w600,
-      color: statusColor ?? (isLink ? _kPrimaryBlue : _kTextDark),
-      decoration: isLink ? TextDecoration.underline : TextDecoration.none,
-      decorationColor: _kPrimaryBlue,
-    );
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5.5),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: GoogleFonts.outfit(
-                fontSize: 12.5,
-                color: _kTextSlate,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          if (onTap != null)
-            InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(4),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                child: Text(value, style: textStyle),
-              ),
-            )
-          else
-            Text(value, style: textStyle),
         ],
       ),
     );
   }
 
   // ═════════════════════════════════════════════════════════════════════════════
-  // DIALOGS & ACTIONS
+  // ACTIONS & DISPATCH
   // ═════════════════════════════════════════════════════════════════════════════
   void _submitVisit() {
+    setState(() {
+      _hasAttemptedSubmit = true;
+    });
+
+    final act = widget.activityDetail.activity;
+
+    // Check checklist items: if status == 'ISSUE' (i.e. 'No'), remarks are mandatory!
+    final missingRemarks = <String>[];
+    for (final item in act.template) {
+      final status = _checklistStatus[item.key] ?? 'OK';
+      final remarks = _remarksControllers[item.key]?.text.trim() ?? '';
+      if (status == 'ISSUE' && remarks.isEmpty) {
+        missingRemarks.add(item.title);
+      }
+    }
+
+    if (missingRemarks.isNotEmpty) {
+      final firstName = missingRemarks.first;
+      final extra = missingRemarks.length - 1;
+      final errorMsg = extra > 0
+          ? 'Remarks are mandatory for "$firstName" and $extra other item(s) marked as "No".'
+          : 'Remarks are mandatory for "$firstName" because it is marked as "No".';
+
+      AppSnackBar.error(
+        context,
+        title: 'Remarks Required',
+        message: errorMsg,
+      );
+      return;
+    }
+
+    if (_clientMet == null) {
+      AppSnackBar.warning(
+        context,
+        title: 'Client Met Required',
+        message: 'Please specify whether you met with the client (Yes/No).',
+      );
+      return;
+    }
+
     _showSubmitVisitDialog();
   }
 
@@ -2762,16 +4193,16 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
         return Dialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
           ),
           insetPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
+            horizontal: 16,
             vertical: 24,
           ),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
+            constraints: const BoxConstraints(maxWidth: 440),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2782,7 +4213,7 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                       Text(
                         'Submit Visit',
                         style: GoogleFonts.outfit(
-                          fontSize: 18,
+                          fontSize: 17,
                           fontWeight: FontWeight.w700,
                           color: _kTextDark,
                         ),
@@ -2794,16 +4225,16 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                           padding: EdgeInsets.all(4),
                           child: Icon(
                             Icons.close_rounded,
-                            size: 20,
+                            size: 18,
                             color: Color(0xFF64748B),
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2811,26 +4242,22 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                       Text(
                         'Visit Date',
                         style: GoogleFonts.outfit(
-                          fontSize: 13.5,
+                          fontSize: 13,
                           fontWeight: FontWeight.w500,
                           color: const Color(0xFF64748B),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          formattedDateText,
-                          textAlign: TextAlign.end,
-                          style: GoogleFonts.outfit(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: _kTextDark,
-                          ),
+                      Text(
+                        formattedDateText,
+                        style: GoogleFonts.outfit(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w600,
+                          color: _kTextDark,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
 
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2838,7 +4265,7 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                       Text(
                         'Client Met',
                         style: GoogleFonts.outfit(
-                          fontSize: 13.5,
+                          fontSize: 13,
                           fontWeight: FontWeight.w500,
                           color: const Color(0xFF64748B),
                         ),
@@ -2846,7 +4273,7 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                       Text(
                         clientMetVal ? 'Yes' : 'No',
                         style: GoogleFonts.outfit(
-                          fontSize: 14,
+                          fontSize: 13.5,
                           fontWeight: FontWeight.w700,
                           color: clientMetVal
                               ? const Color(0xFF16A34A)
@@ -2855,7 +4282,7 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
 
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2864,7 +4291,7 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                       Text(
                         'Note',
                         style: GoogleFonts.outfit(
-                          fontSize: 13.5,
+                          fontSize: 13,
                           fontWeight: FontWeight.w500,
                           color: const Color(0xFF64748B),
                         ),
@@ -2875,50 +4302,48 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                           noteText.isNotEmpty ? noteText : '—',
                           textAlign: TextAlign.end,
                           style: GoogleFonts.outfit(
-                            fontSize: 14,
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: _kTextDark,
                           ),
-                          maxLines: 3,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 16),
 
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: _kLightBlue,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: _kBorderBlue),
                     ),
                     child: Text(
                       'After Submit You Will Move To MOM & Email To Send The Client Communication.',
                       style: GoogleFonts.outfit(
-                        fontSize: 12.5,
+                        fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: _kTextDarkBlue,
                         height: 1.4,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 20),
 
                   Row(
                     children: [
                       Expanded(
+                        flex: 3,
                         child: OutlinedButton(
                           onPressed: () => Navigator.of(ctx).pop(),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             side: const BorderSide(color: Color(0xFFCBD5E1)),
                           ),
@@ -2932,8 +4357,9 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Expanded(
+                        flex: 7,
                         child: ElevatedButton(
                           onPressed: () {
                             Navigator.of(ctx).pop();
@@ -2944,21 +4370,27 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
                             );
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _kPrimaryBlue,
+                            backgroundColor: _kPrimary,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 10,
+                            ),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             elevation: 0,
                           ),
-                          child: Text(
-                            'Complete → Send MOM',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.outfit(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Complete → Send MOM',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.outfit(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -2979,13 +4411,24 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
     bool clientMetVal,
     String noteText,
   ) {
+    final act = widget.activityDetail.activity;
+    final answersPayload = act.template.map((t) {
+      final status = _checklistStatus[t.key] ?? 'OK';
+      final remarks = _remarksControllers[t.key]?.text.trim() ?? '';
+      return {
+        'key': t.key,
+        'status': status,
+        'remarks': remarks,
+      };
+    }).toList();
+
     widget.bloc.add(
       SubmitActivityVisit(
-        activityId: widget.activityDetail.activity.id,
+        activityId: act.id,
         visitDate: visitDateStr,
         clientMet: clientMetVal,
         note: noteText,
-        answers: const [],
+        answers: answersPayload,
         findings: const [],
       ),
     );
@@ -3006,13 +4449,27 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
       return;
     }
 
+    final pointsPayload = _points.map((p) {
+      final rawDept = p['department'] ?? 'Operations';
+      final deptVal = (rawDept == 'L&D') ? 'LD' : rawDept;
+      return {
+        'point': p['point'] ?? '',
+        'targetDate': p['targetDate'] ?? '',
+        'department': deptVal,
+      };
+    }).toList();
+
     final payload = {
       'to': _toList,
       'cc': _ccList,
       'subject': _subjectController.text.trim(),
-      'points': _points,
+      'body': _bodyController.text.trim(),
+      'meetingAttendees': _meetingAttendeesController.text.trim(),
+      'clientAttendees': _clientAttendeesController.text.trim(),
+      'points': pointsPayload,
       'closing': _closingController.text.trim(),
     };
+
     widget.bloc.add(
       SendActivityMomEmail(
         activityId: widget.activityDetail.activity.id,
@@ -3022,64 +4479,21 @@ class _ActivityExecutionViewState extends State<ActivityExecutionView> {
   }
 }
 
-// ── Top Header Custom Painter: Blue & White translucent curves ───────────────
-class _TopHeaderWavePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint1 = Paint()
-      ..color = const Color(0xFF3B82F6).withValues(alpha: 0.28)
-      ..style = PaintingStyle.fill;
-
-    final path1 = Path();
-    path1.moveTo(size.width * 0.25, 0);
-    path1.quadraticBezierTo(
-      size.width * 0.65,
-      size.height * 0.35,
-      size.width,
-      size.height * 0.58,
-    );
-    path1.lineTo(size.width, 0);
-    path1.close();
-
-    canvas.drawPath(path1, paint1);
-
-    final paint2 = Paint()
-      ..color = Colors.white.withValues(alpha: 0.10)
-      ..style = PaintingStyle.fill;
-
-    final path2 = Path();
-    path2.moveTo(size.width * 0.45, 0);
-    path2.quadraticBezierTo(
-      size.width * 0.72,
-      size.height * 0.22,
-      size.width,
-      size.height * 0.38,
-    );
-    path2.lineTo(size.width, 0);
-    path2.close();
-
-    canvas.drawPath(path2, paint2);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-// ── Bottom Corner Custom Painter: Subtle Blue curve ──────────────────────────
+// ── Translucent Wave Painter for Decorative Accents ──────────────────────────
 class _BottomCornerWavePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFFDBEAFE).withValues(alpha: 0.55)
+      ..color = const Color(0xFF1769E8).withValues(alpha: 0.05)
       ..style = PaintingStyle.fill;
 
     final path = Path();
     path.moveTo(0, size.height);
     path.quadraticBezierTo(
-      size.width * 0.5,
-      size.height * 0.95,
+      size.width * 0.45,
+      size.height * 0.8,
       size.width,
-      size.height * 0.45,
+      0,
     );
     path.lineTo(size.width, size.height);
     path.close();

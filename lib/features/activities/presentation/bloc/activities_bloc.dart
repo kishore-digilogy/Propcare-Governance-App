@@ -39,6 +39,7 @@ class ActivitiesBloc extends Bloc<ActivitiesEvent, ActivitiesState> {
     on<CloseActivityDetail>(_onCloseActivityDetail);
     on<SubmitActivityVisit>(_onSubmitActivityVisit);
     on<SendActivityMomEmail>(_onSendActivityMomEmail);
+    on<UpdateMomPointStatus>(_onUpdateMomPointStatus);
   }
 
   Future<void> _onLoadActivities(
@@ -585,6 +586,42 @@ class ActivitiesBloc extends Bloc<ActivitiesEvent, ActivitiesState> {
           emit(latest.copyWith(
             isSendingMom: false,
             actionErrorMessage: () => 'Error sending MOM: $e',
+          ));
+        }
+      }
+    }
+  }
+
+  Future<void> _onUpdateMomPointStatus(
+    UpdateMomPointStatus event,
+    Emitter<ActivitiesState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is ActivitiesLoaded &&
+        currentState.selectedActivityDetail != null) {
+      try {
+        final updatedActivity = await remoteDataSource.updateMomPointStatus(
+          activityId: event.activityId,
+          pointId: event.pointId,
+          status: event.status,
+        );
+
+        final updatedDetail = currentState.selectedActivityDetail!.copyWith(
+          activity: updatedActivity,
+        );
+
+        final latest = state;
+        if (latest is ActivitiesLoaded) {
+          emit(latest.copyWith(
+            selectedActivityDetail: () => updatedDetail,
+            actionSuccessMessage: () => 'Action point updated',
+          ));
+        }
+      } catch (e) {
+        final latest = state;
+        if (latest is ActivitiesLoaded) {
+          emit(latest.copyWith(
+            actionErrorMessage: () => 'Failed to update action point: $e',
           ));
         }
       }

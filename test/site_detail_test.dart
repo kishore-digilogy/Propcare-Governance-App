@@ -102,6 +102,13 @@ class MockSiteDetailRemoteDataSource implements SitesRemoteDataSource {
   }) async {
     lifecycleCalled = true;
   }
+
+  @override
+  Future<void> updateManpower(
+    String siteId, {
+    required int manpowerRequired,
+    required int manpowerDeployed,
+  }) async {}
 }
 
 void main() {

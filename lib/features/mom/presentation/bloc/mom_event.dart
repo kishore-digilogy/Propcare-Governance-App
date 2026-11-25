@@ -19,7 +19,7 @@ class LoadMomBySite extends MomEvent {
 }
 
 class ChangeMomTab extends MomEvent {
-  final int tabIndex; // 0: Pending, 1: Completed
+  final int tabIndex; // 0: All, 1: Pending, 2: Completed
   const ChangeMomTab(this.tabIndex);
 
   @override
@@ -42,6 +42,14 @@ class SelectMomSite extends MomEvent {
   List<Object?> get props => [site];
 }
 
+class SelectMomActivityDirectly extends MomEvent {
+  final MomActivityModel activity;
+  const SelectMomActivityDirectly(this.activity);
+
+  @override
+  List<Object?> get props => [activity];
+}
+
 class BackToMomSitesList extends MomEvent {
   const BackToMomSitesList();
 }
@@ -52,6 +60,14 @@ class SelectMomActivity extends MomEvent {
 
   @override
   List<Object?> get props => [activity];
+}
+
+class SelectMomRole extends MomEvent {
+  final String role;
+  const SelectMomRole(this.role);
+
+  @override
+  List<Object?> get props => [role];
 }
 
 class SendMomEmailAction extends MomEvent {
@@ -65,4 +81,19 @@ class SendMomEmailAction extends MomEvent {
 
   @override
   List<Object?> get props => [activityId, payload];
+}
+
+class UpdateMomPointStatusAction extends MomEvent {
+  final String activityId;
+  final String pointId;
+  final String status; // 'OPEN' or 'DONE'
+
+  const UpdateMomPointStatusAction({
+    required this.activityId,
+    required this.pointId,
+    required this.status,
+  });
+
+  @override
+  List<Object?> get props => [activityId, pointId, status];
 }

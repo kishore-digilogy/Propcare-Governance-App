@@ -33,6 +33,132 @@ class EmailRecipientModel extends Equatable {
   List<Object?> get props => [value, label, name, role];
 }
 
+class ActivityTemplateItemModel extends Equatable {
+  final String key;
+  final String title;
+  final int sortOrder;
+
+  const ActivityTemplateItemModel({
+    required this.key,
+    required this.title,
+    this.sortOrder = 0,
+  });
+
+  factory ActivityTemplateItemModel.fromJson(Map<String, dynamic> json) {
+    return ActivityTemplateItemModel(
+      key: json['key']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        'title': title,
+        'sortOrder': sortOrder,
+      };
+
+  @override
+  List<Object?> get props => [key, title, sortOrder];
+}
+
+class ActivityAnswerItemModel extends Equatable {
+  final String key;
+  final String title;
+  final String status; // 'OK', 'ISSUE', 'NA'
+  final String remarks;
+
+  const ActivityAnswerItemModel({
+    required this.key,
+    this.title = '',
+    required this.status,
+    this.remarks = '',
+  });
+
+  factory ActivityAnswerItemModel.fromJson(Map<String, dynamic> json) {
+    return ActivityAnswerItemModel(
+      key: json['key']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
+      status: json['status']?.toString().toUpperCase() ?? 'OK',
+      remarks: json['remarks']?.toString() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        if (title.isNotEmpty) 'title': title,
+        'status': status,
+        'remarks': remarks,
+      };
+
+  @override
+  List<Object?> get props => [key, title, status, remarks];
+}
+
+class MomPointModel extends Equatable {
+  final String id;
+  final String point;
+  final String status; // 'OPEN' or 'DONE'
+  final String? issueId;
+  final String department;
+  final String targetDate;
+  final String? completedAt;
+
+  const MomPointModel({
+    required this.id,
+    required this.point,
+    this.status = 'OPEN',
+    this.issueId,
+    this.department = '',
+    required this.targetDate,
+    this.completedAt,
+  });
+
+  bool get isDone =>
+      status.toUpperCase() == 'DONE' || status.toUpperCase() == 'COMPLETED';
+
+  factory MomPointModel.fromJson(Map<String, dynamic> json) {
+    return MomPointModel(
+      id: json['id']?.toString() ?? '',
+      point: json['point']?.toString() ?? '',
+      status: json['status']?.toString().toUpperCase() ?? 'OPEN',
+      issueId: json['issueId']?.toString(),
+      department: json['department']?.toString() ?? '',
+      targetDate: json['targetDate']?.toString() ?? '',
+      completedAt: json['completedAt']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        if (id.isNotEmpty) 'id': id,
+        'point': point,
+        'status': status,
+        if (issueId != null) 'issueId': issueId,
+        'department': department,
+        'targetDate': targetDate,
+        if (completedAt != null) 'completedAt': completedAt,
+      };
+
+  MomPointModel copyWith({
+    String? status,
+    String? completedAt,
+  }) {
+    return MomPointModel(
+      id: id,
+      point: point,
+      status: status ?? this.status,
+      issueId: issueId,
+      department: department,
+      targetDate: targetDate,
+      completedAt: completedAt ?? this.completedAt,
+    );
+  }
+
+  @override
+  List<Object?> get props =>
+      [id, point, status, issueId, department, targetDate, completedAt];
+}
+
 class ActivityItemDetailModel extends Equatable {
   final String id;
   final String siteId;
@@ -58,6 +184,9 @@ class ActivityItemDetailModel extends Equatable {
   final String? completedAt;
   final Map<String, dynamic> mom;
   final Map<String, dynamic> requirements;
+  final List<ActivityTemplateItemModel> template;
+  final List<ActivityAnswerItemModel> answers;
+  final List<MomPointModel> momPoints;
 
   const ActivityItemDetailModel({
     required this.id,
@@ -84,6 +213,9 @@ class ActivityItemDetailModel extends Equatable {
     this.completedAt,
     this.mom = const {},
     this.requirements = const {},
+    this.template = const [],
+    this.answers = const [],
+    this.momPoints = const [],
   });
 
   bool get isCompleted =>
@@ -96,6 +228,10 @@ class ActivityItemDetailModel extends Equatable {
       status.toUpperCase() == 'CLOSED' ||
       statusLabel.toLowerCase().contains('closed');
 
+  int get totalPoints => momPoints.length;
+  int get completedPoints => momPoints.where((p) => p.isDone).length;
+  int get pendingPoints => momPoints.where((p) => !p.isDone).length;
+
   factory ActivityItemDetailModel.fromJson(Map<String, dynamic> json) {
     // Parse clientMet from completionNote if not directly present
     bool? clientMetParsed;
@@ -106,6 +242,37 @@ class ActivityItemDetailModel extends Equatable {
       clientMetParsed = true;
     } else if (note.contains('Client met: No')) {
       clientMetParsed = false;
+    }
+
+    final rawMom = json['mom'] is Map
+        ? Map<String, dynamic>.from(json['mom'] as Map)
+        : const <String, dynamic>{};
+
+    final pointsList = <MomPointModel>[];
+    if (rawMom['points'] is List) {
+      for (final p in rawMom['points'] as List) {
+        if (p is Map) {
+          pointsList.add(MomPointModel.fromJson(Map<String, dynamic>.from(p)));
+        }
+      }
+    }
+
+    final templateList = <ActivityTemplateItemModel>[];
+    if (json['template'] is List) {
+      for (final t in json['template'] as List) {
+        if (t is Map) {
+          templateList.add(ActivityTemplateItemModel.fromJson(Map<String, dynamic>.from(t)));
+        }
+      }
+    }
+
+    final answersList = <ActivityAnswerItemModel>[];
+    if (json['answers'] is List) {
+      for (final a in json['answers'] as List) {
+        if (a is Map) {
+          answersList.add(ActivityAnswerItemModel.fromJson(Map<String, dynamic>.from(a)));
+        }
+      }
     }
 
     return ActivityItemDetailModel(
@@ -132,10 +299,13 @@ class ActivityItemDetailModel extends Equatable {
       completionNote: json['completionNote']?.toString(),
       completedById: json['completedById']?.toString(),
       completedAt: json['completedAt']?.toString(),
-      mom: json['mom'] is Map ? Map<String, dynamic>.from(json['mom'] as Map) : const {},
+      mom: rawMom,
       requirements: json['requirements'] is Map
           ? Map<String, dynamic>.from(json['requirements'] as Map)
           : const {},
+      template: templateList,
+      answers: answersList,
+      momPoints: pointsList,
     );
   }
 
@@ -148,6 +318,9 @@ class ActivityItemDetailModel extends Equatable {
     String? completedById,
     String? completedAt,
     Map<String, dynamic>? mom,
+    List<ActivityTemplateItemModel>? template,
+    List<ActivityAnswerItemModel>? answers,
+    List<MomPointModel>? momPoints,
   }) {
     return ActivityItemDetailModel(
       id: id,
@@ -174,6 +347,9 @@ class ActivityItemDetailModel extends Equatable {
       completedAt: completedAt ?? this.completedAt,
       mom: mom ?? this.mom,
       requirements: requirements,
+      template: template ?? this.template,
+      answers: answers ?? this.answers,
+      momPoints: momPoints ?? this.momPoints,
     );
   }
 
@@ -191,6 +367,9 @@ class ActivityItemDetailModel extends Equatable {
         completionNote,
         completedAt,
         mom,
+        template,
+        answers,
+        momPoints,
       ];
 }
 

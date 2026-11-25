@@ -309,8 +309,10 @@ class _ProfileDropdownPill extends StatelessWidget {
             maxHeight: screenHeight * 0.85,
           ),
           child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            top: false,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -324,88 +326,78 @@ class _ProfileDropdownPill extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Avatar
-                          CircleAvatar(
-                            radius: 36,
-                            backgroundColor: _kBlue.withValues(alpha: 0.12),
-                            child: Text(
-                              initials,
-                              style: GoogleFonts.outfit(
-                                color: _kBlue,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 24,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            name,
-                            style: GoogleFonts.outfit(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.secondary,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEFF6FF),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFBFDBFE)),
-                            ),
-                            child: Text(
-                              (role.toUpperCase() == 'CRRM' || role.toUpperCase().contains('ADMIN'))
-                                  ? 'CRRM / Super Admin'
-                                  : role,
-                              style: GoogleFonts.outfit(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: _kBlue,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Divider(color: Color(0xFFE2E8F0)),
-                          const SizedBox(height: 8),
-                          // Details rows
-                          _ProfileInfoTile(
-                            icon: Icons.email_outlined,
-                            label: 'Email',
-                            value: email,
-                          ),
-                          _ProfileInfoTile(
-                            icon: Icons.shield_outlined,
-                            label: 'Account Role',
-                            value: (role.toUpperCase() == 'CRRM' || role.toUpperCase().contains('ADMIN'))
-                                ? 'CRRM / Super Admin'
-                                : role,
-                          ),
-                          const _ProfileInfoTile(
-                            icon: Icons.business_outlined,
-                            label: 'Organization',
-                            value: 'Casa Grande PropCare',
-                          ),
-                          const _ProfileInfoTile(
-                            icon: Icons.verified_user_outlined,
-                            label: 'Account Status',
-                            value: 'Active',
-                            valueColor: Color(0xFF16A34A),
-                          ),
-                        ],
+                  // Avatar
+                  CircleAvatar(
+                    radius: 36,
+                    backgroundColor: _kBlue.withValues(alpha: 0.12),
+                    child: Text(
+                      initials,
+                      style: GoogleFonts.outfit(
+                        color: _kBlue,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 24,
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
+                  Text(
+                    name,
+                    style: GoogleFonts.outfit(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.secondary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                    ),
+                    child: Text(
+                      (role.toUpperCase() == 'CRRM' || role.toUpperCase().contains('ADMIN'))
+                          ? 'CRRM / Super Admin'
+                          : role,
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _kBlue,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(color: Color(0xFFE2E8F0)),
+                  const SizedBox(height: 8),
+                  // Details rows
+                  _ProfileInfoTile(
+                    icon: Icons.email_outlined,
+                    label: 'Email',
+                    value: email,
+                  ),
+                  _ProfileInfoTile(
+                    icon: Icons.shield_outlined,
+                    label: 'Account Role',
+                    value: (role.toUpperCase() == 'CRRM' || role.toUpperCase().contains('ADMIN'))
+                        ? 'CRRM / Super Admin'
+                        : role,
+                  ),
+                  const _ProfileInfoTile(
+                    icon: Icons.business_outlined,
+                    label: 'Organization',
+                    value: 'Casa Grande PropCare',
+                  ),
+                  const _ProfileInfoTile(
+                    icon: Icons.verified_user_outlined,
+                    label: 'Account Status',
+                    value: 'Active',
+                    valueColor: Color(0xFF16A34A),
+                  ),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(

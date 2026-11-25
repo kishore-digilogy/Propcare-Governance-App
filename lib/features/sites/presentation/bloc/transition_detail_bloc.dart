@@ -35,21 +35,26 @@ class TransitionDetailBloc extends Bloc<TransitionDetailEvent, TransitionDetailS
       // Step 2: Internal Checklist
       // Step 3: L&D Transition Checklist
       // Step 4: Stability Verify
-      int defaultStep = 2;
-      final internalDone = response.ldPreview.internal.isNotEmpty &&
-          response.ldPreview.internal.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
-      final ldDone = response.ldPreview.ldTransition.isNotEmpty &&
+      final isKickoffDone = !response.ldPreview.kickoff.isWithClientYes ||
+          response.ldPreview.kickoff.date.trim().isNotEmpty;
+      final internalDone = isKickoffDone &&
+          (response.ldPreview.internal.isEmpty ||
+              response.ldPreview.internal.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED'));
+      final ldDone = response.ldPreview.ldTransition.isEmpty ||
           response.ldPreview.ldTransition.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
 
       final revStatus = response.ldPreview.review.status.toUpperCase();
-      if (revStatus == 'VERIFIED' || revStatus == 'STABILITY_PENDING') {
-        defaultStep = 4;
-      } else if (internalDone && ldDone) {
-        defaultStep = 4;
-      } else if (internalDone) {
-        defaultStep = 3;
-      } else {
+      final isVerified = revStatus == 'VERIFIED' || response.site.ldTransitionComplete;
+
+      int defaultStep = 2;
+      if (!internalDone) {
         defaultStep = 2;
+      } else if (!ldDone) {
+        defaultStep = 3;
+      } else if (!isVerified) {
+        defaultStep = 4;
+      } else {
+        defaultStep = 4;
       }
 
       emit(TransitionDetailLoaded(
@@ -188,7 +193,7 @@ class TransitionDetailBloc extends Bloc<TransitionDetailEvent, TransitionDetailS
           } else if (current.selectedStep == 3) {
             nextStep = 4;
           }
-        } else if (event.action == 'stability') {
+        } else if (event.action == 'stability' || event.action == 'verify') {
           nextStep = 4;
         }
 

@@ -26,16 +26,13 @@ class IssuesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (bloc != null) {
-      return BlocProvider.value(
-        value: bloc!,
-        child: const _IssuesView(),
-      );
+      return BlocProvider.value(value: bloc!, child: const _IssuesView());
     }
 
     return BlocProvider(
-      create: (_) => IssuesBloc(
-        dataSource: IssuesRemoteDataSourceImpl(),
-      )..add(const LoadIssues()),
+      create: (_) =>
+          IssuesBloc(dataSource: IssuesRemoteDataSourceImpl())
+            ..add(const LoadIssues()),
       child: const _IssuesView(),
     );
   }
@@ -62,9 +59,14 @@ class _IssuesViewState extends State<_IssuesView> {
     return BlocConsumer<IssuesBloc, IssuesState>(
       listenWhen: (previous, current) {
         if (current is IssuesLoaded) {
-          final prevMsg = previous is IssuesLoaded ? previous.feedbackMessage : null;
-          final prevErr = previous is IssuesLoaded ? previous.errorMessage : null;
-          return (current.feedbackMessage != null && current.feedbackMessage != prevMsg) ||
+          final prevMsg = previous is IssuesLoaded
+              ? previous.feedbackMessage
+              : null;
+          final prevErr = previous is IssuesLoaded
+              ? previous.errorMessage
+              : null;
+          return (current.feedbackMessage != null &&
+                  current.feedbackMessage != prevMsg) ||
               (current.errorMessage != null && current.errorMessage != prevErr);
         }
         return false;
@@ -83,7 +85,9 @@ class _IssuesViewState extends State<_IssuesView> {
                 ),
                 backgroundColor: const Color(0xFF16A34A),
                 behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 duration: const Duration(seconds: 3),
               ),
             );
@@ -96,7 +100,9 @@ class _IssuesViewState extends State<_IssuesView> {
                 content: Text(err, style: GoogleFonts.outfit()),
                 backgroundColor: Colors.redAccent,
                 behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 duration: const Duration(seconds: 4),
               ),
             );
@@ -116,9 +122,7 @@ class _IssuesViewState extends State<_IssuesView> {
                   width: 160,
                   height: 95,
                   child: IgnorePointer(
-                    child: CustomPaint(
-                      painter: _IssuesHeaderWavePainter(),
-                    ),
+                    child: CustomPaint(painter: _IssuesHeaderWavePainter()),
                   ),
                 ),
                 Column(
@@ -130,7 +134,8 @@ class _IssuesViewState extends State<_IssuesView> {
                     Expanded(
                       child: Builder(
                         builder: (context) {
-                          if (state is IssuesLoading || state is IssuesInitial) {
+                          if (state is IssuesLoading ||
+                              state is IssuesInitial) {
                             return const ShimmerListLoading();
                           }
 
@@ -168,11 +173,18 @@ class _IssuesViewState extends State<_IssuesView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 40),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: Colors.redAccent,
+              size: 40,
+            ),
             const SizedBox(height: 12),
             Text(
               'Failed to load issues',
-              style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w700),
+              style: GoogleFonts.outfit(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
@@ -183,10 +195,15 @@ class _IssuesViewState extends State<_IssuesView> {
             const SizedBox(height: 18),
             ElevatedButton(
               onPressed: () {
-                context.read<IssuesBloc>().add(const LoadIssues(isRefresh: true));
+                context.read<IssuesBloc>().add(
+                  const LoadIssues(isRefresh: true),
+                );
               },
               style: ElevatedButton.styleFrom(backgroundColor: _kBlue),
-              child: const Text('Try Again', style: TextStyle(color: Colors.white)),
+              child: const Text(
+                'Try Again',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -219,7 +236,11 @@ class _IssuesViewState extends State<_IssuesView> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.arrow_back_rounded, size: 16, color: Color(0xFF0F172A)),
+                    const Icon(
+                      Icons.arrow_back_rounded,
+                      size: 16,
+                      color: Color(0xFF0F172A),
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'Back',
@@ -284,8 +305,12 @@ class _IssuesViewState extends State<_IssuesView> {
                 _buildQuickStatusTab(
                   context: context,
                   label: 'All',
-                  isSelected: state.selectedStatus == null || state.selectedStatus!.isEmpty,
-                  onTap: () => context.read<IssuesBloc>().add(const FilterStatusChanged(null)),
+                  isSelected:
+                      state.selectedStatus == null ||
+                      state.selectedStatus!.isEmpty,
+                  onTap: () => context.read<IssuesBloc>().add(
+                    const FilterStatusChanged(null),
+                  ),
                 ),
                 const SizedBox(width: 6),
                 _buildQuickStatusTab(
@@ -293,7 +318,9 @@ class _IssuesViewState extends State<_IssuesView> {
                   label: 'Open',
                   isSelected: state.selectedStatus == 'OPEN',
                   dotColor: const Color(0xFFD97706),
-                  onTap: () => context.read<IssuesBloc>().add(const FilterStatusChanged('OPEN')),
+                  onTap: () => context.read<IssuesBloc>().add(
+                    const FilterStatusChanged('OPEN'),
+                  ),
                 ),
                 const SizedBox(width: 6),
                 _buildQuickStatusTab(
@@ -301,7 +328,9 @@ class _IssuesViewState extends State<_IssuesView> {
                   label: 'In Progress',
                   isSelected: state.selectedStatus == 'IN_PROGRESS',
                   dotColor: const Color(0xFF2563EB),
-                  onTap: () => context.read<IssuesBloc>().add(const FilterStatusChanged('IN_PROGRESS')),
+                  onTap: () => context.read<IssuesBloc>().add(
+                    const FilterStatusChanged('IN_PROGRESS'),
+                  ),
                 ),
                 const SizedBox(width: 6),
                 _buildQuickStatusTab(
@@ -309,7 +338,9 @@ class _IssuesViewState extends State<_IssuesView> {
                   label: 'Resolved',
                   isSelected: state.selectedStatus == 'RESOLVED',
                   dotColor: const Color(0xFF16A34A),
-                  onTap: () => context.read<IssuesBloc>().add(const FilterStatusChanged('RESOLVED')),
+                  onTap: () => context.read<IssuesBloc>().add(
+                    const FilterStatusChanged('RESOLVED'),
+                  ),
                 ),
                 const SizedBox(width: 6),
                 _buildQuickStatusTab(
@@ -317,7 +348,9 @@ class _IssuesViewState extends State<_IssuesView> {
                   label: 'Closed',
                   isSelected: state.selectedStatus == 'CLOSED',
                   dotColor: const Color(0xFF64748B),
-                  onTap: () => context.read<IssuesBloc>().add(const FilterStatusChanged('CLOSED')),
+                  onTap: () => context.read<IssuesBloc>().add(
+                    const FilterStatusChanged('CLOSED'),
+                  ),
                 ),
               ],
             ),
@@ -334,17 +367,24 @@ class _IssuesViewState extends State<_IssuesView> {
                   if (state.selectedZoneId != null)
                     _buildRemovableFilterChip(
                       label: 'Zone: ${meta.getZoneName(state.selectedZoneId)}',
-                      onRemove: () => context.read<IssuesBloc>().add(const FilterZoneChanged(null)),
+                      onRemove: () => context.read<IssuesBloc>().add(
+                        const FilterZoneChanged(null),
+                      ),
                     ),
                   if (state.selectedClusterId != null)
                     _buildRemovableFilterChip(
-                      label: 'Cluster: ${meta.getClusterName(state.selectedClusterId)}',
-                      onRemove: () => context.read<IssuesBloc>().add(const FilterClusterChanged(null)),
+                      label:
+                          'Cluster: ${meta.getClusterName(state.selectedClusterId)}',
+                      onRemove: () => context.read<IssuesBloc>().add(
+                        const FilterClusterChanged(null),
+                      ),
                     ),
                   if (state.selectedSiteId != null)
                     _buildRemovableFilterChip(
                       label: 'Site: ${meta.getSiteName(state.selectedSiteId!)}',
-                      onRemove: () => context.read<IssuesBloc>().add(const FilterSiteChanged(null)),
+                      onRemove: () => context.read<IssuesBloc>().add(
+                        const FilterSiteChanged(null),
+                      ),
                     ),
                   TextButton(
                     onPressed: () {
@@ -361,7 +401,10 @@ class _IssuesViewState extends State<_IssuesView> {
                     ),
                     child: Text(
                       'Clear all',
-                      style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
@@ -388,17 +431,33 @@ class _IssuesViewState extends State<_IssuesView> {
               onChanged: (val) {
                 context.read<IssuesBloc>().add(SearchIssuesQueryChanged(val));
               },
-              style: GoogleFonts.outfit(fontSize: 13.5, color: const Color(0xFF0F172A)),
+              style: GoogleFonts.outfit(
+                fontSize: 13.5,
+                color: const Color(0xFF0F172A),
+              ),
               decoration: InputDecoration(
                 hintText: 'Search issue title, description, or priority...',
-                hintStyle: GoogleFonts.outfit(fontSize: 13, color: const Color(0xFF94A3B8)),
-                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 20),
+                hintStyle: GoogleFonts.outfit(
+                  fontSize: 13,
+                  color: const Color(0xFF94A3B8),
+                ),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: Color(0xFF94A3B8),
+                  size: 20,
+                ),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear_rounded, size: 18, color: Color(0xFF94A3B8)),
+                        icon: const Icon(
+                          Icons.clear_rounded,
+                          size: 18,
+                          color: Color(0xFF94A3B8),
+                        ),
                         onPressed: () {
                           _searchController.clear();
-                          context.read<IssuesBloc>().add(const SearchIssuesQueryChanged(''));
+                          context.read<IssuesBloc>().add(
+                            const SearchIssuesQueryChanged(''),
+                          );
                         },
                       )
                     : null,
@@ -407,7 +466,10 @@ class _IssuesViewState extends State<_IssuesView> {
                 focusedBorder: InputBorder.none,
                 disabledBorder: InputBorder.none,
                 errorBorder: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
               ),
             ),
           ),
@@ -455,9 +517,7 @@ class _IssuesViewState extends State<_IssuesView> {
               width: 130,
               height: 52,
               child: IgnorePointer(
-                child: CustomPaint(
-                  painter: _ScopeBannerWavePainter(),
-                ),
+                child: CustomPaint(painter: _ScopeBannerWavePainter()),
               ),
             ),
             Padding(
@@ -470,7 +530,10 @@ class _IssuesViewState extends State<_IssuesView> {
                     decoration: BoxDecoration(
                       color: const Color(0xFFFEF3C7),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFDE68A), width: 1.0),
+                      border: Border.all(
+                        color: const Color(0xFFFDE68A),
+                        width: 1.0,
+                      ),
                     ),
                     child: const Center(
                       child: Icon(
@@ -543,7 +606,11 @@ class _IssuesViewState extends State<_IssuesView> {
     );
   }
 
-  Widget _buildFilterButton(BuildContext context, IssuesLoaded state, MetaDataModel meta) {
+  Widget _buildFilterButton(
+    BuildContext context,
+    IssuesLoaded state,
+    MetaDataModel meta,
+  ) {
     final activeCount = _activeFiltersCount(state);
     return InkWell(
       onTap: () => _openFilterBottomSheet(context, state, meta),
@@ -554,7 +621,9 @@ class _IssuesViewState extends State<_IssuesView> {
           color: activeCount > 0 ? const Color(0xFFEFF6FF) : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: activeCount > 0 ? const Color(0xFF3B82F6) : const Color(0xFFCBD5E1),
+            color: activeCount > 0
+                ? const Color(0xFF3B82F6)
+                : const Color(0xFFCBD5E1),
             width: 1.2,
           ),
           boxShadow: const [
@@ -571,7 +640,9 @@ class _IssuesViewState extends State<_IssuesView> {
             Icon(
               Icons.tune_rounded,
               size: 16,
-              color: activeCount > 0 ? const Color(0xFF2563EB) : const Color(0xFF475569),
+              color: activeCount > 0
+                  ? const Color(0xFF2563EB)
+                  : const Color(0xFF475569),
             ),
             const SizedBox(width: 6),
             Text(
@@ -579,7 +650,9 @@ class _IssuesViewState extends State<_IssuesView> {
               style: GoogleFonts.outfit(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
-                color: activeCount > 0 ? const Color(0xFF1D4ED8) : const Color(0xFF334155),
+                color: activeCount > 0
+                    ? const Color(0xFF1D4ED8)
+                    : const Color(0xFF334155),
               ),
             ),
             if (activeCount > 0) ...[
@@ -679,14 +752,13 @@ class _IssuesViewState extends State<_IssuesView> {
                       decoration: BoxDecoration(
                         color: style.bgColor,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: style.borderColor, width: 1.0),
+                        border: Border.all(
+                          color: style.borderColor,
+                          width: 1.0,
+                        ),
                       ),
                       child: Center(
-                        child: Icon(
-                          style.icon,
-                          size: 20,
-                          color: style.color,
-                        ),
+                        child: Icon(style.icon, size: 20, color: style.color),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -738,14 +810,20 @@ class _IssuesViewState extends State<_IssuesView> {
                               ),
                               const SizedBox(width: 6),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFFEF3C7),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
                                   issue.priority.isNotEmpty
-                                      ? issue.priority[0].toUpperCase() + issue.priority.substring(1).toLowerCase()
+                                      ? issue.priority[0].toUpperCase() +
+                                            issue.priority
+                                                .substring(1)
+                                                .toLowerCase()
                                       : 'Medium',
                                   style: GoogleFonts.outfit(
                                     fontSize: 11,
@@ -760,7 +838,11 @@ class _IssuesViewState extends State<_IssuesView> {
                           // Location & Date
                           Row(
                             children: [
-                              const Icon(Icons.location_on_outlined, size: 13.5, color: Color(0xFF94A3B8)),
+                              const Icon(
+                                Icons.location_on_outlined,
+                                size: 13.5,
+                                color: Color(0xFF94A3B8),
+                              ),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
@@ -775,7 +857,11 @@ class _IssuesViewState extends State<_IssuesView> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              const Icon(Icons.calendar_today_outlined, size: 12.5, color: Color(0xFF94A3B8)),
+                              const Icon(
+                                Icons.calendar_today_outlined,
+                                size: 12.5,
+                                color: Color(0xFF94A3B8),
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 issue.formattedDueDate,
@@ -813,7 +899,11 @@ class _IssuesViewState extends State<_IssuesView> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.check_circle_rounded, size: 12, color: Color(0xFF16A34A)),
+            const Icon(
+              Icons.check_circle_rounded,
+              size: 12,
+              color: Color(0xFF16A34A),
+            ),
             const SizedBox(width: 4),
             Text(
               'Resolved',
@@ -839,7 +929,11 @@ class _IssuesViewState extends State<_IssuesView> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.access_time_filled_rounded, size: 12, color: Color(0xFFD97706)),
+            const Icon(
+              Icons.access_time_filled_rounded,
+              size: 12,
+              color: Color(0xFFD97706),
+            ),
             const SizedBox(width: 4),
             Text(
               'In Progress',
@@ -865,7 +959,11 @@ class _IssuesViewState extends State<_IssuesView> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.radio_button_checked_rounded, size: 12, color: Color(0xFF2563EB)),
+          const Icon(
+            Icons.radio_button_checked_rounded,
+            size: 12,
+            color: Color(0xFF2563EB),
+          ),
           const SizedBox(width: 4),
           Text(
             'Open',
@@ -935,7 +1033,9 @@ class _IssuesViewState extends State<_IssuesView> {
             color: state.currentPage > 1 ? _kBlue : const Color(0xFFCBD5E1),
             onPressed: state.currentPage > 1
                 ? () {
-                    context.read<IssuesBloc>().add(ChangeIssuesPage(state.currentPage - 1));
+                    context.read<IssuesBloc>().add(
+                      ChangeIssuesPage(state.currentPage - 1),
+                    );
                   }
                 : null,
           ),
@@ -943,10 +1043,14 @@ class _IssuesViewState extends State<_IssuesView> {
             icon: const Icon(Icons.chevron_right_rounded),
             iconSize: 20,
             visualDensity: VisualDensity.compact,
-            color: state.currentPage < state.totalPages ? _kBlue : const Color(0xFFCBD5E1),
+            color: state.currentPage < state.totalPages
+                ? _kBlue
+                : const Color(0xFFCBD5E1),
             onPressed: state.currentPage < state.totalPages
                 ? () {
-                    context.read<IssuesBloc>().add(ChangeIssuesPage(state.currentPage + 1));
+                    context.read<IssuesBloc>().add(
+                      ChangeIssuesPage(state.currentPage + 1),
+                    );
                   }
                 : null,
           ),
@@ -955,9 +1059,12 @@ class _IssuesViewState extends State<_IssuesView> {
     );
   }
 
-  ({IconData icon, Color color, Color bgColor, Color borderColor}) _getIssueStyle(IssueModel issue, int index) {
+  ({IconData icon, Color color, Color bgColor, Color borderColor})
+  _getIssueStyle(IssueModel issue, int index) {
     final title = issue.title.toLowerCase();
-    if (title.contains('plant') || title.contains('flower') || title.contains('garden')) {
+    if (title.contains('plant') ||
+        title.contains('flower') ||
+        title.contains('garden')) {
       return (
         icon: Icons.eco_outlined,
         color: const Color(0xFFD97706),
@@ -965,7 +1072,9 @@ class _IssuesViewState extends State<_IssuesView> {
         borderColor: const Color(0xFFFDE68A),
       );
     }
-    if (title.contains('mobile') || title.contains('phone') || title.contains('test')) {
+    if (title.contains('mobile') ||
+        title.contains('phone') ||
+        title.contains('test')) {
       return (
         icon: Icons.smartphone_rounded,
         color: const Color(0xFF2563EB),
@@ -973,7 +1082,10 @@ class _IssuesViewState extends State<_IssuesView> {
         borderColor: const Color(0xFFBFDBFE),
       );
     }
-    if (title.contains('odour') || title.contains('smell') || title.contains('air') || title.contains('hvac')) {
+    if (title.contains('odour') ||
+        title.contains('smell') ||
+        title.contains('air') ||
+        title.contains('hvac')) {
       return (
         icon: Icons.air_rounded,
         color: const Color(0xFF7C3AED),
@@ -981,7 +1093,9 @@ class _IssuesViewState extends State<_IssuesView> {
         borderColor: const Color(0xFFDDD6FE),
       );
     }
-    if (title.contains('door') || title.contains('glass') || title.contains('window')) {
+    if (title.contains('door') ||
+        title.contains('glass') ||
+        title.contains('window')) {
       return (
         icon: Icons.meeting_room_outlined,
         color: const Color(0xFF0D9488),
@@ -989,7 +1103,10 @@ class _IssuesViewState extends State<_IssuesView> {
         borderColor: const Color(0xFF99F6E4),
       );
     }
-    if (title.contains('desk') || title.contains('table') || title.contains('chair') || title.contains('clean')) {
+    if (title.contains('desk') ||
+        title.contains('table') ||
+        title.contains('chair') ||
+        title.contains('clean')) {
       return (
         icon: Icons.table_restaurant_outlined,
         color: const Color(0xFFEA580C),
@@ -1036,10 +1153,14 @@ class _IssuesViewState extends State<_IssuesView> {
 
   int _activeFiltersCount(IssuesLoaded state) {
     int count = 0;
-    if (state.selectedZoneId != null && state.selectedZoneId!.isNotEmpty) count++;
-    if (state.selectedClusterId != null && state.selectedClusterId!.isNotEmpty) count++;
-    if (state.selectedSiteId != null && state.selectedSiteId!.isNotEmpty) count++;
-    if (state.selectedStatus != null && state.selectedStatus!.isNotEmpty) count++;
+    if (state.selectedZoneId != null && state.selectedZoneId!.isNotEmpty)
+      count++;
+    if (state.selectedClusterId != null && state.selectedClusterId!.isNotEmpty)
+      count++;
+    if (state.selectedSiteId != null && state.selectedSiteId!.isNotEmpty)
+      count++;
+    if (state.selectedStatus != null && state.selectedStatus!.isNotEmpty)
+      count++;
     return count;
   }
 
@@ -1087,10 +1208,7 @@ class _IssuesViewState extends State<_IssuesView> {
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: borderColor,
-            width: isSelected ? 1.3 : 1.0,
-          ),
+          border: Border.all(color: borderColor, width: isSelected ? 1.3 : 1.0),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1134,14 +1252,17 @@ class _IssuesViewState extends State<_IssuesView> {
           value: context.read<IssuesBloc>(),
           child: BlocBuilder<IssuesBloc, IssuesState>(
             builder: (bottomSheetContext, bottomSheetState) {
-              if (bottomSheetState is! IssuesLoaded) return const SizedBox.shrink();
+              if (bottomSheetState is! IssuesLoaded)
+                return const SizedBox.shrink();
               final currentActiveCount = _activeFiltersCount(bottomSheetState);
-              final dynamicClusters = meta.clustersForZone(bottomSheetState.selectedZoneId);
+              final dynamicClusters = meta.clustersForZone(
+                bottomSheetState.selectedZoneId,
+              );
               final dynamicSites = bottomSheetState.selectedClusterId != null
                   ? meta.sitesForCluster(bottomSheetState.selectedClusterId)
                   : (bottomSheetState.selectedZoneId != null
-                      ? meta.sitesForZone(bottomSheetState.selectedZoneId)
-                      : meta.liveSites);
+                        ? meta.sitesForZone(bottomSheetState.selectedZoneId)
+                        : meta.liveSites);
 
               return Container(
                 constraints: BoxConstraints(
@@ -1180,7 +1301,11 @@ class _IssuesViewState extends State<_IssuesView> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.tune_rounded, size: 20, color: _kBlue),
+                            const Icon(
+                              Icons.tune_rounded,
+                              size: 20,
+                              color: _kBlue,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Filter Issues',
@@ -1193,7 +1318,10 @@ class _IssuesViewState extends State<_IssuesView> {
                             if (currentActiveCount > 0) ...[
                               const SizedBox(width: 8),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: _kBlue.withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(10),
@@ -1213,7 +1341,8 @@ class _IssuesViewState extends State<_IssuesView> {
                         if (currentActiveCount > 0)
                           TextButton(
                             onPressed: () {
-                              final bloc = bottomSheetContext.read<IssuesBloc>();
+                              final bloc = bottomSheetContext
+                                  .read<IssuesBloc>();
                               bloc.add(const FilterZoneChanged(null));
                               bloc.add(const FilterClusterChanged(null));
                               bloc.add(const FilterSiteChanged(null));
@@ -1254,11 +1383,21 @@ class _IssuesViewState extends State<_IssuesView> {
                               placeholder: 'All Zones',
                               enableSearch: meta.zones.length > 5,
                               options: [
-                                const DropdownItemOption(value: null, label: 'All Zones'),
-                                ...meta.zones.map((z) => DropdownItemOption(value: z.id, label: z.name)),
+                                const DropdownItemOption(
+                                  value: null,
+                                  label: 'All Zones',
+                                ),
+                                ...meta.zones.map(
+                                  (z) => DropdownItemOption(
+                                    value: z.id,
+                                    label: z.name,
+                                  ),
+                                ),
                               ],
                               onSelect: (val) {
-                                bottomSheetContext.read<IssuesBloc>().add(FilterZoneChanged(val));
+                                bottomSheetContext.read<IssuesBloc>().add(
+                                  FilterZoneChanged(val),
+                                );
                               },
                             ),
                             const SizedBox(height: 16),
@@ -1272,11 +1411,21 @@ class _IssuesViewState extends State<_IssuesView> {
                               placeholder: 'All Clusters',
                               enableSearch: dynamicClusters.length > 5,
                               options: [
-                                const DropdownItemOption(value: null, label: 'All Clusters'),
-                                ...dynamicClusters.map((c) => DropdownItemOption(value: c.id, label: c.name)),
+                                const DropdownItemOption(
+                                  value: null,
+                                  label: 'All Clusters',
+                                ),
+                                ...dynamicClusters.map(
+                                  (c) => DropdownItemOption(
+                                    value: c.id,
+                                    label: c.name,
+                                  ),
+                                ),
                               ],
                               onSelect: (val) {
-                                bottomSheetContext.read<IssuesBloc>().add(FilterClusterChanged(val));
+                                bottomSheetContext.read<IssuesBloc>().add(
+                                  FilterClusterChanged(val),
+                                );
                               },
                             ),
                             const SizedBox(height: 16),
@@ -1290,11 +1439,21 @@ class _IssuesViewState extends State<_IssuesView> {
                               placeholder: 'All Sites',
                               enableSearch: dynamicSites.length > 5,
                               options: [
-                                const DropdownItemOption(value: null, label: 'All Sites'),
-                                ...dynamicSites.map((s) => DropdownItemOption(value: s.id, label: s.displayName)),
+                                const DropdownItemOption(
+                                  value: null,
+                                  label: 'All Sites',
+                                ),
+                                ...dynamicSites.map(
+                                  (s) => DropdownItemOption(
+                                    value: s.id,
+                                    label: s.displayName,
+                                  ),
+                                ),
                               ],
                               onSelect: (val) {
-                                bottomSheetContext.read<IssuesBloc>().add(FilterSiteChanged(val));
+                                bottomSheetContext.read<IssuesBloc>().add(
+                                  FilterSiteChanged(val),
+                                );
                               },
                             ),
                             const SizedBox(height: 16),
@@ -1358,12 +1517,17 @@ class _IssuesViewState extends State<_IssuesView> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           minimumSize: const Size(0, 48),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                           elevation: 0,
                         ),
                         child: Text(
                           'Apply Filters (${bottomSheetState.filteredItems.length} issues)',
-                          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w700),
+                          style: GoogleFonts.outfit(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
@@ -1396,7 +1560,8 @@ class _IssuesViewState extends State<_IssuesView> {
     required String? currentValue,
     Color? color,
   }) {
-    final isSelected = (value == null && (currentValue == null || currentValue.isEmpty)) ||
+    final isSelected =
+        (value == null && (currentValue == null || currentValue.isEmpty)) ||
         (value != null && currentValue == value);
 
     return InkWell(
@@ -1409,7 +1574,9 @@ class _IssuesViewState extends State<_IssuesView> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
-              ? (color != null ? color.withValues(alpha: 0.12) : const Color(0xFF0F172A))
+              ? (color != null
+                    ? color.withValues(alpha: 0.12)
+                    : const Color(0xFF0F172A))
               : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
@@ -1426,10 +1593,7 @@ class _IssuesViewState extends State<_IssuesView> {
               Container(
                 width: 8,
                 height: 8,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                ),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
               const SizedBox(width: 6),
             ],
@@ -1477,11 +1641,7 @@ class _IssuesViewState extends State<_IssuesView> {
             InkWell(
               onTap: onRemove,
               borderRadius: BorderRadius.circular(10),
-              child: const Icon(
-                Icons.close_rounded,
-                size: 14,
-                color: _kBlue,
-              ),
+              child: const Icon(Icons.close_rounded, size: 14, color: _kBlue),
             ),
           ],
         ),
@@ -1635,4 +1795,3 @@ class _IssueCardCornerWavePainter extends CustomPainter {
   bool shouldRepaint(covariant _IssueCardCornerWavePainter oldDelegate) =>
       oldDelegate.baseColor != baseColor;
 }
-

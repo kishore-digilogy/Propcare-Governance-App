@@ -107,6 +107,15 @@ class MockChecklistReportRemoteDataSource
   }) async {
     throw UnimplementedError();
   }
+
+  @override
+  Future<ActivityItemDetailModel> updateMomPointStatus({
+    required String activityId,
+    required String pointId,
+    required String status,
+  }) async {
+    throw UnimplementedError();
+  }
 }
 
 void main() {

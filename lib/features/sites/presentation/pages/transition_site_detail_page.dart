@@ -7,6 +7,8 @@ import '../../../../core/services/meta_service.dart';
 import '../../../../core/services/user_service.dart';
 import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/widgets/app_shimmer.dart';
+import '../../../../core/widgets/app_error_view.dart';
+import '../../../../core/widgets/app_snack_bar.dart';
 import '../../data/datasources/sites_remote_datasource.dart';
 import '../../data/models/transition_detail_model.dart';
 import '../bloc/transition_detail_bloc.dart';
@@ -124,13 +126,7 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                 );
               }
               if (state.errorMessage != null && state.errorMessage!.isNotEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(state.errorMessage!),
-                    backgroundColor: Colors.redAccent,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                AppSnackBar.error(context, message: state.errorMessage!);
               }
             }
           },
@@ -163,44 +159,14 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
   }
 
   Widget _buildErrorView(BuildContext context, String message) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: Colors.redAccent),
-            const SizedBox(height: 12),
-            Text(
-              'Failed to load transition site details',
-              style: GoogleFonts.outfit(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: _kDark,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.outfit(fontSize: 12.5, color: _kSlate),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _kBlue,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () {
-                context
-                    .read<TransitionDetailBloc>()
-                    .add(LoadTransitionDetail(siteId: widget.siteId, isRefresh: true));
-              },
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
+    return AppErrorView(
+      error: message,
+      customTitle: 'Failed to Load Transition Site',
+      onRetry: () {
+        context
+            .read<TransitionDetailBloc>()
+            .add(LoadTransitionDetail(siteId: widget.siteId, isRefresh: true));
+      },
     );
   }
 
@@ -442,11 +408,13 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
     final preview = state.response.ldPreview;
     final selectedStep = state.selectedStep;
 
-    final isInternalDone = preview.internal.isNotEmpty &&
-        preview.internal.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
-    final isLdDone = preview.ldTransition.isNotEmpty &&
+    final isKickoffDone = !preview.kickoff.isWithClientYes || preview.kickoff.date.trim().isNotEmpty;
+    final isInternalDone = isKickoffDone &&
+        (preview.internal.isEmpty ||
+            preview.internal.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED'));
+    final isLdDone = preview.ldTransition.isEmpty ||
         preview.ldTransition.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
-    final isVerified = preview.review.status.toUpperCase() == 'VERIFIED';
+    final isVerified = preview.review.status.toUpperCase() == 'VERIFIED' || state.response.site.ldTransitionComplete;
 
     final steps = [
       _StepConfig(
@@ -639,7 +607,7 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
   ) {
     switch (state.selectedStep) {
       case 1:
-        return _buildStep1SiteCreation(context, state);
+        return _buildStep1SiteCreation(context, state, isDesktop);
       case 2:
         return _buildStep2InternalChecklist(context, state, isDesktop);
       case 3:
@@ -655,53 +623,139 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
   Widget _buildStep1SiteCreation(
     BuildContext context,
     TransitionDetailLoaded state,
+    bool isDesktop,
   ) {
     final site = state.response.site;
+    final isVerified = state.response.ldPreview.review.status.toUpperCase() == 'VERIFIED' ||
+        state.response.site.ldTransitionComplete;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ── Card 1: Elegant & Professional Site Header ──
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: _kBorder),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x050F172A),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Flexible(
-                    child: Text(
-                      'Site Creation Overview',
-                      style: GoogleFonts.outfit(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: _kDark,
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF2563EB).withOpacity(0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        site.name.isNotEmpty ? site.name.substring(0, 1).toUpperCase() : 'S',
+                        style: GoogleFonts.outfit(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          site.name.isEmpty ? 'Site Creation Overview' : site.name,
+                          style: GoogleFonts.outfit(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: _kDark,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(
+                              site.code.isEmpty ? '—' : site.code,
+                              style: GoogleFonts.outfit(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: _kSlate,
+                              ),
+                            ),
+                            if (site.clientType.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                width: 3,
+                                height: 3,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFCBD5E1),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Tier ${site.clientType}',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFFB45309),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5E9),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFA5D6A7)),
+                      color: const Color(0xFFF0FDF4),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFBBF7D0)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.check_circle_rounded, size: 14, color: _kGreen),
-                        const SizedBox(width: 4),
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: _kGreen,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
                         Text(
-                          'Completed',
+                          'Created',
                           style: GoogleFonts.outfit(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
                             color: _kGreen,
                           ),
                         ),
@@ -711,82 +765,271 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                 ],
               ),
               const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFF1F5F9)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _buildHeaderMetric(
+                        label: 'STATUS',
+                        value: site.status,
+                        valueColor: _kGreen,
+                      ),
+                    ),
+                    Container(width: 1, height: 24, color: const Color(0xFFE2E8F0)),
+                    Expanded(
+                      child: _buildHeaderMetric(
+                        label: 'MODE',
+                        value: site.mode,
+                        valueColor: const Color(0xFF4F46E5),
+                      ),
+                    ),
+                    Container(width: 1, height: 24, color: const Color(0xFFE2E8F0)),
+                    Expanded(
+                      child: _buildHeaderMetric(
+                        label: 'CLIENT',
+                        value: site.clientName.isEmpty ? '—' : site.clientName,
+                        valueColor: _kDark,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // ── Card 2: Simpler GridView of Site & Contract Details ──
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _kBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildInfoTile('Contract Award Date', site.formattedAwardDate),
-                  _buildInfoTile('Contract Start Date', site.formattedStartDate),
-                  _buildInfoTile('Contract End Date', site.formattedEndDate),
-                  _buildInfoTile('Site Code', site.code),
-                  _buildInfoTile('Client Name', site.clientName),
-                  _buildInfoTile('Status', site.status),
-                  _buildInfoTile('Mode', site.mode),
-                  _buildInfoTile('Zone', site.zoneName),
-                  _buildInfoTile('Cluster', site.clusterName),
-                  _buildInfoTile('Manpower Required', '${site.manpowerRequired}'),
-                  _buildInfoTile('Manpower Deployed', '${site.manpowerDeployed}'),
+                  Text(
+                    'Site Information',
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: _kDark,
+                    ),
+                  ),
+                  Text(
+                    'Contract & Operational Details',
+                    style: GoogleFonts.outfit(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                      color: _kSlate,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              GridView.count(
+                crossAxisCount: isDesktop ? 4 : 2,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: isDesktop ? 2.8 : 2.2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                  _buildGridTile(
+                    label: 'Contract Award Date',
+                    value: site.formattedAwardDate,
+                    icon: Icons.verified_outlined,
+                    iconColor: const Color(0xFF4F46E5),
+                  ),
+                  _buildGridTile(
+                    label: 'Contract Start Date',
+                    value: site.formattedStartDate,
+                    icon: Icons.play_circle_outline_rounded,
+                    iconColor: _kGreen,
+                  ),
+                  _buildGridTile(
+                    label: 'Contract End Date',
+                    value: site.formattedEndDate,
+                    icon: Icons.event_busy_outlined,
+                    iconColor: const Color(0xFFE11D48),
+                  ),
+                  _buildGridTile(
+                    label: 'Site Code',
+                    value: site.code,
+                    icon: Icons.tag_rounded,
+                    iconColor: const Color(0xFF0284C7),
+                  ),
+                  _buildGridTile(
+                    label: 'Zone',
+                    value: site.zoneName.isEmpty ? '—' : site.zoneName,
+                    icon: Icons.explore_outlined,
+                    iconColor: const Color(0xFF0D9488),
+                  ),
+                  _buildGridTile(
+                    label: 'Cluster',
+                    value: site.clusterName.isEmpty ? '—' : site.clusterName,
+                    icon: Icons.hub_outlined,
+                    iconColor: const Color(0xFF7C3AED),
+                  ),
+                  _buildGridTile(
+                    label: 'Location',
+                    value: (site.city != 'NA' || site.state != 'NA')
+                        ? '${site.city != 'NA' ? site.city : ''}${site.city != 'NA' && site.state != 'NA' ? ', ' : ''}${site.state != 'NA' ? site.state : ''}'
+                        : '—',
+                    icon: Icons.place_outlined,
+                    iconColor: const Color(0xFFEA580C),
+                  ),
+                  _buildGridTile(
+                    label: 'Client Name',
+                    value: site.clientName,
+                    icon: Icons.business_outlined,
+                    iconColor: const Color(0xFF2563EB),
+                  ),
+                  _buildGridTile(
+                    label: 'Manpower Required',
+                    value: '${site.manpowerRequired} Staff',
+                    icon: Icons.groups_outlined,
+                    iconColor: const Color(0xFF334155),
+                  ),
+                  _buildGridTile(
+                    label: 'Manpower Deployed',
+                    value: '${site.manpowerDeployed} Staff (${site.computedShortage} Short)',
+                    icon: Icons.badge_outlined,
+                    iconColor: site.computedShortage > 0 ? const Color(0xFFD97706) : _kGreen,
+                  ),
                 ],
               ),
             ],
           ),
         ),
-        const SizedBox(height: 20),
-        Align(
-          alignment: Alignment.centerRight,
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _kBlue,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () {
-              context.read<TransitionDetailBloc>().add(const SelectTransitionStep(2));
-            },
-            icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-            iconAlignment: IconAlignment.end,
-            label: Text(
-              'Continue To Internal Checklist',
-              style: GoogleFonts.outfit(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
+
+        // ── Action Button: Only show if transition is NOT yet completed/verified ──
+        if (!isVerified) ...[
+          const SizedBox(height: 20),
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kBlue,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                context.read<TransitionDetailBloc>().add(const SelectTransitionStep(2));
+              },
+              icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+              iconAlignment: IconAlignment.end,
+              label: Text(
+                'Continue To Internal Checklist',
+                style: GoogleFonts.outfit(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildHeaderMetric({
+    required String label,
+    required String value,
+    required Color valueColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.outfit(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: _kSlate,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: GoogleFonts.outfit(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: valueColor,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
       ],
     );
   }
 
-  Widget _buildInfoTile(String label, String value) {
+  Widget _buildGridTile({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color iconColor,
+  }) {
     return Container(
-      width: 170,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFFFAFAFC),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: _kBorder),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            label,
-            style: GoogleFonts.outfit(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: _kSlate,
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
             ),
+            child: Icon(icon, size: 17, color: iconColor),
           ),
-          const SizedBox(height: 4),
-          Text(
-            value.isEmpty ? '—' : value,
-            style: GoogleFonts.outfit(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w700,
-              color: _kDark,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.outfit(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: _kSlate,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value.isEmpty ? '—' : value,
+                  style: GoogleFonts.outfit(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: _kDark,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
         ],
@@ -805,6 +1048,8 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
     final zoneUsers = state.response.zoneUsers;
     final items = preview.internal;
     final openCount = items.where((i) => i.displayStatus != 'Completed').length;
+    final isVerified = state.response.ldPreview.review.status.toUpperCase() == 'VERIFIED' ||
+        state.response.site.ldTransitionComplete;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -991,71 +1236,74 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
         const SizedBox(height: 20),
 
         // ── Action Button: Continue To L&D Transition Checklist → (Matching Web Image 7) ──
-        Align(
-          alignment: Alignment.centerRight,
-          child: SizedBox(
-            height: 42,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _kBlue,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+        if (!isVerified) ...[
+          const SizedBox(height: 20),
+          Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              height: 42,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kBlue,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 22),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 22),
-              ),
-              onPressed: () {
-                if (kickoff.isWithClientYes && kickoff.date.trim().isEmpty) {
-                  setState(() {
-                    _hasAttemptedContinue = true;
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Kick-Off Date is mandatory when Kick-Off with Client is Yes.',
-                              style: GoogleFonts.outfit(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                onPressed: () {
+                  if (kickoff.isWithClientYes && kickoff.date.trim().isEmpty) {
+                    setState(() {
+                      _hasAttemptedContinue = true;
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(Icons.error_outline_rounded, color: Colors.white, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Kick-Off Date is mandatory when Kick-Off with Client is Yes.',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      backgroundColor: const Color(0xFFDC2626),
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      duration: const Duration(seconds: 4),
-                    ),
-                  );
-                  return;
-                }
-                context.read<TransitionDetailBloc>().add(
-                      SaveTransitionActionEvent(
-                        siteId: widget.siteId,
-                        action: 'save',
+                          ],
+                        ),
+                        backgroundColor: const Color(0xFFDC2626),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        duration: const Duration(seconds: 4),
                       ),
                     );
-              },
-              icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-              iconAlignment: IconAlignment.end,
-              label: Text(
-                'Continue To L&D Transition Checklist',
-                style: GoogleFonts.outfit(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
+                    return;
+                  }
+                  context.read<TransitionDetailBloc>().add(
+                        SaveTransitionActionEvent(
+                          siteId: widget.siteId,
+                          action: 'save',
+                        ),
+                      );
+                },
+                icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                iconAlignment: IconAlignment.end,
+                label: Text(
+                  'Continue To L&D Transition Checklist',
+                  style: GoogleFonts.outfit(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -1331,6 +1579,8 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
     final items = preview.ldTransition;
     final openCount = items.where((i) => i.displayStatus != 'Completed').length;
     final zoneUsers = state.response.zoneUsers;
+    final isVerified = state.response.ldPreview.review.status.toUpperCase() == 'VERIFIED' ||
+        state.response.site.ldTransitionComplete;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1401,66 +1651,69 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
         const SizedBox(height: 20),
 
         // ── Action Buttons: [Work in Progress] & [Continue To Stability Verify →] ──
-        Align(
-          alignment: Alignment.centerRight,
-          child: Wrap(
-            alignment: WrapAlignment.end,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _kBlue,
-                  side: const BorderSide(color: Color(0xFFBFDBFE)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: () {
-                  context.read<TransitionDetailBloc>().add(
-                        SaveTransitionActionEvent(
-                          siteId: widget.siteId,
-                          action: 'save',
-                        ),
-                      );
-                },
-                child: Text(
-                  'Work in Progress',
-                  style: GoogleFonts.outfit(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+        if (!isVerified) ...[
+          const SizedBox(height: 20),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _kBlue,
+                    side: const BorderSide(color: Color(0xFFBFDBFE)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () {
+                    context.read<TransitionDetailBloc>().add(
+                          SaveTransitionActionEvent(
+                            siteId: widget.siteId,
+                            action: 'save',
+                          ),
+                        );
+                  },
+                  child: Text(
+                    'Work in Progress',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _kBlue,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: () {
-                  context.read<TransitionDetailBloc>().add(
-                        SaveTransitionActionEvent(
-                          siteId: widget.siteId,
-                          action: 'save',
-                        ),
-                      );
-                },
-                icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                iconAlignment: IconAlignment.end,
-                label: Text(
-                  'Continue To Stability Verify',
-                  style: GoogleFonts.outfit(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w600,
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kBlue,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () {
+                    context.read<TransitionDetailBloc>().add(
+                          SaveTransitionActionEvent(
+                            siteId: widget.siteId,
+                            action: 'save',
+                          ),
+                        );
+                  },
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                  iconAlignment: IconAlignment.end,
+                  label: Text(
+                    'Continue To Stability Verify',
+                    style: GoogleFonts.outfit(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -1472,14 +1725,16 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
   ) {
     final preview = state.response.ldPreview;
     final review = preview.review;
-    final isVerified = review.status.toUpperCase() == 'VERIFIED';
+    final isVerified = review.status.toUpperCase() == 'VERIFIED' || state.response.site.ldTransitionComplete;
     final isSuperAdmin = HiveStorage.isSuperAdmin;
     final isHead = HiveStorage.isLdHead && !isSuperAdmin;
-    final canVerify = isHead && !isSuperAdmin;
+    final canVerify = (state.response.canVerify || isHead) && !isSuperAdmin;
 
-    final allInternalDone = preview.internal.isNotEmpty &&
-        preview.internal.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
-    final allLdDone = preview.ldTransition.isNotEmpty &&
+    final isKickoffDone = !preview.kickoff.isWithClientYes || preview.kickoff.date.trim().isNotEmpty;
+    final allInternalDone = isKickoffDone &&
+        (preview.internal.isEmpty ||
+            preview.internal.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED'));
+    final allLdDone = preview.ldTransition.isEmpty ||
         preview.ldTransition.every((i) => i.done || i.status.toUpperCase() == 'COMPLETED');
 
     return Container(
@@ -1559,6 +1814,17 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                 onPressed: isSuperAdmin
                     ? null
                     : () {
+                        if (!isKickoffDone) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Kick-Off Date is mandatory when Kick-Off with Client is Yes.',
+                              ),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          return;
+                        }
                         if (!allInternalDone) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -1622,7 +1888,7 @@ class _TransitionSiteDetailViewState extends State<_TransitionSiteDetailView> {
                   ),
                 ),
               ),
-            ] else if (!isHead) ...[
+            ] else if (!canVerify) ...[
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerRight,

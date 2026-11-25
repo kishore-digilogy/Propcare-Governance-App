@@ -141,6 +141,15 @@ class MockMmrMisRemoteDataSource implements ActivitiesRemoteDataSource {
   Future<bool> saveChecklistAnswers({required String activityId, required List<Map<String, dynamic>> answers}) async {
     return true;
   }
+
+  @override
+  Future<ActivityItemDetailModel> updateMomPointStatus({
+    required String activityId,
+    required String pointId,
+    required String status,
+  }) async {
+    throw UnimplementedError();
+  }
 }
 
 void main() {
@@ -403,9 +412,9 @@ void main() {
 
       // Activity execution view opens
       expect(find.text('Activities > ACT-E61C9'), findsOneWidget);
-      expect(find.text('Visit details'), findsWidgets);
-      expect(find.text('Save draft'), findsOneWidget);
-      expect(find.text('Submit visit'), findsWidgets);
+      expect(find.textContaining('Visit Details', findRichText: true), findsWidgets);
+      expect(find.textContaining('Save Draft', findRichText: true), findsWidgets);
+      expect(find.textContaining('Complete', findRichText: true), findsWidgets);
 
       // Back returns to MMR / MIS list
       await tester.tap(find.text('Back'));

@@ -53,6 +53,12 @@ abstract class ActivitiesRemoteDataSource {
     required Map<String, dynamic> payload,
   });
 
+  Future<ActivityItemDetailModel> updateMomPointStatus({
+    required String activityId,
+    required String pointId,
+    required String status,
+  });
+
   Future<ChecklistReportResponseModel> getChecklistBySite();
 
   Future<SiteChecklistDetailResponseModel> getChecklistDetailBySite(String siteId);
@@ -296,6 +302,28 @@ class ActivitiesRemoteDataSourceImpl implements ActivitiesRemoteDataSource {
       throw Exception('Invalid response format for sendMomEmail');
     } else {
       throw Exception('Failed to send MOM email (HTTP ${response.statusCode})');
+    }
+  }
+
+  @override
+  Future<ActivityItemDetailModel> updateMomPointStatus({
+    required String activityId,
+    required String pointId,
+    required String status,
+  }) async {
+    final path = '/activities/$activityId/mom/points/$pointId';
+    final response = await _dio.patch(path, data: {'status': status});
+
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      final data = response.data;
+      if (data is Map && data['activity'] is Map) {
+        return ActivityItemDetailModel.fromJson(Map<String, dynamic>.from(data['activity'] as Map));
+      } else if (data is Map) {
+        return ActivityItemDetailModel.fromJson(Map<String, dynamic>.from(data));
+      }
+      throw Exception('Invalid response format for updateMomPointStatus');
+    } else {
+      throw Exception('Failed to update action point (HTTP ${response.statusCode})');
     }
   }
 

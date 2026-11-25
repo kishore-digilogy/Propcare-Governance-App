@@ -30,6 +30,13 @@ class MockSitesRemoteDataSource implements SitesRemoteDataSource {
   }
 
   @override
+  Future<void> updateManpower(
+    String siteId, {
+    required int manpowerRequired,
+    required int manpowerDeployed,
+  }) async {}
+
+  @override
   Future<RenewalSitesResponseModel> getRenewalSites({
     String window = '30',
     int offset = 0,

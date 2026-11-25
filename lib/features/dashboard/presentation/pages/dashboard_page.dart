@@ -10,6 +10,7 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/services/meta_service.dart';
 import '../../../../core/storage/hive_storage.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/app_error_view.dart';
 import '../../../../core/widgets/state_avatar.dart';
 import '../../../../core/widgets/app_shimmer.dart';
 import '../../../activities/presentation/pages/activities_page.dart';
@@ -425,8 +426,10 @@ class _ProfileDropdownPill extends StatelessWidget {
             maxHeight: screenHeight * 0.85,
           ),
           child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            top: false,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -440,91 +443,81 @@ class _ProfileDropdownPill extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Avatar
-                          CircleAvatar(
-                            radius: 36,
-                            backgroundColor: _kBlue.withValues(alpha: 0.12),
-                            child: Text(
-                              initials,
-                              style: GoogleFonts.outfit(
-                                color: _kBlue,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 24,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            name,
-                            style: GoogleFonts.outfit(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.secondary,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEFF6FF),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: const Color(0xFFBFDBFE)),
-                            ),
-                            child: Text(
-                              (role.toUpperCase() == 'CRRM' ||
-                                      role.toUpperCase().contains('ADMIN'))
-                                  ? 'CRRM / Super Admin'
-                                  : role,
-                              style: GoogleFonts.outfit(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: _kBlue,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Divider(color: Color(0xFFE2E8F0)),
-                          const SizedBox(height: 8),
-                          // Details rows
-                          _ProfileInfoTile(
-                            icon: Icons.email_outlined,
-                            label: 'Email Address',
-                            value: email,
-                          ),
-                          _ProfileInfoTile(
-                            icon: Icons.shield_outlined,
-                            label: 'Account Role',
-                            value:
-                                (role.toUpperCase() == 'CRRM' ||
-                                    role.toUpperCase().contains('ADMIN'))
-                                ? 'CRRM / Super Admin'
-                                : role,
-                          ),
-                          const _ProfileInfoTile(
-                            icon: Icons.business_outlined,
-                            label: 'Organization',
-                            value: 'Casa Grande PropCare',
-                          ),
-                          _ProfileInfoTile(
-                            icon: Icons.verified_user_outlined,
-                            label: 'Account Status',
-                            value: 'Active',
-                            valueColor: _kGreen,
-                          ),
-                        ],
+                  // Avatar
+                  CircleAvatar(
+                    radius: 36,
+                    backgroundColor: _kBlue.withValues(alpha: 0.12),
+                    child: Text(
+                      initials,
+                      style: GoogleFonts.outfit(
+                        color: _kBlue,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 24,
                       ),
                     ),
                   ),
                   const SizedBox(height: 12),
+                  Text(
+                    name,
+                    style: GoogleFonts.outfit(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.secondary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                    ),
+                    child: Text(
+                      (role.toUpperCase() == 'CRRM' ||
+                              role.toUpperCase().contains('ADMIN'))
+                          ? 'CRRM / Super Admin'
+                          : role,
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _kBlue,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(color: Color(0xFFE2E8F0)),
+                  const SizedBox(height: 8),
+                  // Details rows
+                  _ProfileInfoTile(
+                    icon: Icons.email_outlined,
+                    label: 'Email Address',
+                    value: email,
+                  ),
+                  _ProfileInfoTile(
+                    icon: Icons.shield_outlined,
+                    label: 'Account Role',
+                    value:
+                        (role.toUpperCase() == 'CRRM' ||
+                            role.toUpperCase().contains('ADMIN'))
+                        ? 'CRRM / Super Admin'
+                        : role,
+                  ),
+                  const _ProfileInfoTile(
+                    icon: Icons.business_outlined,
+                    label: 'Organization',
+                    value: 'Casa Grande PropCare',
+                  ),
+                  _ProfileInfoTile(
+                    icon: Icons.verified_user_outlined,
+                    label: 'Account Status',
+                    value: 'Active',
+                    valueColor: _kGreen,
+                  ),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
@@ -3679,6 +3672,9 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
         ? widget.data.overview.roleFilterRoles
         : widget.data.workspace.roles;
 
+    final bool hasRoleFilter =
+        !HiveStorage.isClusterExecutive && roles.isNotEmpty;
+
     final selectedRoleOption = roles
         .where((r) => r.role == widget.selectedRole)
         .firstOrNull;
@@ -3691,7 +3687,7 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
 
     final activeFilterCount = (widget.selectedZoneId != null ? 1 : 0) +
         (widget.selectedClusterId != null ? 1 : 0) +
-        (!HiveStorage.isClusterExecutive && widget.selectedRole != null && widget.selectedRole != 'CRRM' ? 1 : 0);
+        (hasRoleFilter && widget.selectedRole != null && widget.selectedRole != 'CRRM' ? 1 : 0);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -3814,7 +3810,9 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
                         ),
                         const SizedBox(height: 1.5),
                         Text(
-                          'Scope metrics by Zone, Cluster & Role',
+                          hasRoleFilter
+                              ? 'Scope metrics by Zone, Cluster & Role'
+                              : 'Scope metrics by Zone & Cluster',
                           style: GoogleFonts.outfit(
                             fontSize: isTablet ? 12 : 11,
                             fontWeight: FontWeight.w500,
@@ -3906,7 +3904,7 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
               // Filter Cards Row (Zone, Cluster, Role)
               if (!_isCollapsed) ...[
                 const SizedBox(height: 12),
-                if (isTablet)
+                if (isTablet || !hasRoleFilter)
                   Row(
                     children: [
                       // Zone Filter Card
@@ -3923,7 +3921,7 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
                           isExpanded: true,
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      SizedBox(width: isTablet ? 10 : 8),
 
                       // Cluster Filter Card
                       Expanded(
@@ -3940,9 +3938,9 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
                         ),
                       ),
 
-                      // Role Filter Card (Hidden for Cluster Executive)
-                      if (!HiveStorage.isClusterExecutive) ...[
-                        const SizedBox(width: 10),
+                      // Role Filter Card (Shown only when hasRoleFilter on wide screen)
+                      if (hasRoleFilter) ...[
+                        SizedBox(width: isTablet ? 10 : 8),
                         Expanded(
                           child: _FilterSelectorChip(
                             category: 'Role',
@@ -3989,20 +3987,19 @@ class _DashboardFilterBarState extends State<_DashboardFilterBar> {
                               ? () => widget.onFilterChanged(widget.selectedZoneId, null, widget.selectedRole)
                               : null,
                         ),
-                        // Role Filter Card (Hidden for Cluster Executive)
-                        if (!HiveStorage.isClusterExecutive) ...[
-                          const SizedBox(width: 8),
-                          _FilterSelectorChip(
-                            category: 'Role',
-                            icon: Icons.badge_outlined,
-                            label: selectedRoleLabel,
-                            isSelected: widget.selectedRole != null && widget.selectedRole != 'CRRM',
-                            onTap: () => _showRolePicker(context),
-                            onClear: (widget.selectedRole != null && widget.selectedRole != 'CRRM')
-                                ? () => widget.onFilterChanged(widget.selectedZoneId, widget.selectedClusterId, null)
-                                : null,
-                          ),
-                        ],
+                        const SizedBox(width: 8),
+
+                        // Role Filter Card
+                        _FilterSelectorChip(
+                          category: 'Role',
+                          icon: Icons.badge_outlined,
+                          label: selectedRoleLabel,
+                          isSelected: widget.selectedRole != null && widget.selectedRole != 'CRRM',
+                          onTap: () => _showRolePicker(context),
+                          onClear: (widget.selectedRole != null && widget.selectedRole != 'CRRM')
+                              ? () => widget.onFilterChanged(widget.selectedZoneId, widget.selectedClusterId, null)
+                              : null,
+                        ),
                       ],
                     ),
                   ),
@@ -7625,51 +7622,10 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.wifi_off_rounded,
-              size: 56,
-              color: Color(0xFFCBD5E1),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Failed to load dashboard',
-              style: GoogleFonts.outfit(
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-                color: AppColors.secondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.outfit(fontSize: 12, color: _kSlate),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: Text(
-                'Retry',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _kBlue,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return AppErrorView(
+      error: message,
+      customTitle: 'Failed to Load Dashboard',
+      onRetry: onRetry,
     );
   }
 }
