@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/services/location_service.dart';
 import '../models/activity_detail_model.dart';
 import '../models/activity_site_summary_model.dart';
 import '../models/checklist_report_model.dart';
@@ -46,6 +47,7 @@ abstract class ActivitiesRemoteDataSource {
     String? note,
     List<dynamic>? answers,
     List<dynamic>? findings,
+    LocationResult? geo,
   });
 
   Future<ActivityItemDetailModel> sendMomEmail({
@@ -66,6 +68,23 @@ abstract class ActivitiesRemoteDataSource {
   Future<bool> saveChecklistAnswers({
     required String activityId,
     required List<Map<String, dynamic>> answers,
+  });
+
+  Future<bool> sendLocationPing({
+    required String activityId,
+    required double latitude,
+    required double longitude,
+    required double accuracy,
+    required String capturedAt,
+  });
+
+  Future<List<Map<String, dynamic>>> getLocationTrail(String activityId);
+
+  Future<List<Map<String, dynamic>>> getMyTracking({bool activeOnly = false});
+
+  Future<List<Map<String, dynamic>>> getLiveTracking({
+    bool activeOnly = true,
+    String? siteId,
   });
 }
 
@@ -251,6 +270,7 @@ class ActivitiesRemoteDataSourceImpl implements ActivitiesRemoteDataSource {
     String? note,
     List<dynamic>? answers,
     List<dynamic>? findings,
+    LocationResult? geo,
   }) async {
     final path = '/activities/$activityId/complete';
     final userNote = (note != null && note.trim().isNotEmpty) ? note.trim() : '';
@@ -263,6 +283,10 @@ class ActivitiesRemoteDataSourceImpl implements ActivitiesRemoteDataSource {
       'note': formattedNote,
       'findings': findings ?? <dynamic>[],
     };
+
+    if (geo != null) {
+      payload['geo'] = geo.toJson();
+    }
 
     final response = await _dio.post(path, data: payload);
 
@@ -381,6 +405,85 @@ class ActivitiesRemoteDataSourceImpl implements ActivitiesRemoteDataSource {
     } else {
       throw Exception('Failed to save checklist answers (HTTP ${response.statusCode})');
     }
+  }
+
+  @override
+  Future<bool> sendLocationPing({
+    required String activityId,
+    required double latitude,
+    required double longitude,
+    required double accuracy,
+    required String capturedAt,
+  }) async {
+    final path = '/activities/$activityId/location-pings';
+    final payload = {
+      'geo': {
+        'latitude': latitude,
+        'longitude': longitude,
+        'accuracy': accuracy,
+        'capturedAt': capturedAt,
+      },
+    };
+    final response = await _dio.post(path, data: payload);
+    return response.statusCode == 200 || response.statusCode == 201;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getLocationTrail(String activityId) async {
+    final path = '/activities/$activityId/location-trail';
+    final response = await _dio.get(path);
+    if (response.data is List) {
+      return List<Map<String, dynamic>>.from(
+        (response.data as List).whereType<Map>().map((m) => Map<String, dynamic>.from(m)),
+      );
+    } else if (response.data is Map && response.data['trail'] is List) {
+      return List<Map<String, dynamic>>.from(
+        (response.data['trail'] as List).whereType<Map>().map((m) => Map<String, dynamic>.from(m)),
+      );
+    }
+    return [];
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getMyTracking({bool activeOnly = false}) async {
+    final path = '/activities/tracking/mine';
+    final response = await _dio.get(
+      path,
+      queryParameters: activeOnly ? {'active': 'true'} : null,
+    );
+    if (response.data is List) {
+      return List<Map<String, dynamic>>.from(
+        (response.data as List).whereType<Map>().map((m) => Map<String, dynamic>.from(m)),
+      );
+    } else if (response.data is Map && response.data['sessions'] is List) {
+      return List<Map<String, dynamic>>.from(
+        (response.data['sessions'] as List).whereType<Map>().map((m) => Map<String, dynamic>.from(m)),
+      );
+    }
+    return [];
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getLiveTracking({
+    bool activeOnly = true,
+    String? siteId,
+  }) async {
+    final path = '/activities/tracking/live';
+    final queryParams = <String, dynamic>{
+      if (activeOnly) 'active': 'true',
+      if (siteId != null && siteId.isNotEmpty) 'siteId': siteId,
+    };
+    final response = await _dio.get(path, queryParameters: queryParams);
+    if (response.data is List) {
+      return List<Map<String, dynamic>>.from(
+        (response.data as List).whereType<Map>().map((m) => Map<String, dynamic>.from(m)),
+      );
+    } else if (response.data is Map && response.data['users'] is List) {
+      return List<Map<String, dynamic>>.from(
+        (response.data['users'] as List).whereType<Map>().map((m) => Map<String, dynamic>.from(m)),
+      );
+    }
+    return [];
   }
 }
 

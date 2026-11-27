@@ -22,6 +22,12 @@ class AppConfig {
   /// Backend API path prefix
   static const String apiPrefix = '/api';
 
+  /// Application origin matching server APP_ORIGIN (default http://localhost:5173).
+  static const String appOrigin = String.fromEnvironment(
+    'APP_ORIGIN',
+    defaultValue: 'http://localhost:5173',
+  );
+
   /// Returns the base API URL for the currently active environment.
   static String get baseUrl {
     switch (currentEnvironment) {

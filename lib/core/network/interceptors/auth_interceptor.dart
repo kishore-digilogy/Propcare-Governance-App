@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../config/app_config.dart';
 import '../../router/app_router.dart';
 import '../../storage/hive_storage.dart';
 import '../../utils/app_logger.dart';
@@ -8,8 +9,9 @@ import '../../utils/app_logger.dart';
 /// 1. Attaching `Cookie: pc_session=...` to all outgoing requests.
 /// 2. Attaching `X-CSRF-Token` for mutating requests (POST, PUT, PATCH, DELETE).
 /// 3. Attaching `X-PropCare-Request: 1` header.
-/// 4. Capturing `set-cookie` from responses and storing `pc_session` in Hive.
-/// 5. Capturing `csrfToken` and user details from responses.
+/// 4. Attaching `Origin` header matching APP_ORIGIN.
+/// 5. Capturing `set-cookie` from responses and storing `pc_session` in Hive.
+/// 6. Capturing `csrfToken` and user details from responses.
 class AuthInterceptor extends Interceptor {
   final String? Function()? tokenProvider;
 
@@ -20,7 +22,10 @@ class AuthInterceptor extends Interceptor {
     // 1. Mandatory application header for Digilogy PropCare API
     options.headers['X-PropCare-Request'] = '1';
 
-    // 2. Attach session cookie if present
+    // 2. Mandatory origin header for CORS/CSRF validation
+    options.headers['Origin'] ??= AppConfig.appOrigin;
+
+    // 3. Attach session cookie if present
     final sessionCookie = HiveStorage.sessionCookie;
     if (sessionCookie != null && sessionCookie.isNotEmpty) {
       final cookieHeader = sessionCookie.startsWith('pc_session=')
